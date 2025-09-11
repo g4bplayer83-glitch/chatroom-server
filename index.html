@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatRoom - Client</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 900px;
+            height: 85vh;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .connection-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .connection-form {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            min-width: 350px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .connection-form h2 {
+            margin-bottom: 25px;
+            color: #333;
+            font-size: 24px;
+        }
+
+        .connection-form input {
+            width: 100%;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            outline: none;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .connection-form input:focus {
+            border-color: #4facfe;
+        }
+
+        .connection-form button {
+            width: 100%;
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .connection-form button:hover {
+            transform: translateY(-2px);
+        }
+
+        .error-message {
+            color: #e74c3c;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .chat-header {
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-info h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header-info .server-info {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .header-stats {
+            text-align: right;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .chat-main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .users-sidebar {
+            width: 250px;
+            background: #fff;
+            border-left: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .users-title {
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #4facfe;
+            padding-bottom: 10px;
+        }
+
+        .user-item {
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            background: #f1f3f4;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        .user-item.current {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 18px;
+            border-radius: 18px;
+            max-width: 75%;
+            word-wrap: break-word;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .message.own {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.other {
+            background: white;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .message.system {
+            background: rgba(0, 0, 0, 0.1);
+            color: #666;
+            text-align: center;
+            font-style: italic;
+            margin: 15px auto;
+            max-width: 60%;
+            font-size: 13px;
+        }
+
+        .message-header {
+            font-size: 12px;
+            margin-bottom: 5px;
+            opacity: 0.8;
+            font-weight: 500;
+        }
+
+        .message.own .message-header {
+            opacity: 0.9;
+        }
+
+        .message-content {
+            font-size: 15px;
+            line-height: 1.4;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+
+        .current-user {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .disconnect-btn {
+            padding: 8px 15px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s;
+        }
+
+        .disconnect-btn:hover {
+            background: #c0392b;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 15px 25px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            outline: none;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        #messageInput:focus {
+            border-color: #4facfe;
+        }
+
+        #sendButton {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        #sendButton:hover {
+            transform: translateY(-2px);
+        }
+
+        #sendButton:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 95%;
+                height: 95vh;
+            }
+
+            .chat-main {
+                flex-direction: column;
+            }
+
+            .users-sidebar {
+                width: 100%;
+                max-height: 150px;
+                border-left: none;
+                border-top: 1px solid #e0e0e0;
+            }
+
+            .message {
+                max-width: 90%;
+            }
+
+            .connection-form {
+                min-width: 280px;
+                padding: 30px;
+            }
+        }
+
+        .typing-indicator {
+            font-style: italic;
+            color: #666;
+            font-size: 13px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Overlay de connexion -->
+        <div class="connection-overlay" id="connectionOverlay">
+            <div class="connection-form">
+                <h2>🚀 Rejoindre le Chat</h2>
+                <input type="text" id="usernameInput" placeholder="Votre pseudo" maxlength="20">
+                <input type="text" id="serverInput" placeholder="IP du serveur (optionnel)" value="">
+                <button onclick="connectToChat()" id="connectBtn">Se connecter</button>
+                <div class="error-message" id="errorMessage"></div>
+            </div>
+        </div>
+
+        <!-- Header du chat -->
+        <div class="chat-header">
+            <div class="header-info">
+                <h1>💬 ChatRoom</h1>
+                <div class="server-info" id="serverInfo">En attente de connexion...</div>
+            </div>
+            <div class="header-stats">
+                <div class="connection-status">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="connectionStatus">Connecté</span>
+                </div>
+                <div id="onlineCount">0 utilisateurs en ligne</div>
+            </div>
+        </div>
+
+        <!-- Zone principale -->
+        <div class="chat-main">
+            <!-- Messages -->
+            <div class="chat-messages" id="chatMessages">
+                <!-- Messages apparaîtront ici -->
+            </div>
+
+            <!-- Sidebar utilisateurs -->
+            <div class="users-sidebar">
+                <div class="users-title" id="usersTitle">👥 Utilisateurs (0)</div>
+                <div id="usersList">
+                    <!-- Liste des utilisateurs -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Zone de saisie -->
+        <div class="chat-input-container">
+            <div class="user-info">
+                <span class="current-user">Connecté en tant que: <strong id="currentUsername">-</strong></span>
+                <button class="disconnect-btn" onclick="disconnectFromChat()">Se déconnecter</button>
+            </div>
+            
+            <div class="chat-input">
+                <input type="text" id="messageInput" placeholder="Tapez votre message..." maxlength="500" disabled>
+                <button id="sendButton" onclick="sendMessage()" disabled>Envoyer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let currentUsername = '';
+        let isConnected = false;
+
+        function connectToChat() {
+            const username = document.getElementById('usernameInput').value.trim();
+            let serverUrl = document.getElementById('serverInput').value.trim();
+            
+            if (!username) {
+                showError('Veuillez entrer un pseudo');
+                return;
+            }
+
+            // Si pas d'IP spécifiée, utiliser l'IP actuelle
+            if (!serverUrl) {
+                serverUrl = window.location.origin;
+            } else {
+                // Ajouter http:// si pas présent
+                if (!serverUrl.startsWith('http://') && !serverUrl.startsWith('https://')) {
+                    serverUrl = 'http://' + serverUrl;
+                }
+                // Ajouter le port par défaut si pas spécifié
+                if (!serverUrl.includes(':3000') && !serverUrl.includes('://localhost')) {
+                    serverUrl += ':3000';
+                }
+            }
+
+            document.getElementById('connectBtn').textContent = 'Connexion...';
+            document.getElementById('connectBtn').disabled = true;
+
+            // Connexion Socket.IO
+            socket = io(serverUrl, {
+                timeout: 10000,
+                forceNew: true
+            });
+
+            // Événements de connexion
+            socket.on('connect', () => {
+                console.log('✅ Connecté au serveur');
+                updateConnectionStatus(true, serverUrl);
+                
+                // S'identifier auprès du serveur
+                socket.emit('user_join', { username });
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ Déconnecté du serveur');
+                updateConnectionStatus(false);
+                showError('Connexion perdue avec le serveur');
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('❌ Erreur de connexion:', error);
+                showError('Impossible de se connecter au serveur. Vérifiez l\'IP.');
+                document.getElementById('connectBtn').textContent = 'Se connecter';
+                document.getElementById('connectBtn').disabled = false;
+            });
+
+            // Événements du chat
+            socket.on('username_taken', (data) => {
+                showError(data.message);
+                document.getElementById('connectBtn').textContent = 'Se connecter';
+                document.getElementById('connectBtn').disabled = false;
+            });
+
+            socket.on('chat_history', (history) => {
+                // Charger l'historique des messages
+                history.forEach(msg => {
+                    if (msg.type === 'system') {
+                        addSystemMessage(msg.message, msg.timestamp);
+                    } else {
+                        addMessage(msg.username, msg.content, msg.timestamp, msg.userId === socket.id);
+                    }
+                });
+            });
+
+            socket.on('system_message', (message) => {
+                addSystemMessage(message.message, message.timestamp);
+            });
+
+            socket.on('new_message', (message) => {
+                addMessage(message.username, message.content, message.timestamp, message.userId === socket.id);
+            });
+
+            socket.on('users_update', (data) => {
+                updateUsersList(data.users, data.count);
+            });
+
+            socket.on('error', (error) => {
+                showError(error.message);
+            });
+
+            // Succès de la connexion
+            socket.on('system_message', (message) => {
+                if (message.message.includes(`${username} a rejoint`)) {
+                    currentUsername = username;
+                    isConnected = true;
+                    
+                    document.getElementById('connectionOverlay').style.display = 'none';
+                    document.getElementById('currentUsername').textContent = username;
+                    document.getElementById('messageInput').disabled = false;
+                    document.getElementById('sendButton').disabled = false;
+                    document.getElementById('messageInput').focus();
+                    
+                    clearError();
+                }
+                addSystemMessage(message.message, message.timestamp);
+            });
+        }
+
+        function disconnectFromChat() {
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            isConnected = false;
+            currentUsername = '';
+            
+            document.getElementById('connectionOverlay').style.display = 'flex';
+            document.getElementById('currentUsername').textContent = '-';
+            document.getElementById('messageInput').disabled = true;
+            document.getElementById('sendButton').disabled = true;
+            document.getElementById('usernameInput').value = '';
+            document.getElementById('serverInput').value = '';
+            document.getElementById('connectBtn').textContent = 'Se connecter';
+            document.getElementById('connectBtn').disabled = false;
+            
+            // Nettoyer les messages
+            document.getElementById('chatMessages').innerHTML = '';
+            document.getElementById('usersList').innerHTML = '';
+            
+            clearError();
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+            
+            if (!content || !isConnected) return;
+            
+            socket.emit('send_message', { content });
+            messageInput.value = '';
+            messageInput.focus();
+        }
+
+        function addMessage(username, content, timestamp, isOwn) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+            
+            const time = new Date(timestamp).toLocaleTimeString('fr-FR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            messageDiv.innerHTML = `
+                <div class="message-header">${username} - ${time}</div>
+                <div class="message-content">${escapeHtml(content)}</div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function addSystemMessage(content, timestamp) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system';
+            
+            const time = new Date(timestamp).toLocaleTimeString('fr-FR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">${escapeHtml(content)} - ${time}</div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function updateUsersList(users, count) {
+            const usersListElement = document.getElementById('usersList');
+            const usersTitleElement = document.getElementById('usersTitle');
+            const onlineCountElement = document.getElementById('onlineCount');
+            
+            usersTitleElement.textContent = `👥 Utilisateurs (${count})`;
+            onlineCountElement.textContent = `${count} utilisateur${count > 1 ? 's' : ''} en ligne`;
+            
+            usersListElement.innerHTML = '';
+            users.forEach(user => {
+                const userDiv = document.createElement('div');
+                userDiv.className = `user-item ${user.username === currentUsername ? 'current' : ''}`;
+                userDiv.textContent = user.username;
+                usersListElement.appendChild(userDiv);
+            });
+        }
+
+        function updateConnectionStatus(connected, serverUrl = '') {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('connectionStatus');
+            const serverInfo = document.getElementById('serverInfo');
+            
+            if (connected) {
+                statusDot.classList.remove('disconnected');
+                statusText.textContent = 'Connecté';
+                serverInfo.textContent = `Serveur: ${serverUrl}`;
+            } else {
+                statusDot.classList.add('disconnected');
+                statusText.textContent = 'Déconnecté';
+                serverInfo.textContent = 'Non connecté';
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        function clearError() {
+            document.getElementById('errorMessage').textContent = '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Gestion des touches
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        document.getElementById('usernameInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connectToChat();
+            }
+        });
+
+        document.getElementById('serverInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connectToChat();
+            }
+        });
+
+        // Auto-focus sur le champ pseudo au chargement
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('usernameInput').focus();
+        });
+    </script>
+</body>
+</html>
