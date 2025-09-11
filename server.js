@@ -12,22 +12,31 @@ const io = socketIo(server, {
     }
 });
 
-// Servir les fichiers statiques (HTML, CSS, JS)
-app.use(express.static('public'));
+// Servir les fichiers statiques depuis la racine (pas de dossier public)
+app.use(express.static(__dirname));
 
 // Variables pour stocker les données
 let connectedUsers = new Map(); // socketId -> userData
 let chatHistory = []; // Historique des messages
 const MAX_HISTORY = 100; // Limite de l'historique
 
-// Route principale
+// Route principale - servir index.html depuis la racine
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Route de santé pour Render
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'OK', 
+        users: connectedUsers.size,
+        messages: chatHistory.length 
+    });
 });
 
 // Gestion des connexions Socket.IO
 io.on('connection', (socket) => {
-    console.log(`📱 Nouvelle connexion: ${socket.id}`);
+    console.log(`🔱 Nouvelle connexion: ${socket.id}`);
 
     // Envoi de l'historique des messages au nouveau client
     socket.emit('chat_history', chatHistory);
@@ -48,7 +57,7 @@ io.on('connection', (socket) => {
             id: socket.id,
             username: username,
             joinTime: new Date(),
-            ip: socket.request.connection.remoteAddress
+            ip: socket.request.connection.remoteAddress || 'unknown'
         };
         
         connectedUsers.set(socket.id, userInfo);
@@ -130,7 +139,7 @@ io.on('connection', (socket) => {
 
     // Gestion des erreurs de socket
     socket.on('error', (error) => {
-        console.error(`❌ Erreur socket ${socket.id}:`, error);
+        console.error(`⛔ Erreur socket ${socket.id}:`, error);
     });
 });
 
@@ -162,48 +171,30 @@ setInterval(() => {
     }
 }, 30000);
 
-// Fonction pour obtenir l'IP locale
-function getLocalIP() {
-    const { networkInterfaces } = require('os');
-    const nets = networkInterfaces();
-    const results = [];
-
-    for (const name of Object.keys(nets)) {
-        for (const net of nets[name]) {
-            if (net.family === 'IPv4' && !net.internal) {
-                results.push(net.address);
-            }
-        }
-    }
-    return results;
-}
-
 // Démarrage du serveur
 const PORT = process.env.PORT || 3000;
+
 server.listen(PORT, '0.0.0.0', () => {
-    const localIPs = getLocalIP();
-    
     console.log(`🚀 Serveur de chat démarré sur le port ${PORT}`);
-    console.log(`🌐 Accès local: http://localhost:${PORT}`);
-    
-    if (localIPs.length > 0) {
-        console.log(`📱 Accès réseau local (même Wi-Fi):`);
-        localIPs.forEach(ip => {
-            console.log(`   http://${ip}:${PORT}`);
-        });
-        console.log(`\n💡 Les clients doivent utiliser une de ces IPs locales !`);
-        console.log(`❌ NE PAS utiliser l'IP publique sans configuration routeur`);
-    }
-    
-    console.log(`\n🔧 Pour l'accès externe, configurez le port forwarding sur votre routeur`);
+    console.log(`🌐 Serveur accessible sur Render !`);
 });
 
 // Gestion des erreurs serveur
 server.on('error', (error) => {
-    console.error('❌ Erreur serveur:', error);
+    console.error('⛔ Erreur serveur:', error);
 });
 
+// Gestion propre de l'arrêt
 process.on('SIGINT', () => {
     console.log('\n🛑 Arrêt du serveur...');
-    process.exit();
+    server.close(() => {
+        process.exit(0);
+    });
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🛑 Arrêt du serveur...');
+    server.close(() => {
+        process.exit(0);
+    });
 });
