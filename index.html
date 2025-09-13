@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>ChatRoom - Client</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
@@ -19,6 +19,7 @@
             --sidebar-bg: #fff;
             --input-bg: white;
             --accent-color: #4facfe;
+            --typing-bg: rgba(0, 0, 0, 0.05);
         }
 
         /* Thème sombre */
@@ -34,6 +35,7 @@
             --sidebar-bg: #2c3e50;
             --input-bg: #34495e;
             --accent-color: #667eea;
+            --typing-bg: rgba(255, 255, 255, 0.1);
         }
 
         /* Thème violet */
@@ -96,6 +98,14 @@
             --accent-color: #fa709a;
         }
 
+        /* Styles de texte */
+        .text-style-normal { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .text-style-serif { font-family: Georgia, 'Times New Roman', Times, serif; }
+        .text-style-mono { font-family: 'Courier New', Courier, monospace; }
+        .text-style-comic { font-family: 'Comic Sans MS', cursive; }
+        .text-style-impact { font-family: Impact, Arial Black, sans-serif; }
+        .text-style-elegant { font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif; }
+
         * {
             margin: 0;
             padding: 0;
@@ -110,15 +120,13 @@
             justify-content: center;
             align-items: center;
             transition: all 0.3s ease;
+            overflow: hidden;
         }
 
         .chat-container {
-            width: 90%;
-            max-width: 900px;
-            height: 85vh;
+            width: 100%;
+            height: 100vh;
             background: var(--chat-bg);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -170,10 +178,11 @@
 
         .connection-form {
             background: var(--input-bg);
-            padding: 40px;
+            padding: 30px;
             border-radius: 20px;
             text-align: center;
-            min-width: 350px;
+            width: 90%;
+            max-width: 400px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             color: var(--text-primary);
         }
@@ -181,17 +190,17 @@
         .connection-form h2 {
             margin-bottom: 25px;
             color: var(--text-primary);
-            font-size: 24px;
+            font-size: 20px;
         }
 
         .connection-form input {
             width: 100%;
-            padding: 15px 20px;
-            margin-bottom: 15px;
+            padding: 12px 15px;
+            margin-bottom: 12px;
             border: 2px solid var(--border-color);
             border-radius: 25px;
             outline: none;
-            font-size: 16px;
+            font-size: 14px;
             transition: border-color 0.3s;
             background: var(--input-bg);
             color: var(--text-primary);
@@ -203,13 +212,13 @@
 
         .connection-form button {
             width: 100%;
-            padding: 15px 25px;
+            padding: 12px 20px;
             background: var(--secondary-gradient);
             color: white;
             border: none;
             border-radius: 25px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
             transition: transform 0.2s;
         }
@@ -219,14 +228,14 @@
         }
 
         .avatar-upload {
-            margin: 15px 0;
+            margin: 12px 0;
         }
 
         .avatar-preview {
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
-            margin: 10px auto;
+            margin: 8px auto;
             background: #f0f0f0;
             display: flex;
             align-items: center;
@@ -242,26 +251,27 @@
 
         .error-message {
             color: #e74c3c;
-            margin-top: 10px;
-            font-size: 14px;
+            margin-top: 8px;
+            font-size: 12px;
         }
 
         .chat-header {
             background: var(--secondary-gradient);
             color: white;
-            padding: 20px;
+            padding: 15px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .header-info h1 {
-            font-size: 24px;
-            margin-bottom: 5px;
+            font-size: 18px;
+            margin-bottom: 3px;
         }
 
         .header-info .server-info {
-            font-size: 14px;
+            font-size: 12px;
             opacity: 0.9;
         }
 
@@ -273,12 +283,12 @@
             display: flex;
             align-items: center;
             gap: 5px;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
         }
 
         .status-dot {
-            width: 10px;
-            height: 10px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background: #4CAF50;
             animation: pulse 2s infinite;
@@ -295,25 +305,26 @@
         }
 
         .settings-btn {
-            padding: 8px 15px;
+            padding: 6px 12px;
             background: rgba(255, 255, 255, 0.2);
             color: white;
             border: none;
-            border-radius: 15px;
+            border-radius: 12px;
             cursor: pointer;
-            font-size: 12px;
-            margin-left: 10px;
+            font-size: 11px;
+            margin-left: 8px;
         }
 
         .chat-main {
             display: flex;
             flex: 1;
             overflow: hidden;
+            flex-direction: column;
         }
 
         .chat-messages {
             flex: 1;
-            padding: 20px;
+            padding: 15px;
             overflow-y: auto;
             background: #f8f9fa;
             display: flex;
@@ -321,31 +332,42 @@
         }
 
         .users-sidebar {
-            width: 250px;
             background: var(--sidebar-bg);
-            border-left: 1px solid var(--border-color);
-            padding: 20px;
-            overflow-y: auto;
+            border-top: 1px solid var(--border-color);
+            padding: 15px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            max-height: 120px;
+            flex-shrink: 0;
         }
 
         .users-title {
             font-weight: bold;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             color: var(--text-primary);
             border-bottom: 2px solid var(--accent-color);
-            padding-bottom: 10px;
+            padding-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .users-list {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 5px;
         }
 
         .user-item {
             padding: 8px 12px;
-            margin-bottom: 8px;
             background: #f1f3f4;
             border-radius: 15px;
-            font-size: 14px;
+            font-size: 12px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             color: var(--text-primary);
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .user-item.current {
@@ -354,8 +376,8 @@
         }
 
         .user-avatar {
-            width: 25px;
-            height: 25px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
             background: #ddd;
             overflow: hidden;
@@ -369,10 +391,10 @@
         }
 
         .message {
-            margin-bottom: 15px;
-            padding: 12px 18px;
+            margin-bottom: 12px;
+            padding: 12px 15px;
             border-radius: 18px;
-            max-width: 75%;
+            max-width: 85%;
             word-wrap: break-word;
             animation: slideIn 0.3s ease-out;
             position: relative;
@@ -397,19 +419,19 @@
             color: var(--text-secondary);
             text-align: center;
             font-style: italic;
-            margin: 15px auto;
-            max-width: 60%;
-            font-size: 13px;
+            margin: 12px auto;
+            max-width: 70%;
+            font-size: 12px;
         }
 
         .message-header {
-            font-size: 12px;
-            margin-bottom: 5px;
+            font-size: 11px;
+            margin-bottom: 4px;
             opacity: 0.8;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .message.own .message-header {
@@ -418,8 +440,8 @@
         }
 
         .message-avatar {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             overflow: hidden;
         }
@@ -431,16 +453,16 @@
         }
 
         .message-content {
-            font-size: 15px;
+            font-size: 14px;
             line-height: 1.4;
         }
 
         .message-reply {
             background: rgba(0, 0, 0, 0.1);
-            padding: 8px 12px;
-            margin-bottom: 8px;
-            border-radius: 10px;
-            font-size: 13px;
+            padding: 6px 10px;
+            margin-bottom: 6px;
+            border-radius: 8px;
+            font-size: 11px;
             border-left: 3px solid var(--accent-color);
         }
 
@@ -449,40 +471,30 @@
         }
 
         .message-actions {
-            position: absolute;
-            right: -60px;
-            top: 50%;
-            transform: translateY(-50%);
             display: flex;
-            background: var(--input-bg);
-            border-radius: 15px;
-            padding: 5px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            z-index: 100;
+            justify-content: center;
+            margin-top: 8px;
+            gap: 8px;
         }
 
         .message-actions button {
-            background: none;
+            background: var(--accent-color);
             border: none;
-            padding: 5px 8px;
+            padding: 4px 8px;
             cursor: pointer;
-            border-radius: 10px;
-            font-size: 12px;
-            color: var(--text-primary);
-        }
-
-        .message-actions button:hover {
-            background: var(--border-color);
+            border-radius: 8px;
+            font-size: 11px;
+            color: white;
         }
 
         .attachment {
-            margin-top: 10px;
-            padding: 10px;
+            margin-top: 8px;
+            padding: 8px;
             background: rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .message.own .attachment {
@@ -490,12 +502,12 @@
         }
 
         .attachment-icon {
-            font-size: 20px;
+            font-size: 16px;
         }
 
         .attachment-info {
             flex: 1;
-            font-size: 13px;
+            font-size: 11px;
         }
 
         .attachment-name {
@@ -508,21 +520,20 @@
         }
 
         .download-btn {
-            padding: 5px 10px;
+            padding: 4px 8px;
             background: var(--accent-color);
             color: white;
             border: none;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 10px;
         }
 
-        /* Nouveau style pour les images dans les messages */
         .message-image {
-            max-width: 300px;
-            max-height: 300px;
-            border-radius: 10px;
-            margin-top: 10px;
+            max-width: 250px;
+            max-height: 250px;
+            border-radius: 8px;
+            margin-top: 8px;
             cursor: pointer;
             transition: transform 0.2s;
         }
@@ -531,7 +542,6 @@
             transform: scale(1.02);
         }
 
-        /* Modal pour affichage plein écran des images */
         .image-modal {
             display: none;
             position: fixed;
@@ -557,15 +567,15 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
-            border-radius: 10px;
+            border-radius: 8px;
         }
 
         .image-modal-close {
             position: absolute;
-            top: 20px;
-            right: 30px;
+            top: 15px;
+            right: 25px;
             color: white;
-            font-size: 40px;
+            font-size: 30px;
             font-weight: bold;
             cursor: pointer;
             z-index: 3001;
@@ -575,36 +585,35 @@
             color: #ccc;
         }
 
-        /* Zone de collage d'image */
         .paste-preview {
             display: none;
             background: #f0f0f0;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
             border: 2px dashed var(--accent-color);
             text-align: center;
         }
 
         .paste-preview img {
-            max-width: 200px;
-            max-height: 150px;
-            border-radius: 10px;
-            margin-bottom: 10px;
+            max-width: 150px;
+            max-height: 100px;
+            border-radius: 8px;
+            margin-bottom: 8px;
         }
 
         .paste-preview-actions {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             justify-content: center;
         }
 
         .paste-preview-actions button {
-            padding: 8px 15px;
+            padding: 6px 12px;
             border: none;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .paste-send {
@@ -617,28 +626,92 @@
             color: #333;
         }
 
+        /* Typing indicator amélioré */
         .typing-indicator {
-            font-style: italic;
+            background: var(--typing-bg);
+            border-radius: 20px;
+            padding: 8px 15px;
+            margin: 8px 0;
+            font-size: 12px;
             color: var(--text-secondary);
-            font-size: 13px;
-            margin: 10px 0;
-            padding: 5px 15px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            max-width: 80%;
+        }
+
+        .typing-indicator.active {
+            display: flex;
+        }
+
+        .typing-users {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .typing-avatar {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid var(--accent-color);
+        }
+
+        .typing-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 2px;
+            margin-left: 5px;
+        }
+
+        .typing-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            animation: typing-bounce 1.4s infinite both;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing-bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         .chat-input-container {
-            padding: 20px;
+            padding: 15px;
             background: var(--input-bg);
             border-top: 1px solid var(--border-color);
+            flex-shrink: 0;
         }
 
         .user-info {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
-            padding: 10px 15px;
+            margin-bottom: 10px;
+            padding: 8px 12px;
             background: #f8f9fa;
-            border-radius: 15px;
+            border-radius: 12px;
         }
 
         .current-user {
@@ -646,12 +719,13 @@
             color: var(--text-primary);
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            font-size: 12px;
         }
 
         .current-user-avatar {
-            width: 30px;
-            height: 30px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             overflow: hidden;
         }
@@ -664,15 +738,15 @@
 
         .user-controls {
             display: flex;
-            gap: 10px;
+            gap: 8px;
         }
 
         .settings-btn, .disconnect-btn {
-            padding: 8px 15px;
+            padding: 6px 10px;
             border: none;
-            border-radius: 15px;
+            border-radius: 12px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 10px;
             transition: background 0.3s;
         }
 
@@ -692,11 +766,11 @@
 
         .reply-preview {
             background: #f0f0f0;
-            padding: 10px 15px;
-            margin-bottom: 10px;
-            border-radius: 10px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
             border-left: 3px solid var(--accent-color);
-            font-size: 13px;
+            font-size: 11px;
             display: none;
         }
 
@@ -709,21 +783,23 @@
 
         .chat-input {
             display: flex;
-            gap: 10px;
-            align-items: center;
+            gap: 8px;
+            align-items: flex-end;
         }
 
         #messageInput {
             flex: 1;
-            padding: 15px 25px;
+            padding: 12px 18px;
             border: 2px solid var(--border-color);
-            border-radius: 25px;
+            border-radius: 20px;
             outline: none;
-            font-size: 15px;
+            font-size: 14px;
             transition: border-color 0.3s;
             background: var(--input-bg);
             color: var(--text-primary);
             resize: none;
+            max-height: 100px;
+            min-height: 40px;
         }
 
         #messageInput:focus {
@@ -732,12 +808,12 @@
 
         .input-actions {
             display: flex;
-            gap: 5px;
+            gap: 4px;
         }
 
         .file-input-btn {
-            width: 40px;
-            height: 40px;
+            width: 35px;
+            height: 35px;
             border-radius: 50%;
             background: #f0f0f0;
             border: none;
@@ -746,6 +822,7 @@
             align-items: center;
             justify-content: center;
             transition: background 0.3s;
+            font-size: 14px;
         }
 
         .file-input-btn:hover {
@@ -753,13 +830,13 @@
         }
 
         #sendButton {
-            padding: 15px 25px;
+            padding: 12px 18px;
             background: var(--secondary-gradient);
             color: white;
             border: none;
-            border-radius: 25px;
+            border-radius: 20px;
             cursor: pointer;
-            font-size: 15px;
+            font-size: 12px;
             font-weight: bold;
             transition: transform 0.2s;
         }
@@ -774,7 +851,7 @@
             transform: none;
         }
 
-        /* Modal Settings - Centré en mode fenêtré */
+        /* Modal Settings */
         .modal {
             display: none;
             position: fixed;
@@ -789,15 +866,14 @@
         .modal-content {
             background-color: var(--input-bg);
             margin: 5% auto;
-            padding: 30px;
-            border-radius: 20px;
+            padding: 20px;
+            border-radius: 15px;
             width: 90%;
             max-width: 500px;
             max-height: 80vh;
             overflow-y: auto;
             position: relative;
             color: var(--text-primary);
-            transform: translateY(0);
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
 
@@ -805,19 +881,19 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             border-bottom: 2px solid var(--accent-color);
-            padding-bottom: 10px;
+            padding-bottom: 8px;
         }
 
         .modal-header h3 {
             color: var(--text-primary);
-            font-size: 20px;
+            font-size: 16px;
         }
 
         .close {
             color: #aaa;
-            font-size: 28px;
+            font-size: 24px;
             font-weight: bold;
             cursor: pointer;
         }
@@ -827,31 +903,42 @@
         }
 
         .settings-section {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .settings-section label {
             display: block;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             font-weight: 500;
             color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .settings-section select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 14px;
         }
 
         .theme-selector {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-top: 10px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 8px;
         }
 
         .theme-option {
-            padding: 10px;
+            padding: 8px;
             border: 2px solid var(--border-color);
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
             text-align: center;
             transition: all 0.3s;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .theme-option:hover {
@@ -865,15 +952,15 @@
 
         .theme-preview {
             width: 100%;
-            height: 30px;
-            border-radius: 5px;
-            margin-bottom: 5px;
+            height: 20px;
+            border-radius: 4px;
+            margin-bottom: 4px;
         }
 
         .file-upload-area {
             border: 2px dashed var(--border-color);
-            border-radius: 10px;
-            padding: 20px;
+            border-radius: 8px;
+            padding: 15px;
             text-align: center;
             cursor: pointer;
             transition: border-color 0.3s;
@@ -895,17 +982,18 @@
         /* Notifications */
         .notification {
             position: fixed;
-            top: 20px;
-            right: 20px;
+            top: 15px;
+            right: 15px;
             background: var(--input-bg);
-            border-radius: 10px;
-            padding: 15px 20px;
+            border-radius: 8px;
+            padding: 12px 15px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             border-left: 4px solid var(--accent-color);
             z-index: 3000;
             animation: slideInRight 0.3s ease-out;
-            max-width: 300px;
+            max-width: 250px;
             color: var(--text-primary);
+            font-size: 12px;
         }
 
         .notification.success {
@@ -918,12 +1006,12 @@
 
         .notification-title {
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             color: var(--text-primary);
         }
 
         .notification-message {
-            font-size: 14px;
+            font-size: 11px;
             color: var(--text-secondary);
         }
 
@@ -954,119 +1042,117 @@
             to { opacity: 1; }
         }
 
-        /* Responsive design */
-        @media (max-width: 768px) {
+        /* Responsive design mobile-first */
+        @media (min-width: 768px) {
             .chat-container {
-                width: 95%;
-                height: 95vh;
+                width: 90%;
+                max-width: 1000px;
+                height: 85vh;
+                border-radius: 20px;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
             }
 
             .chat-main {
-                flex-direction: column;
+                flex-direction: row;
             }
 
             .users-sidebar {
-                width: 100%;
-                max-height: 150px;
-                border-left: none;
-                border-top: 1px solid var(--border-color);
+                width: 250px;
+                max-height: none;
+                border-top: none;
+                border-left: 1px solid var(--border-color);
+                overflow-y: auto;
+                overflow-x: hidden;
             }
 
-            .message {
-                max-width: 90%;
-            }
-
-            .connection-form {
-                min-width: 280px;
-                padding: 30px;
-            }
-
-            .message-actions {
-                position: static;
-                transform: none;
-                margin-top: 10px;
-                display: flex !important;
-                justify-content: center;
-            }
-
-            .modal-content {
-                width: 95vw !important;
-                max-width: none !important;
-                padding: 20px !important;
-                max-height: 90vh !important;
-                margin: 2.5% auto !important;
-            }
-
-            .theme-selector {
-                grid-template-columns: repeat(2, 1fr);
+            .users-list {
+                flex-direction: column;
                 gap: 8px;
             }
 
-            .theme-option {
-                font-size: 11px;
-                padding: 8px;
+            .message {
+                max-width: 75%;
             }
 
-            .theme-preview {
-                height: 20px;
+            .connection-form {
+                min-width: 350px;
+                padding: 40px;
+            }
+
+            .modal-content {
+                margin: 10% auto;
+                width: 70%;
+                max-width: 600px;
+            }
+
+            .theme-selector {
+                grid-template-columns: repeat(3, 1fr);
             }
 
             .message-image {
-                max-width: 250px;
+                max-width: 300px;
+                max-height: 300px;
             }
-        }
 
-        @media (min-width: 769px) and (max-width: 1024px) {
-            .modal-content {
-                width: 70vw !important;
-                max-width: 600px !important;
-            }
-        }
-
-        @media (min-width: 1025px) {
-            .modal-content {
-                width: 50vw !important;
-                max-width: 600px !important;
+            .typing-indicator {
+                max-width: 60%;
             }
         }
 
         /* Amélioration du scroll pour webkit */
         .chat-messages::-webkit-scrollbar,
         .users-sidebar::-webkit-scrollbar,
-        .modal-content::-webkit-scrollbar {
-            width: 6px;
+        .modal-content::-webkit-scrollbar,
+        .users-list::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
         }
 
         .chat-messages::-webkit-scrollbar-track,
         .users-sidebar::-webkit-scrollbar-track,
-        .modal-content::-webkit-scrollbar-track {
+        .modal-content::-webkit-scrollbar-track,
+        .users-list::-webkit-scrollbar-track {
             background: transparent;
         }
 
         .chat-messages::-webkit-scrollbar-thumb,
         .users-sidebar::-webkit-scrollbar-thumb,
-        .modal-content::-webkit-scrollbar-thumb {
+        .modal-content::-webkit-scrollbar-thumb,
+        .users-list::-webkit-scrollbar-thumb {
             background: rgba(0, 0, 0, 0.2);
-            border-radius: 3px;
+            border-radius: 2px;
         }
 
         .chat-messages::-webkit-scrollbar-thumb:hover,
         .users-sidebar::-webkit-scrollbar-thumb:hover,
-        .modal-content::-webkit-scrollbar-thumb:hover {
+        .modal-content::-webkit-scrollbar-thumb:hover,
+        .users-list::-webkit-scrollbar-thumb:hover {
             background: rgba(0, 0, 0, 0.4);
         }
 
         /* Indicateur de version */
         .version-info {
             position: fixed;
-            bottom: 10px;
-            left: 10px;
+            bottom: 8px;
+            left: 8px;
             background: rgba(0, 0, 0, 0.6);
             color: white;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 10px;
             z-index: 1000;
+        }
+
+        /* Touch-friendly pour mobile */
+        @media (max-width: 768px) {
+            .file-input-btn, .settings-btn, .disconnect-btn, #sendButton {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            .user-item, .theme-option, .message-actions button {
+                min-height: 44px;
+            }
         }
     </style>
 </head>
@@ -1075,19 +1161,19 @@
         <!-- Overlay de connexion -->
         <div class="connection-overlay" id="connectionOverlay">
             <div class="connection-form">
-                <h2>🚀 Rejoindre le Chat</h2>
-                <input type="text" id="usernameInput" placeholder="Votre pseudo" maxlength="20">
+                <h2 id="joinTitle">🚀 Rejoindre le Chat</h2>
+                <input type="text" id="usernameInput" data-i18n-placeholder="username_placeholder" placeholder="Votre pseudo" maxlength="20">
                 
                 <div class="avatar-upload">
-                    <label>Photo de profil (optionnel)</label>
+                    <label id="avatarLabel">Photo de profil (optionnel)</label>
                     <div class="avatar-preview" id="avatarPreview">
                         <span>👤</span>
                     </div>
+                    <button type="button" onclick="document.getElementById('avatarInput').click()" style="padding: 6px 12px; font-size: 11px;" id="chooseImageBtn">Choisir une image</button>
                     <input type="file" id="avatarInput" accept="image/*" style="display: none;">
-                    <button type="button" onclick="document.getElementById('avatarInput').click()" style="padding: 8px 15px; font-size: 12px;">Choisir une image</button>
                 </div>
 
-                <input type="text" id="serverInput" placeholder="IP du serveur (optionnel)" value="">
+                <input type="text" id="serverInput" data-i18n-placeholder="server_placeholder" placeholder="IP du serveur (optionnel)" value="">
                 <button onclick="connectToChat()" id="connectBtn">Se connecter</button>
                 <div class="error-message" id="errorMessage"></div>
             </div>
@@ -1105,7 +1191,7 @@
                     <span id="connectionStatus">Connecté</span>
                 </div>
                 <div id="onlineCount">0 utilisateurs en ligne</div>
-                <button class="settings-btn" onclick="openSettings()">⚙️ Paramètres</button>
+                <button class="settings-btn" onclick="openSettings()">⚙️</button>
             </div>
         </div>
 
@@ -1119,7 +1205,7 @@
             <!-- Sidebar utilisateurs -->
             <div class="users-sidebar">
                 <div class="users-title" id="usersTitle">👥 Utilisateurs (0)</div>
-                <div id="usersList">
+                <div class="users-list" id="usersList">
                     <!-- Liste des utilisateurs -->
                 </div>
             </div>
@@ -1132,21 +1218,21 @@
                     <div class="current-user-avatar" id="currentUserAvatar">
                         <span>👤</span>
                     </div>
-                    <span>Connecté en tant que: <strong id="currentUsername">-</strong></span>
+                    <span><span id="connectedAsText">Connecté en tant que:</span> <strong id="currentUsername">-</strong></span>
                 </div>
                 <div class="user-controls">
                     <button class="settings-btn" onclick="openSettings()">⚙️</button>
-                    <button class="disconnect-btn" onclick="disconnectFromChat()">Se déconnecter</button>
+                    <button class="disconnect-btn" onclick="disconnectFromChat()" id="disconnectBtn">Se déconnecter</button>
                 </div>
             </div>
             
             <!-- Zone de collage d'image -->
             <div class="paste-preview" id="pastePreview">
-                <div>Image collée:</div>
+                <div id="pastedImageText">Image collée:</div>
                 <img id="pastedImage" alt="Image collée">
                 <div class="paste-preview-actions">
-                    <button class="paste-send" onclick="sendPastedImage()">Envoyer</button>
-                    <button class="paste-cancel" onclick="cancelPastedImage()">Annuler</button>
+                    <button class="paste-send" onclick="sendPastedImage()" id="pasteSendBtn">Envoyer</button>
+                    <button class="paste-cancel" onclick="cancelPastedImage()" id="pasteCancelBtn">Annuler</button>
                 </div>
             </div>
             
@@ -1156,8 +1242,15 @@
                 <div id="replyContent"></div>
             </div>
             
-            <!-- Zone d'écriture -->
-            <div class="typing-indicator" id="typingIndicator"></div>
+            <!-- Indicateur de frappe -->
+            <div class="typing-indicator" id="typingIndicator">
+                <div class="typing-users" id="typingUsers"></div>
+                <div class="typing-dots">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            </div>
             
             <div class="chat-input">
                 <div class="input-actions">
@@ -1166,7 +1259,7 @@
                     </button>
                     <input type="file" id="fileInput" style="display: none;" onchange="handleFileSelect(event)">
                 </div>
-                <textarea id="messageInput" placeholder="Tapez votre message..." maxlength="500" disabled rows="1"></textarea>
+                <textarea id="messageInput" data-i18n-placeholder="message_placeholder" placeholder="Tapez votre message..." maxlength="500" disabled rows="1"></textarea>
                 <button id="sendButton" onclick="sendMessage()" disabled>Envoyer</button>
             </div>
         </div>
@@ -1176,66 +1269,92 @@
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>⚙️ Paramètres</h3>
+                <h3>⚙️ <span id="settingsTitle">Paramètres</span></h3>
                 <span class="close" onclick="closeSettings()">&times;</span>
             </div>
             
             <div class="settings-section">
-                <label>Thème</label>
-                <div class="theme-selector">
-                    <div class="theme-option" data-theme="default" onclick="changeTheme('default')">
-                        <div class="theme-preview" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
-                        Défaut
-                    </div>
-                    <div class="theme-option" data-theme="dark" onclick="changeTheme('dark')">
-                        <div class="theme-preview" style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);"></div>
-                        Sombre
-                    </div>
-                    <div class="theme-option" data-theme="purple" onclick="changeTheme('purple')">
-                        <div class="theme-preview" style="background: linear-gradient(135deg, #8e2de2 0%, #4a00e0 100%);"></div>
-                        Violet
-                    </div>
-                    <div class="theme-option" data-theme="green" onclick="changeTheme('green')">
-                        <div class="theme-preview" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);"></div>
-                        Vert
-                    </div>
-                    <div class="theme-option" data-theme="pink" onclick="changeTheme('pink')">
-                        <div class="theme-preview" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);"></div>
-                        Rose
-                    </div>
-                    <div class="theme-option" data-theme="orange" onclick="changeTheme('orange')">
-                        <div class="theme-preview" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
-                        Orange
-                    </div>
-                </div>
+                <label id="languageLabel">Langue</label>
+                <select id="languageSelect" onchange="changeLanguage(this.value)">
+                    <option value="fr">Français</option>
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="de">Deutsch</option>
+                    <option value="pl">Polski</option>
+                    <option value="ja">日本語</option>
+                    <option value="it">Italiano</option>
+                    <option value="pt">Português</option>
+                </select>
             </div>
             
             <div class="settings-section">
-                <label>Photo de profil</label>
+                <label id="themeLabel">Thème</label>
+                <div class="theme-selector">
+                    <div class="theme-option" data-theme="default" onclick="changeTheme('default')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);"></div>
+                        <span id="themeDefault">Défaut</span>
+                    </div>
+                    <div class="theme-option" data-theme="dark" onclick="changeTheme('dark')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);"></div>
+                        <span id="themeDark">Sombre</span>
+                    </div>
+                    <div class="theme-option" data-theme="purple" onclick="changeTheme('purple')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #8e2de2 0%, #4a00e0 100%);"></div>
+                        <span id="themePurple">Violet</span>
+                    </div>
+                    <div class="theme-option" data-theme="green" onclick="changeTheme('green')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);"></div>
+                        <span id="themeGreen">Vert</span>
+                    </div>
+                    <div class="theme-option" data-theme="pink" onclick="changeTheme('pink')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);"></div>
+                        <span id="themePink">Rose</span>
+                    </div>
+                    <div class="theme-option" data-theme="orange" onclick="changeTheme('orange')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
+                        <span id="themeOrange">Orange</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <label id="textStyleLabel">Style de texte</label>
+                <select id="textStyleSelect" onchange="changeTextStyle(this.value)">
+                    <option value="normal">Normal</option>
+                    <option value="serif">Serif</option>
+                    <option value="mono">Monospace</option>
+                    <option value="comic">Comic</option>
+                    <option value="impact">Impact</option>
+                    <option value="elegant">Élégant</option>
+                </select>
+            </div>
+            
+            <div class="settings-section">
+                <label id="avatarLabel2">Photo de profil</label>
                 <div class="avatar-preview" id="settingsAvatarPreview">
                     <span>👤</span>
                 </div>
                 <div class="file-upload-area" onclick="document.getElementById('settingsAvatarInput').click()">
-                    <p>Cliquez pour changer votre photo de profil</p>
-                    <small>Formats supportés: JPG, PNG, GIF (max 5MB)</small>
+                    <p id="clickToChangeText">Cliquez pour changer votre photo de profil</p>
+                    <small id="supportedFormatsText">Formats supportés: JPG, PNG, GIF (max 5MB)</small>
                 </div>
                 <input type="file" id="settingsAvatarInput" accept="image/*" style="display: none;" onchange="handleAvatarChange(event)">
             </div>
 
             <div class="settings-section">
                 <label>
-                    <input type="checkbox" id="notificationsEnabled" checked> Notifications sonores
+                    <input type="checkbox" id="notificationsEnabled" checked> <span id="soundNotificationsText">Notifications sonores</span>
                 </label>
                 <label>
-                    <input type="checkbox" id="autoScrollEnabled" checked> Défilement automatique
+                    <input type="checkbox" id="autoScrollEnabled" checked> <span id="autoScrollText">Défilement automatique</span>
                 </label>
                 <label>
-                    <input type="checkbox" id="timestampEnabled" checked> Afficher l'heure
+                    <input type="checkbox" id="timestampEnabled" checked> <span id="showTimeText">Afficher l'heure</span>
                 </label>
             </div>
 
             <div class="settings-section">
-                <button onclick="closeSettings()" style="width: 100%; padding: 15px; background: var(--accent-color); color: white; border: none; border-radius: 10px; font-size: 16px;">
+                <button onclick="closeSettings()" id="saveButton" style="width: 100%; padding: 12px; background: var(--accent-color); color: white; border: none; border-radius: 8px; font-size: 14px;">
                     Sauvegarder
                 </button>
             </div>
@@ -1251,9 +1370,413 @@
     </div>
 
     <!-- Indicateur de version -->
-    <div class="version-info">V2.1.0</div>
+    <div class="version-info">V2.2.0</div>
 
     <script>
+        // Système de traduction
+        const translations = {
+            fr: {
+                join_title: "🚀 Rejoindre le Chat",
+                username_placeholder: "Votre pseudo",
+                server_placeholder: "IP du serveur (optionnel)",
+                connect_btn: "Se connecter",
+                connecting: "Connexion...",
+                connected_as: "Connecté en tant que:",
+                disconnect_btn: "Se déconnecter",
+                message_placeholder: "Tapez votre message...",
+                send_btn: "Envoyer",
+                settings_title: "Paramètres",
+                language_label: "Langue",
+                theme_label: "Thème",
+                text_style_label: "Style de texte",
+                theme_default: "Défaut",
+                theme_dark: "Sombre",
+                theme_purple: "Violet",
+                theme_green: "Vert",
+                theme_pink: "Rose",
+                theme_orange: "Orange",
+                avatar_label: "Photo de profil (optionnel)",
+                choose_image: "Choisir une image",
+                click_to_change: "Cliquez pour changer votre photo de profil",
+                supported_formats: "Formats supportés: JPG, PNG, GIF (max 5MB)",
+                sound_notifications: "Notifications sonores",
+                auto_scroll: "Défilement automatique",
+                show_time: "Afficher l'heure",
+                save_btn: "Sauvegarder",
+                users_title: "👥 Utilisateurs",
+                pasted_image: "Image collée:",
+                send: "Envoyer",
+                cancel: "Annuler",
+                reply_btn: "Répondre",
+                download_btn: "Télécharger",
+                typing_single: "est en train d'écrire...",
+                typing_multiple: "sont en train d'écrire...",
+                joined_chat: "a rejoint le chat",
+                left_chat: "a quitté le chat",
+                server_restart: "Le serveur va redémarrer dans quelques instants...",
+                connection_lost: "Connexion perdue avec le serveur",
+                username_taken: "Ce pseudo est déjà pris!",
+                file_too_large: "Fichier trop volumineux",
+                image_too_large: "Image trop volumineuse",
+                connection_error: "Impossible de se connecter au serveur",
+                upload_error: "Erreur lors de l'upload",
+                profile_updated: "Photo de profil mise à jour",
+                theme_changed: "Thème changé",
+                welcome: "Bienvenue",
+                connection_success: "Connexion réussie"
+            },
+            en: {
+                join_title: "🚀 Join Chat",
+                username_placeholder: "Your username",
+                server_placeholder: "Server IP (optional)",
+                connect_btn: "Connect",
+                connecting: "Connecting...",
+                connected_as: "Connected as:",
+                disconnect_btn: "Disconnect",
+                message_placeholder: "Type your message...",
+                send_btn: "Send",
+                settings_title: "Settings",
+                language_label: "Language",
+                theme_label: "Theme",
+                text_style_label: "Text style",
+                theme_default: "Default",
+                theme_dark: "Dark",
+                theme_purple: "Purple",
+                theme_green: "Green",
+                theme_pink: "Pink",
+                theme_orange: "Orange",
+                avatar_label: "Profile picture (optional)",
+                choose_image: "Choose image",
+                click_to_change: "Click to change your profile picture",
+                supported_formats: "Supported formats: JPG, PNG, GIF (max 5MB)",
+                sound_notifications: "Sound notifications",
+                auto_scroll: "Auto scroll",
+                show_time: "Show time",
+                save_btn: "Save",
+                users_title: "👥 Users",
+                pasted_image: "Pasted image:",
+                send: "Send",
+                cancel: "Cancel",
+                reply_btn: "Reply",
+                download_btn: "Download",
+                typing_single: "is typing...",
+                typing_multiple: "are typing...",
+                joined_chat: "joined the chat",
+                left_chat: "left the chat",
+                server_restart: "Server will restart in a few moments...",
+                connection_lost: "Connection lost with server",
+                username_taken: "This username is already taken!",
+                file_too_large: "File too large",
+                image_too_large: "Image too large",
+                connection_error: "Cannot connect to server",
+                upload_error: "Upload error",
+                profile_updated: "Profile picture updated",
+                theme_changed: "Theme changed",
+                welcome: "Welcome",
+                connection_success: "Connection successful"
+            },
+            es: {
+                join_title: "🚀 Unirse al Chat",
+                username_placeholder: "Tu nombre de usuario",
+                server_placeholder: "IP del servidor (opcional)",
+                connect_btn: "Conectar",
+                connecting: "Conectando...",
+                connected_as: "Conectado como:",
+                disconnect_btn: "Desconectar",
+                message_placeholder: "Escribe tu mensaje...",
+                send_btn: "Enviar",
+                settings_title: "Configuración",
+                language_label: "Idioma",
+                theme_label: "Tema",
+                text_style_label: "Estilo de texto",
+                theme_default: "Predeterminado",
+                theme_dark: "Oscuro",
+                theme_purple: "Morado",
+                theme_green: "Verde",
+                theme_pink: "Rosa",
+                theme_orange: "Naranja",
+                avatar_label: "Foto de perfil (opcional)",
+                choose_image: "Elegir imagen",
+                click_to_change: "Haz clic para cambiar tu foto de perfil",
+                supported_formats: "Formatos soportados: JPG, PNG, GIF (máx 5MB)",
+                sound_notifications: "Notificaciones de sonido",
+                auto_scroll: "Desplazamiento automático",
+                show_time: "Mostrar hora",
+                save_btn: "Guardar",
+                users_title: "👥 Usuarios",
+                pasted_image: "Imagen pegada:",
+                send: "Enviar",
+                cancel: "Cancelar",
+                reply_btn: "Responder",
+                download_btn: "Descargar",
+                typing_single: "está escribiendo...",
+                typing_multiple: "están escribiendo...",
+                joined_chat: "se unió al chat",
+                left_chat: "abandonó el chat",
+                server_restart: "El servidor se reiniciará en unos momentos...",
+                connection_lost: "Conexión perdida con el servidor",
+                username_taken: "¡Este nombre de usuario ya está en uso!",
+                file_too_large: "Archivo demasiado grande",
+                image_too_large: "Imagen demasiado grande",
+                connection_error: "No se puede conectar al servidor",
+                upload_error: "Error de carga",
+                profile_updated: "Foto de perfil actualizada",
+                theme_changed: "Tema cambiado",
+                welcome: "Bienvenido",
+                connection_success: "Conexión exitosa"
+            },
+            de: {
+                join_title: "🚀 Chat Beitreten",
+                username_placeholder: "Dein Benutzername",
+                server_placeholder: "Server IP (optional)",
+                connect_btn: "Verbinden",
+                connecting: "Verbinde...",
+                connected_as: "Verbunden als:",
+                disconnect_btn: "Trennen",
+                message_placeholder: "Schreibe deine Nachricht...",
+                send_btn: "Senden",
+                settings_title: "Einstellungen",
+                language_label: "Sprache",
+                theme_label: "Design",
+                text_style_label: "Textstil",
+                theme_default: "Standard",
+                theme_dark: "Dunkel",
+                theme_purple: "Lila",
+                theme_green: "Grün",
+                theme_pink: "Rosa",
+                theme_orange: "Orange",
+                avatar_label: "Profilbild (optional)",
+                choose_image: "Bild wählen",
+                click_to_change: "Klicken Sie, um Ihr Profilbild zu ändern",
+                supported_formats: "Unterstützte Formate: JPG, PNG, GIF (max 5MB)",
+                sound_notifications: "Sound-Benachrichtigungen",
+                auto_scroll: "Automatisches Scrollen",
+                show_time: "Zeit anzeigen",
+                save_btn: "Speichern",
+                users_title: "👥 Benutzer",
+                pasted_image: "Eingefügtes Bild:",
+                send: "Senden",
+                cancel: "Abbrechen",
+                reply_btn: "Antworten",
+                download_btn: "Herunterladen",
+                typing_single: "schreibt...",
+                typing_multiple: "schreiben...",
+                joined_chat: "ist dem Chat beigetreten",
+                left_chat: "hat den Chat verlassen",
+                server_restart: "Server wird in wenigen Augenblicken neu gestartet...",
+                connection_lost: "Verbindung zum Server verloren",
+                username_taken: "Dieser Benutzername ist bereits vergeben!",
+                file_too_large: "Datei zu groß",
+                image_too_large: "Bild zu groß",
+                connection_error: "Kann nicht zum Server verbinden",
+                upload_error: "Upload-Fehler",
+                profile_updated: "Profilbild aktualisiert",
+                theme_changed: "Design geändert",
+                welcome: "Willkommen",
+                connection_success: "Verbindung erfolgreich"
+            },
+            pl: {
+                join_title: "🚀 Dołącz do Czatu",
+                username_placeholder: "Twoja nazwa użytkownika",
+                server_placeholder: "IP serwera (opcjonalne)",
+                connect_btn: "Połącz",
+                connecting: "Łączenie...",
+                connected_as: "Połączony jako:",
+                disconnect_btn: "Rozłącz",
+                message_placeholder: "Wpisz swoją wiadomość...",
+                send_btn: "Wyślij",
+                settings_title: "Ustawienia",
+                language_label: "Język",
+                theme_label: "Motyw",
+                text_style_label: "Styl tekstu",
+                theme_default: "Domyślny",
+                theme_dark: "Ciemny",
+                theme_purple: "Fioletowy",
+                theme_green: "Zielony",
+                theme_pink: "Różowy",
+                theme_orange: "Pomarańczowy",
+                avatar_label: "Zdjęcie profilowe (opcjonalne)",
+                choose_image: "Wybierz obraz",
+                click_to_change: "Kliknij, aby zmienić swoje zdjęcie profilowe",
+                supported_formats: "Obsługiwane formaty: JPG, PNG, GIF (max 5MB)",
+                sound_notifications: "Powiadomienia dźwiękowe",
+                auto_scroll: "Automatyczne przewijanie",
+                show_time: "Pokaż czas",
+                save_btn: "Zapisz",
+                users_title: "👥 Użytkownicy",
+                pasted_image: "Wklejony obraz:",
+                send: "Wyślij",
+                cancel: "Anuluj",
+                reply_btn: "Odpowiedz",
+                download_btn: "Pobierz",
+                typing_single: "pisze...",
+                typing_multiple: "piszą...",
+                joined_chat: "dołączył do czatu",
+                left_chat: "opuścił czat",
+                server_restart: "Serwer zostanie zrestartowany za chwilę...",
+                connection_lost: "Utracono połączenie z serwerem",
+                username_taken: "Ta nazwa użytkownika jest już zajęta!",
+                file_too_large: "Plik zbyt duży",
+                image_too_large: "Obraz zbyt duży",
+                connection_error: "Nie można połączyć się z serwerem",
+                upload_error: "Błąd przesyłania",
+                profile_updated: "Zdjęcie profilowe zaktualizowane",
+                theme_changed: "Motyw zmieniony",
+                welcome: "Witamy",
+                connection_success: "Połączenie udane"
+            },
+            ja: {
+                join_title: "🚀 チャットに参加",
+                username_placeholder: "ユーザー名",
+                server_placeholder: "サーバーIP（オプション）",
+                connect_btn: "接続",
+                connecting: "接続中...",
+                connected_as: "接続済み:",
+                disconnect_btn: "切断",
+                message_placeholder: "メッセージを入力...",
+                send_btn: "送信",
+                settings_title: "設定",
+                language_label: "言語",
+                theme_label: "テーマ",
+                text_style_label: "テキストスタイル",
+                theme_default: "デフォルト",
+                theme_dark: "ダーク",
+                theme_purple: "紫",
+                theme_green: "緑",
+                theme_pink: "ピンク",
+                theme_orange: "オレンジ",
+                avatar_label: "プロフィール画像（オプション）",
+                choose_image: "画像を選択",
+                click_to_change: "クリックしてプロフィール画像を変更",
+                supported_formats: "サポート形式：JPG、PNG、GIF（最大5MB）",
+                sound_notifications: "音声通知",
+                auto_scroll: "自動スクロール",
+                show_time: "時刻表示",
+                save_btn: "保存",
+                users_title: "👥 ユーザー",
+                pasted_image: "貼り付けた画像:",
+                send: "送信",
+                cancel: "キャンセル",
+                reply_btn: "返信",
+                download_btn: "ダウンロード",
+                typing_single: "が入力中...",
+                typing_multiple: "が入力中...",
+                joined_chat: "がチャットに参加しました",
+                left_chat: "がチャットを退出しました",
+                server_restart: "サーバーがまもなく再起動されます...",
+                connection_lost: "サーバーとの接続が失われました",
+                username_taken: "このユーザー名は既に使用されています！",
+                file_too_large: "ファイルが大きすぎます",
+                image_too_large: "画像が大きすぎます",
+                connection_error: "サーバーに接続できません",
+                upload_error: "アップロードエラー",
+                profile_updated: "プロフィール画像が更新されました",
+                theme_changed: "テーマが変更されました",
+                welcome: "ようこそ",
+                connection_success: "接続成功"
+            },
+            it: {
+                join_title: "🚀 Unisciti alla Chat",
+                username_placeholder: "Il tuo nome utente",
+                server_placeholder: "IP del server (opzionale)",
+                connect_btn: "Connetti",
+                connecting: "Connessione...",
+                connected_as: "Connesso come:",
+                disconnect_btn: "Disconnetti",
+                message_placeholder: "Scrivi il tuo messaggio...",
+                send_btn: "Invia",
+                settings_title: "Impostazioni",
+                language_label: "Lingua",
+                theme_label: "Tema",
+                text_style_label: "Stile testo",
+                theme_default: "Predefinito",
+                theme_dark: "Scuro",
+                theme_purple: "Viola",
+                theme_green: "Verde",
+                theme_pink: "Rosa",
+                theme_orange: "Arancione",
+                avatar_label: "Immagine profilo (opzionale)",
+                choose_image: "Scegli immagine",
+                click_to_change: "Clicca per cambiare la tua immagine profilo",
+                supported_formats: "Formati supportati: JPG, PNG, GIF (max 5MB)",
+                sound_notifications: "Notifiche sonore",
+                auto_scroll: "Scorrimento automatico",
+                show_time: "Mostra ora",
+                save_btn: "Salva",
+                users_title: "👥 Utenti",
+                pasted_image: "Immagine incollata:",
+                send: "Invia",
+                cancel: "Annulla",
+                reply_btn: "Rispondi",
+                download_btn: "Scarica",
+                typing_single: "sta scrivendo...",
+                typing_multiple: "stanno scrivendo...",
+                joined_chat: "si è unito alla chat",
+                left_chat: "ha lasciato la chat",
+                server_restart: "Il server si riavvierà tra poco...",
+                connection_lost: "Connessione persa con il server",
+                username_taken: "Questo nome utente è già in uso!",
+                file_too_large: "File troppo grande",
+                image_too_large: "Immagine troppo grande",
+                connection_error: "Impossibile connettersi al server",
+                upload_error: "Errore di caricamento",
+                profile_updated: "Immagine profilo aggiornata",
+                theme_changed: "Tema cambiato",
+                welcome: "Benvenuto",
+                connection_success: "Connessione riuscita"
+            },
+            pt: {
+                join_title: "🚀 Entrar no Chat",
+                username_placeholder: "Seu nome de usuário",
+                server_placeholder: "IP do servidor (opcional)",
+                connect_btn: "Conectar",
+                connecting: "Conectando...",
+                connected_as: "Conectado como:",
+                disconnect_btn: "Desconectar",
+                message_placeholder: "Digite sua mensagem...",
+                send_btn: "Enviar",
+                settings_title: "Configurações",
+                language_label: "Idioma",
+                theme_label: "Tema",
+                text_style_label: "Estilo de texto",
+                theme_default: "Padrão",
+                theme_dark: "Escuro",
+                theme_purple: "Roxo",
+                theme_green: "Verde",
+                theme_pink: "Rosa",
+                theme_orange: "Laranja",
+                avatar_label: "Foto de perfil (opcional)",
+                choose_image: "Escolher imagem",
+                click_to_change: "Clique para alterar sua foto de perfil",
+                supported_formats: "Formatos suportados: JPG, PNG, GIF (máx 5MB)",
+                sound_notifications: "Notificações sonoras",
+                auto_scroll: "Rolagem automática",
+                show_time: "Mostrar hora",
+                save_btn: "Salvar",
+                users_title: "👥 Usuários",
+                pasted_image: "Imagem colada:",
+                send: "Enviar",
+                cancel: "Cancelar",
+                reply_btn: "Responder",
+                download_btn: "Baixar",
+                typing_single: "está digitando...",
+                typing_multiple: "estão digitando...",
+                joined_chat: "entrou no chat",
+                left_chat: "saiu do chat",
+                server_restart: "O servidor será reiniciado em alguns instantes...",
+                connection_lost: "Conexão perdida com o servidor",
+                username_taken: "Este nome de usuário já está em uso!",
+                file_too_large: "Arquivo muito grande",
+                image_too_large: "Imagem muito grande",
+                connection_error: "Não é possível conectar ao servidor",
+                upload_error: "Erro de upload",
+                profile_updated: "Foto de perfil atualizada",
+                theme_changed: "Tema alterado",
+                welcome: "Bem-vindo",
+                connection_success: "Conexão bem-sucedida"
+            }
+        };
+
         let socket;
         let currentUsername = '';
         let isConnected = false;
@@ -1265,11 +1788,86 @@
         let autoScrollEnabled = true;
         let timestampEnabled = true;
         let currentTheme = 'default';
+        let currentLanguage = 'fr';
+        let currentTextStyle = 'normal';
         let pastedImageData = null;
+        let pendingAttachment = null;
 
         // Demander la permission pour les notifications
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
+        }
+
+        // Fonction pour traduire les textes
+        function translateText(key) {
+            return translations[currentLanguage][key] || translations['fr'][key] || key;
+        }
+
+        // Fonction pour mettre à jour tous les textes de l'interface
+        function updateInterfaceTexts() {
+            // Connexion
+            document.getElementById('joinTitle').textContent = translateText('join_title');
+            document.getElementById('usernameInput').placeholder = translateText('username_placeholder');
+            document.getElementById('serverInput').placeholder = translateText('server_placeholder');
+            document.getElementById('connectBtn').textContent = translateText('connect_btn');
+            document.getElementById('avatarLabel').textContent = translateText('avatar_label');
+            document.getElementById('chooseImageBtn').textContent = translateText('choose_image');
+
+            // Interface principale
+            document.getElementById('connectedAsText').textContent = translateText('connected_as');
+            document.getElementById('disconnectBtn').textContent = translateText('disconnect_btn');
+            document.getElementById('messageInput').placeholder = translateText('message_placeholder');
+            document.getElementById('sendButton').textContent = translateText('send_btn');
+
+            // Paramètres
+            document.getElementById('settingsTitle').textContent = translateText('settings_title');
+            document.getElementById('languageLabel').textContent = translateText('language_label');
+            document.getElementById('themeLabel').textContent = translateText('theme_label');
+            document.getElementById('textStyleLabel').textContent = translateText('text_style_label');
+            document.getElementById('avatarLabel2').textContent = translateText('avatar_label');
+            document.getElementById('clickToChangeText').textContent = translateText('click_to_change');
+            document.getElementById('supportedFormatsText').textContent = translateText('supported_formats');
+            document.getElementById('soundNotificationsText').textContent = translateText('sound_notifications');
+            document.getElementById('autoScrollText').textContent = translateText('auto_scroll');
+            document.getElementById('showTimeText').textContent = translateText('show_time');
+            document.getElementById('saveButton').textContent = translateText('save_btn');
+
+            // Thèmes
+            document.getElementById('themeDefault').textContent = translateText('theme_default');
+            document.getElementById('themeDark').textContent = translateText('theme_dark');
+            document.getElementById('themePurple').textContent = translateText('theme_purple');
+            document.getElementById('themeGreen').textContent = translateText('theme_green');
+            document.getElementById('themePink').textContent = translateText('theme_pink');
+            document.getElementById('themeOrange').textContent = translateText('theme_orange');
+
+            // Zones de collage
+            document.getElementById('pastedImageText').textContent = translateText('pasted_image');
+            document.getElementById('pasteSendBtn').textContent = translateText('send');
+            document.getElementById('pasteCancelBtn').textContent = translateText('cancel');
+        }
+
+        // Fonction pour changer de langue
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            updateInterfaceTexts();
+            localStorage.setItem('chatLanguage', lang);
+            showNotification(translateText('language_label'), `${translations[lang].language_label || 'Language'} ${lang.toUpperCase()}`, 'success');
+        }
+
+        // Fonction pour changer le style de texte
+        function changeTextStyle(style) {
+            currentTextStyle = style;
+            const body = document.body;
+            
+            // Retirer tous les styles existants
+            body.classList.remove('text-style-normal', 'text-style-serif', 'text-style-mono', 
+                                'text-style-comic', 'text-style-impact', 'text-style-elegant');
+            
+            // Appliquer le nouveau style
+            body.classList.add('text-style-' + style);
+            
+            localStorage.setItem('chatTextStyle', style);
+            showNotification(translateText('text_style_label'), `Style: ${style}`, 'success');
         }
 
         // Fonction pour changer le thème
@@ -1294,7 +1892,7 @@
             // Sauvegarder le thème
             localStorage.setItem('chatTheme', theme);
             
-            showNotification('Thème changé', `Thème ${theme} appliqué`, 'success');
+            showNotification(translateText('theme_changed'), `${translateText('theme_' + theme)}`, 'success');
         }
 
         // Gestion du collage d'images
@@ -1309,7 +1907,7 @@
                     const blob = item.getAsFile();
                     
                     if (blob.size > 10 * 1024 * 1024) {
-                        showError('Image trop volumineuse (max 10MB)');
+                        showError(translateText('image_too_large') + ' (max 10MB)');
                         return;
                     }
                     
@@ -1365,12 +1963,12 @@
                         cancelReply();
                     }
                 } else {
-                    showError('Erreur lors de l\'envoi de l\'image');
+                    showError(translateText('upload_error'));
                 }
             })
             .catch(error => {
                 console.error('Erreur:', error);
-                showError('Erreur lors de l\'envoi de l\'image');
+                showError(translateText('upload_error'));
             });
         }
 
@@ -1422,7 +2020,7 @@
             const avatarFile = document.getElementById('avatarInput').files[0];
             
             if (!username) {
-                showError('Veuillez entrer un pseudo');
+                showError(translateText('username_placeholder'));
                 return;
             }
 
@@ -1440,7 +2038,7 @@
                 }
             }
 
-            document.getElementById('connectBtn').textContent = 'Connexion...';
+            document.getElementById('connectBtn').textContent = translateText('connecting');
             document.getElementById('connectBtn').disabled = true;
 
             // Upload avatar si présent
@@ -1495,20 +2093,20 @@
             socket.on('disconnect', () => {
                 console.log('❌ Déconnecté du serveur');
                 updateConnectionStatus(false);
-                showError('Connexion perdue avec le serveur');
+                showError(translateText('connection_lost'));
             });
 
             socket.on('connect_error', (error) => {
                 console.error('❌ Erreur de connexion:', error);
-                showError('Impossible de se connecter au serveur. Vérifiez l\'IP.');
-                document.getElementById('connectBtn').textContent = 'Se connecter';
+                showError(translateText('connection_error'));
+                document.getElementById('connectBtn').textContent = translateText('connect_btn');
                 document.getElementById('connectBtn').disabled = false;
             });
 
             // Événements du chat
             socket.on('username_taken', (data) => {
-                showError(data.message);
-                document.getElementById('connectBtn').textContent = 'Se connecter';
+                showError(translateText('username_taken'));
+                document.getElementById('connectBtn').textContent = translateText('connect_btn');
                 document.getElementById('connectBtn').disabled = false;
             });
 
@@ -1524,7 +2122,7 @@
             });
 
             socket.on('system_message', (message) => {
-                if (message.message.includes(`${username} a rejoint`)) {
+                if (message.message.includes(`${username} ${translateText('joined_chat')}`)) {
                     currentUsername = username;
                     currentUserAvatar = avatar;
                     isConnected = true;
@@ -1543,7 +2141,7 @@
                     document.getElementById('messageInput').focus();
                     
                     clearError();
-                    showNotification('Connexion réussie', `Bienvenue ${username} !`, 'success');
+                    showNotification(translateText('connection_success'), `${translateText('welcome')} ${username} !`, 'success');
                 }
                 addSystemMessage(message.message, message.timestamp);
             });
@@ -1552,13 +2150,13 @@
                 addMessage(message.username, message.content, message.timestamp, message.userId === socket.id, message.avatar, message.replyTo, message.attachment);
                 
                 // Effet confetti pour les messages
-                if (!message.userId === socket.id) {
+                if (message.userId !== socket.id) {
                     createConfetti();
                     
                     // Notification si autorisée
                     if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
-                        new Notification(`Nouveau message de ${message.username}`, {
-                            body: message.content || 'Pièce jointe',
+                        new Notification(`${message.username}`, {
+                            body: message.content || translateText('download_btn'),
                             icon: message.avatar || '/default-avatar.png'
                         });
                     }
@@ -1583,7 +2181,7 @@
                     currentUserAvatar = data.avatar;
                     const currentUserAvatarEl = document.getElementById('currentUserAvatar');
                     currentUserAvatarEl.innerHTML = `<img src="${data.avatar}" alt="Avatar">`;
-                    showNotification('Profil mis à jour', 'Votre photo de profil a été mise à jour', 'success');
+                    showNotification(translateText('profile_updated'), '', 'success');
                 }
             });
 
@@ -1611,7 +2209,7 @@
             document.getElementById('usernameInput').value = '';
             document.getElementById('serverInput').value = '';
             document.getElementById('avatarPreview').innerHTML = '<span>👤</span>';
-            document.getElementById('connectBtn').textContent = 'Se connecter';
+            document.getElementById('connectBtn').textContent = translateText('connect_btn');
             document.getElementById('connectBtn').disabled = false;
             
             // Nettoyer les zones
@@ -1619,7 +2217,7 @@
             document.getElementById('usersList').innerHTML = '';
             document.getElementById('replyPreview').style.display = 'none';
             document.getElementById('pastePreview').style.display = 'none';
-            document.getElementById('typingIndicator').textContent = '';
+            document.getElementById('typingIndicator').classList.remove('active');
             
             clearError();
         }
@@ -1660,16 +2258,13 @@
             }
         }
 
-        // Variables pour les pièces jointes
-        let pendingAttachment = null;
-
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
 
             // Vérifier la taille (10MB max)
             if (file.size > 10 * 1024 * 1024) {
-                showError('Le fichier est trop volumineux (max 10MB)');
+                showError(translateText('file_too_large') + ' (max 10MB)');
                 return;
             }
 
@@ -1692,17 +2287,17 @@
                         path: data.path
                     };
                     
-                    showNotification('Fichier prêt', `${data.originalname} prêt à être envoyé`, 'success');
+                    showNotification('Fichier prêt', `${data.originalname}`, 'success');
                     
                     // Envoyer automatiquement
                     sendMessage();
                 } else {
-                    showError('Erreur lors de l\'upload du fichier');
+                    showError(translateText('upload_error'));
                 }
             })
             .catch(error => {
                 console.error('Erreur upload:', error);
-                showError('Erreur lors de l\'upload du fichier');
+                showError(translateText('upload_error'));
             });
         }
 
@@ -1712,7 +2307,7 @@
             messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
             messageDiv.dataset.messageId = Date.now() + Math.random();
             
-            const time = timestampEnabled ? new Date(timestamp).toLocaleTimeString('fr-FR', { 
+            const time = timestampEnabled ? new Date(timestamp).toLocaleTimeString(currentLanguage === 'en' ? 'en-US' : 'fr-FR', { 
                 hour: '2-digit', 
                 minute: '2-digit' 
             }) : '';
@@ -1754,7 +2349,7 @@
                                 <div class="attachment-size">${sizeStr}</div>
                             </div>
                             <button class="download-btn" onclick="downloadFile('${attachment.filename}', '${attachment.originalname}')">
-                                ⬇️ Télécharger
+                                ⬇️ ${translateText('download_btn')}
                             </button>
                         </div>
                     `;
@@ -1763,7 +2358,7 @@
 
             const actionsHtml = !isOwn ? `
                 <div class="message-actions">
-                    <button onclick="replyToMessage('${messageDiv.dataset.messageId}', '${username}', '${escapeHtml(content || '[Pièce jointe]')}')">↩️</button>
+                    <button onclick="replyToMessage('${messageDiv.dataset.messageId}', '${username}', '${escapeHtml(content || '[Pièce jointe]')}')">${translateText('reply_btn')}</button>
                 </div>
             ` : '';
             
@@ -1786,10 +2381,8 @@
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
 
-            // Effet confetti
-            if (!isOwn) {
-                createConfetti();
-            }
+            // Confettis pour tous les messages
+            createMessageConfetti(isOwn);
         }
 
         function replyToMessage(messageId, username, content) {
@@ -1823,7 +2416,7 @@
             if (mimetype.includes('word')) return '📝';
             if (mimetype.includes('excel')) return '📊';
             if (mimetype.includes('zip') || mimetype.includes('rar')) return '📦';
-            return '📁';
+            return '📄';
         }
 
         function formatFileSize(bytes) {
@@ -1839,7 +2432,7 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message system';
             
-            const time = timestampEnabled && timestamp ? new Date(timestamp).toLocaleTimeString('fr-FR', { 
+            const time = timestampEnabled && timestamp ? new Date(timestamp).toLocaleTimeString(currentLanguage === 'en' ? 'en-US' : 'fr-FR', { 
                 hour: '2-digit', 
                 minute: '2-digit' 
             }) : '';
@@ -1860,8 +2453,8 @@
             const usersTitleElement = document.getElementById('usersTitle');
             const onlineCountElement = document.getElementById('onlineCount');
             
-            usersTitleElement.textContent = `👥 Utilisateurs (${count})`;
-            onlineCountElement.textContent = `${count} utilisateur${count > 1 ? 's' : ''} en ligne`;
+            usersTitleElement.textContent = `${translateText('users_title')} (${count})`;
+            onlineCountElement.textContent = `${count} ${count > 1 ? 'utilisateurs' : 'utilisateur'} en ligne`;
             
             usersListElement.innerHTML = '';
             users.forEach(user => {
@@ -1880,30 +2473,53 @@
             });
         }
 
-        function updateTypingIndicator(users) {
+        function updateTypingIndicator(typingUsers) {
             const indicator = document.getElementById('typingIndicator');
-            if (users.length === 0) {
-                indicator.textContent = '';
+            const usersContainer = document.getElementById('typingUsers');
+            
+            if (!typingUsers || typingUsers.length === 0) {
+                indicator.classList.remove('active');
                 return;
             }
             
             // Filtrer l'utilisateur actuel
-            const otherUsers = users.filter(u => u !== currentUsername);
+            const otherUsers = typingUsers.filter(u => u !== currentUsername);
             if (otherUsers.length === 0) {
-                indicator.textContent = '';
+                indicator.classList.remove('active');
                 return;
             }
             
-            if (otherUsers.length === 1) {
-                indicator.textContent = `${otherUsers[0]} est en train d'écrire...`;
-            } else {
-                indicator.textContent = `${otherUsers.join(', ')} sont en train d'écrire...`;
-            }
+            // Afficher les avatars des utilisateurs en train d'écrire
+            usersContainer.innerHTML = '';
+            otherUsers.forEach(username => {
+                // Trouver l'utilisateur pour récupérer son avatar
+                const user = Array.from(document.querySelectorAll('.user-item')).find(item => 
+                    item.textContent.trim() === username
+                );
+                
+                const typingUser = document.createElement('div');
+                typingUser.className = 'typing-user';
+                
+                if (user) {
+                    const avatarImg = user.querySelector('img');
+                    if (avatarImg) {
+                        typingUser.innerHTML = `<div class="typing-avatar"><img src="${avatarImg.src}" alt="${username}"></div>`;
+                    } else {
+                        typingUser.innerHTML = `<div class="typing-avatar"><span>👤</span></div>`;
+                    }
+                } else {
+                    typingUser.innerHTML = `<div class="typing-avatar"><span>👤</span></div>`;
+                }
+                
+                usersContainer.appendChild(typingUser);
+            });
+            
+            indicator.classList.add('active');
         }
 
         function createConfetti() {
             const container = document.querySelector('.chat-messages');
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < 6; i++) {
                 const confetti = document.createElement('div');
                 confetti.className = 'confetti';
                 confetti.style.left = Math.random() * 100 + '%';
@@ -1914,7 +2530,9 @@
                 
                 // Supprimer après animation
                 setTimeout(() => {
-                    confetti.remove();
+                    if (confetti.parentNode) {
+                        confetti.remove();
+                    }
                 }, 2500);
             }
         }
@@ -1929,10 +2547,12 @@
             
             document.body.appendChild(notification);
             
-            // Supprimer après 4 secondes
+            // Supprimer après 3 secondes
             setTimeout(() => {
-                notification.remove();
-            }, 4000);
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 3000);
         }
 
         // Paramètres
@@ -1947,9 +2567,13 @@
             document.querySelectorAll('.theme-option').forEach(option => {
                 option.classList.remove('active');
             });
-            document.querySelector(`[data-theme="${currentTheme}"]`).classList.add('active');
+            if (document.querySelector(`[data-theme="${currentTheme}"]`)) {
+                document.querySelector(`[data-theme="${currentTheme}"]`).classList.add('active');
+            }
             
-            // Mettre à jour les checkboxes
+            // Mettre à jour les sélecteurs
+            document.getElementById('languageSelect').value = currentLanguage;
+            document.getElementById('textStyleSelect').value = currentTextStyle;
             document.getElementById('notificationsEnabled').checked = notificationsEnabled;
             document.getElementById('autoScrollEnabled').checked = autoScrollEnabled;
             document.getElementById('timestampEnabled').checked = timestampEnabled;
@@ -1965,7 +2589,7 @@
             if (!file) return;
 
             if (file.size > 5 * 1024 * 1024) {
-                showError('L\'image est trop volumineuse (max 5MB)');
+                showError(translateText('image_too_large') + ' (max 5MB)');
                 return;
             }
 
@@ -2042,7 +2666,7 @@
                 oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
                 oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
                 
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
                 
                 oscillator.start(audioContext.currentTime);
@@ -2062,6 +2686,8 @@
             localStorage.setItem('chatAutoScroll', autoScrollEnabled.toString());
             localStorage.setItem('chatTimestamp', timestampEnabled.toString());
             localStorage.setItem('chatTheme', currentTheme);
+            localStorage.setItem('chatLanguage', currentLanguage);
+            localStorage.setItem('chatTextStyle', currentTextStyle);
         }
 
         // Charger les préférences
@@ -2086,12 +2712,24 @@
                 currentTheme = savedTheme;
                 changeTheme(savedTheme);
             }
+            
+            const savedLanguage = localStorage.getItem('chatLanguage');
+            if (savedLanguage) {
+                currentLanguage = savedLanguage;
+                updateInterfaceTexts();
+            }
+            
+            const savedTextStyle = localStorage.getItem('chatTextStyle');
+            if (savedTextStyle) {
+                currentTextStyle = savedTextStyle;
+                changeTextStyle(savedTextStyle);
+            }
         }
 
-        // Gestion des touches
+        // Gestion des touches - CORRECTION: Enter envoie, plus de Shift+Enter
         document.getElementById('messageInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Empêcher le saut de ligne
                 sendMessage();
             }
         });
@@ -2150,7 +2788,7 @@
                 // Vérifier si c'est une image pour la coller directement
                 if (file.type.startsWith('image/')) {
                     if (file.size > 10 * 1024 * 1024) {
-                        showError('Image trop volumineuse (max 10MB)');
+                        showError(translateText('image_too_large') + ' (max 10MB)');
                         return;
                     }
                     
@@ -2195,11 +2833,6 @@
                     cancelPastedImage();
                 }
             }
-            
-            // Ctrl+Entrée pour envoyer
-            if (e.ctrlKey && e.key === 'Enter') {
-                sendMessage();
-            }
         });
 
         // Auto-focus et initialisation
@@ -2207,16 +2840,15 @@
             document.getElementById('usernameInput').focus();
             loadSettings();
             
-            console.log('🚀 ChatRoom Client v2.1.0 initialisé avec succès !');
+            console.log('🚀 ChatRoom Client v2.2.0 initialisé avec succès !');
             console.log('✨ Nouvelles fonctionnalités:');
-            console.log('   • Affichage des images dans les messages');
-            console.log('   • Coller des images avec Ctrl+V');
-            console.log('   • Modal plein écran pour les images');
-            console.log('   • Paramètres centrés en mode fenêtré');
-            console.log('   • Options d\'affichage personnalisables');
-            console.log('   • Amélioration du drag & drop');
+            console.log('   • Interface mobile optimisée');
+            console.log('   • Système multilingue (8 langues)');
+            console.log('   • Styles de texte personnalisables');
+            console.log('   • Indicateur de frappe amélioré avec avatars');
+            console.log('   • Enter pour envoyer (plus de Shift+Enter)');
+            console.log('   • Bouton répondre toujours visible');
         });
-
     </script>
 </body>
 </html>
