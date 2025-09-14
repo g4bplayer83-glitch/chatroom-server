@@ -11,7 +11,9 @@ const io = socketIo(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    pingTimeout: 60000,
+    pingInterval: 25000
 });
 
 // Configuration multer pour les fichiers
@@ -87,6 +89,40 @@ const MAX_HISTORY = 100; // Limite de l'historique
 let typingUsers = new Map(); // socketId -> {username, timestamp}
 let userProfiles = new Map(); // username -> profile data
 let messageId = 1; // Compteur pour les IDs de messages
+let serverStats = {
+    totalMessages: 0,
+    totalUploads: 0,
+    totalConnections: 0,
+    startTime: new Date()
+};
+
+// Stockage temporaire des réactions emoji sur les images (messageId -> {emoji: [usernames]})
+let imageReactions = {};
+
+// Fonction de logging améliorée
+function logActivity(type, message, data = {}) {
+    const timestamp = new Date().toISOString();
+    const logColors = {
+        'CONNECTION': '\x1b[32m', // Vert
+        'DISCONNECTION': '\x1b[31m', // Rouge
+        'MESSAGE': '\x1b[36m', // Cyan
+        'REPLY': '\x1b[35m', // Magenta
+        'UPLOAD': '\x1b[33m', // Jaune
+        'SYSTEM': '\x1b[34m', // Bleu
+        'ERROR': '\x1b[31m', // Rouge
+        'TYPING': '\x1b[90m', // Gris
+        'PROFILE': '\x1b[95m' // Rose
+    };
+    
+    const color = logColors[type] || '\x1b[37m';
+    const resetColor = '\x1b[0m';
+    
+    console.log(`${color}[${timestamp}] ${type}:${resetColor} ${message}`);
+    
+    if (Object.keys(data).length > 0) {
+        console.log(`${color}  └─ Données:${resetColor}`, JSON.stringify(data, null, 2));
+    }
+}
 
 // Fonction utilitaire pour nettoyer les anciens fichiers
 function cleanupOldFiles() {
@@ -94,6 +130,7 @@ function cleanupOldFiles() {
         const files = fs.readdirSync(uploadDir);
         const now = Date.now();
         const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours
+        let cleanedCount = 0;
         
         files.forEach(file => {
             const filePath = path.join(uploadDir, file);
@@ -101,16 +138,21 @@ function cleanupOldFiles() {
             
             if (now - stats.mtime.getTime() > maxAge) {
                 fs.unlinkSync(filePath);
-                console.log(`🗑️ Fichier supprimé: ${file}`);
+                cleanedCount++;
             }
         });
+        
+        if (cleanedCount > 0) {
+            logActivity('SYSTEM', `Nettoyage automatique: ${cleanedCount} fichiers supprimés`);
+        }
     } catch (error) {
-        console.error('Erreur lors du nettoyage des fichiers:', error);
+        logActivity('ERROR', 'Erreur lors du nettoyage des fichiers', { error: error.message });
     }
 }
 
 // Routes
 app.get('/', (req, res) => {
+    logActivity('SYSTEM', `Page d'accueil visitée depuis ${req.ip}`);
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
@@ -118,11 +160,20 @@ app.get('/', (req, res) => {
 app.post('/upload', (req, res) => {
     upload.single('file')(req, res, (err) => {
         if (err instanceof multer.MulterError) {
+            logActivity('ERROR', 'Erreur Multer lors de l\'upload', { 
+                error: err.message, 
+                code: err.code,
+                ip: req.ip 
+            });
             if (err.code === 'LIMIT_FILE_SIZE') {
                 return res.status(400).json({ error: 'Fichier trop volumineux (max 10MB)' });
             }
             return res.status(400).json({ error: `Erreur d'upload: ${err.message}` });
         } else if (err) {
+            logActivity('ERROR', 'Erreur générique lors de l\'upload', { 
+                error: err.message,
+                ip: req.ip 
+            });
             return res.status(400).json({ error: err.message });
         }
         
@@ -130,7 +181,14 @@ app.post('/upload', (req, res) => {
             return res.status(400).json({ error: 'Aucun fichier uploadé' });
         }
         
-        console.log(`📎 Fichier uploadé: ${req.file.originalname} (${req.file.size} bytes)`);
+        serverStats.totalUploads++;
+        logActivity('UPLOAD', `Fichier uploadé avec succès`, {
+            filename: req.file.originalname,
+            size: `${Math.round(req.file.size / 1024)}KB`,
+            mimetype: req.file.mimetype,
+            ip: req.ip,
+            totalUploads: serverStats.totalUploads
+        });
         
         res.json({
             success: true,
@@ -147,11 +205,20 @@ app.post('/upload', (req, res) => {
 app.post('/upload-avatar', (req, res) => {
     avatarUpload.single('avatar')(req, res, (err) => {
         if (err instanceof multer.MulterError) {
+            logActivity('ERROR', 'Erreur upload avatar', { 
+                error: err.message, 
+                code: err.code,
+                ip: req.ip 
+            });
             if (err.code === 'LIMIT_FILE_SIZE') {
                 return res.status(400).json({ error: 'Image trop volumineuse (max 5MB)' });
             }
             return res.status(400).json({ error: `Erreur d'upload: ${err.message}` });
         } else if (err) {
+            logActivity('ERROR', 'Erreur générique upload avatar', { 
+                error: err.message,
+                ip: req.ip 
+            });
             return res.status(400).json({ error: err.message });
         }
         
@@ -159,7 +226,11 @@ app.post('/upload-avatar', (req, res) => {
             return res.status(400).json({ error: 'Aucune image uploadée' });
         }
         
-        console.log(`👤 Avatar uploadé: ${req.file.originalname}`);
+        logActivity('PROFILE', `Avatar uploadé`, {
+            filename: req.file.originalname,
+            size: `${Math.round(req.file.size / 1024)}KB`,
+            ip: req.ip
+        });
         
         res.json({
             success: true,
@@ -175,31 +246,79 @@ app.get('/download/:filename', (req, res) => {
     const filepath = path.join(uploadDir, filename);
     
     if (fs.existsSync(filepath)) {
-        console.log(`⬇️ Téléchargement: ${filename}`);
+        logActivity('SYSTEM', `Téléchargement de fichier`, {
+            filename: filename,
+            ip: req.ip
+        });
         res.download(filepath);
     } else {
+        logActivity('ERROR', `Tentative de téléchargement de fichier inexistant`, {
+            filename: filename,
+            ip: req.ip
+        });
         res.status(404).json({ error: 'Fichier non trouvé' });
     }
 });
 
-// Route de santé pour Render
+// Route de santé pour Render avec stats détaillées
 app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'OK', 
+    const uptime = Math.floor(process.uptime());
+    const memUsage = process.memoryUsage();
+    
+    const healthData = {
+        status: 'OK',
+        uptime: `${Math.floor(uptime / 60)}min ${uptime % 60}s`,
         users: connectedUsers.size,
         messages: chatHistory.length,
-        uptime: process.uptime(),
-        memory: process.memoryUsage()
+        totalMessages: serverStats.totalMessages,
+        totalUploads: serverStats.totalUploads,
+        totalConnections: serverStats.totalConnections,
+        memory: {
+            used: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+            total: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`
+        },
+        startTime: serverStats.startTime
+    };
+    
+    logActivity('SYSTEM', `Vérification de santé depuis ${req.ip}`, {
+        currentUsers: connectedUsers.size,
+        totalMessages: serverStats.totalMessages
     });
+    
+    res.status(200).json(healthData);
 });
 
 // Gestion des connexions Socket.IO
 io.on('connection', (socket) => {
     const clientIp = socket.handshake.address;
-    console.log(`📱 Nouvelle connexion: ${socket.id} (IP: ${clientIp})`);
+    serverStats.totalConnections++;
+    
+    logActivity('CONNECTION', `Nouvelle connexion Socket.IO`, {
+        socketId: socket.id,
+        ip: clientIp,
+        totalConnections: serverStats.totalConnections
+    });
 
     // Envoi de l'historique des messages au nouveau client
     socket.emit('chat_history', chatHistory);
+    // Envoi des réactions emoji sur images à la connexion
+    socket.emit('image_reactions', imageReactions);
+    logActivity('SYSTEM', `Historique envoyé`, {
+        socketId: socket.id,
+        messagesCount: chatHistory.length
+    });
+    // Synchronisation des réactions emoji sur images
+    socket.on('add_image_reaction', ({ messageId, emoji, username }) => {
+        if (!messageId || !emoji || !username) return;
+        if (!imageReactions[messageId]) imageReactions[messageId] = {};
+        if (!imageReactions[messageId][emoji]) imageReactions[messageId][emoji] = [];
+        // Empêche le spam : un utilisateur ne peut réagir qu'une fois par emoji par image
+        if (!imageReactions[messageId][emoji].includes(username)) {
+            imageReactions[messageId][emoji].push(username);
+            io.emit('image_reaction_update', { messageId, emoji, users: imageReactions[messageId][emoji] });
+            logActivity('MESSAGE', `Réaction emoji ajoutée`, { messageId, emoji, username });
+        }
+    });
 
     // Connexion d'un utilisateur
     socket.on('user_join', (userData) => {
@@ -208,6 +327,11 @@ io.on('connection', (socket) => {
             
             // Validation
             if (!username || typeof username !== 'string' || username.trim().length === 0) {
+                logActivity('ERROR', `Tentative de connexion avec nom invalide`, {
+                    socketId: socket.id,
+                    ip: clientIp,
+                    providedUsername: username
+                });
                 socket.emit('error', { message: 'Nom d\'utilisateur invalide' });
                 return;
             }
@@ -220,6 +344,12 @@ io.on('connection', (socket) => {
             );
             
             if (existingUser) {
+                logActivity('ERROR', `Tentative d'utilisation d'un pseudo déjà pris`, {
+                    socketId: socket.id,
+                    username: cleanUsername,
+                    ip: clientIp,
+                    existingSocketId: existingUser.id
+                });
                 socket.emit('username_taken', { message: 'Ce pseudo est déjà pris!' });
                 return;
             }
@@ -231,17 +361,22 @@ io.on('connection', (socket) => {
                 avatar: avatar || '',
                 joinTime: new Date(),
                 ip: clientIp,
-                lastActivity: new Date()
+                lastActivity: new Date(),
+                messagesCount: 0,
+                repliesCount: 0
             };
             
             connectedUsers.set(socket.id, userInfo);
 
             // Sauvegarder le profil
+            const existingProfile = userProfiles.get(cleanUsername) || {};
             userProfiles.set(cleanUsername, {
                 username: cleanUsername,
                 avatar: userInfo.avatar,
                 lastSeen: new Date(),
-                joinCount: (userProfiles.get(cleanUsername)?.joinCount || 0) + 1
+                joinCount: (existingProfile.joinCount || 0) + 1,
+                totalMessages: existingProfile.totalMessages || 0,
+                totalReplies: existingProfile.totalReplies || 0
             });
 
             // Message de bienvenue
@@ -258,10 +393,22 @@ io.on('connection', (socket) => {
             // Envoyer la liste des utilisateurs connectés
             updateUsersList();
             
-            console.log(`✅ ${cleanUsername} a rejoint le chat (${connectedUsers.size} utilisateurs)`);
+            logActivity('CONNECTION', `Utilisateur rejoint le chat`, {
+                username: cleanUsername,
+                socketId: socket.id,
+                hasAvatar: !!avatar,
+                ip: clientIp,
+                totalUsers: connectedUsers.size,
+                joinCount: userProfiles.get(cleanUsername).joinCount
+            });
             
         } catch (error) {
-            console.error('Erreur lors de la connexion utilisateur:', error);
+            logActivity('ERROR', 'Erreur lors de la connexion utilisateur', {
+                error: error.message,
+                stack: error.stack,
+                socketId: socket.id,
+                ip: clientIp
+            });
             socket.emit('error', { message: 'Erreur lors de la connexion' });
         }
     });
@@ -271,12 +418,17 @@ io.on('connection', (socket) => {
         try {
             const user = connectedUsers.get(socket.id);
             if (!user) {
+                logActivity('ERROR', `Message reçu d'un utilisateur non connecté`, {
+                    socketId: socket.id,
+                    ip: clientIp
+                });
                 socket.emit('error', { message: 'Vous devez d\'abord vous connecter' });
                 return;
             }
 
             // Mettre à jour la dernière activité
             user.lastActivity = new Date();
+            user.messagesCount++;
 
             const message = {
                 type: messageData.type || 'user',
@@ -292,6 +444,10 @@ io.on('connection', (socket) => {
 
             // Validation du message
             if (!message.content && !message.attachment) {
+                logActivity('ERROR', `Message vide reçu`, {
+                    username: user.username,
+                    socketId: socket.id
+                });
                 socket.emit('error', { message: 'Message vide' });
                 return;
             }
@@ -305,9 +461,42 @@ io.on('connection', (socket) => {
                     .replace(/"/g, '&quot;');
             }
 
+            // Compter les réponses
+            if (message.replyTo) {
+                user.repliesCount++;
+                const profile = userProfiles.get(user.username);
+                if (profile) {
+                    profile.totalReplies = (profile.totalReplies || 0) + 1;
+                    userProfiles.set(user.username, profile);
+                }
+                
+                logActivity('REPLY', `Réponse envoyée`, {
+                    username: user.username,
+                    replyToUsername: message.replyTo.username,
+                    content: message.content || '[Pièce jointe]',
+                    userRepliesCount: user.repliesCount
+                });
+            } else {
+                logActivity('MESSAGE', `Message envoyé`, {
+                    username: user.username,
+                    content: message.content || '[Pièce jointe]',
+                    hasAttachment: !!message.attachment,
+                    userMessagesCount: user.messagesCount
+                });
+            }
+
+            // Mettre à jour les statistiques du profil
+            const profile = userProfiles.get(user.username);
+            if (profile) {
+                profile.totalMessages = (profile.totalMessages || 0) + 1;
+                profile.lastActivity = new Date();
+                userProfiles.set(user.username, profile);
+            }
+
             // Ajouter à l'historique et diffuser
             addToHistory(message);
             io.emit('new_message', message);
+            serverStats.totalMessages++;
             
             // Arrêter l'indicateur de frappe pour cet utilisateur
             if (typingUsers.has(socket.id)) {
@@ -315,10 +504,13 @@ io.on('connection', (socket) => {
                 updateTypingIndicator();
             }
             
-            console.log(`💬 [${user.username}]: ${message.content || '[Pièce jointe]'}`);
-            
         } catch (error) {
-            console.error('Erreur lors de l\'envoi du message:', error);
+            logActivity('ERROR', 'Erreur lors de l\'envoi du message', {
+                error: error.message,
+                stack: error.stack,
+                socketId: socket.id,
+                username: connectedUsers.get(socket.id)?.username || 'Inconnu'
+            });
             socket.emit('error', { message: 'Erreur lors de l\'envoi du message' });
         }
     });
@@ -332,13 +524,26 @@ io.on('connection', (socket) => {
                 timestamp: Date.now()
             });
             updateTypingIndicator();
+            
+            logActivity('TYPING', `Début de frappe`, {
+                username: user.username,
+                typingUsersCount: typingUsers.size
+            });
         }
     });
 
     socket.on('typing_stop', () => {
+        const user = connectedUsers.get(socket.id);
         if (typingUsers.has(socket.id)) {
             typingUsers.delete(socket.id);
             updateTypingIndicator();
+            
+            if (user) {
+                logActivity('TYPING', `Arrêt de frappe`, {
+                    username: user.username,
+                    typingUsersCount: typingUsers.size
+                });
+            }
         }
     });
 
@@ -350,6 +555,7 @@ io.on('connection', (socket) => {
 
             // Mettre à jour l'avatar
             if (profileData.avatar && typeof profileData.avatar === 'string') {
+                const oldAvatar = user.avatar;
                 user.avatar = profileData.avatar;
                 connectedUsers.set(socket.id, user);
                 
@@ -363,16 +569,30 @@ io.on('connection', (socket) => {
                 updateUsersList();
                 
                 socket.emit('profile_updated', { avatar: user.avatar });
-                console.log(`👤 ${user.username} a mis à jour son avatar`);
+                
+                logActivity('PROFILE', `Profil mis à jour`, {
+                    username: user.username,
+                    oldAvatar: oldAvatar ? 'Oui' : 'Non',
+                    newAvatar: 'Oui'
+                });
             }
         } catch (error) {
-            console.error('Erreur mise à jour profil:', error);
+            logActivity('ERROR', 'Erreur mise à jour profil', {
+                error: error.message,
+                socketId: socket.id,
+                username: connectedUsers.get(socket.id)?.username || 'Inconnu'
+            });
             socket.emit('error', { message: 'Erreur lors de la mise à jour du profil' });
         }
     });
 
     // Demande de la liste des utilisateurs
     socket.on('get_users', () => {
+        const user = connectedUsers.get(socket.id);
+        logActivity('SYSTEM', `Liste des utilisateurs demandée`, {
+            username: user?.username || 'Inconnu',
+            currentUsersCount: connectedUsers.size
+        });
         updateUsersList();
     });
 
@@ -382,6 +602,9 @@ io.on('connection', (socket) => {
         if (user) {
             user.lastActivity = new Date();
             socket.emit('pong');
+            
+            // Log uniquement si on veut du debug très détaillé
+            // logActivity('SYSTEM', `Ping reçu de ${user.username}`);
         }
     });
 
@@ -389,6 +612,8 @@ io.on('connection', (socket) => {
     socket.on('disconnect', (reason) => {
         const user = connectedUsers.get(socket.id);
         if (user) {
+            const sessionDuration = Date.now() - user.joinTime.getTime();
+            
             // Message de départ
             const leaveMessage = {
                 type: 'system',
@@ -404,7 +629,9 @@ io.on('connection', (socket) => {
             const profile = userProfiles.get(user.username);
             if (profile) {
                 profile.lastSeen = new Date();
-                profile.totalTime = (profile.totalTime || 0) + (Date.now() - user.joinTime.getTime());
+                profile.totalTime = (profile.totalTime || 0) + sessionDuration;
+                profile.lastSessionMessages = user.messagesCount;
+                profile.lastSessionReplies = user.repliesCount;
                 userProfiles.set(user.username, profile);
             }
             
@@ -418,13 +645,31 @@ io.on('connection', (socket) => {
             connectedUsers.delete(socket.id);
             updateUsersList();
             
-            console.log(`👋 ${user.username} a quitté le chat (${reason}) - ${connectedUsers.size} utilisateurs restants`);
+            logActivity('DISCONNECTION', `Utilisateur déconnecté`, {
+                username: user.username,
+                reason: reason,
+                sessionDuration: `${Math.floor(sessionDuration / 1000)}s`,
+                messagesInSession: user.messagesCount,
+                repliesInSession: user.repliesCount,
+                remainingUsers: connectedUsers.size
+            });
+        } else {
+            logActivity('DISCONNECTION', `Socket déconnecté sans utilisateur associé`, {
+                socketId: socket.id,
+                reason: reason
+            });
         }
     });
 
     // Gestion des erreurs de socket
     socket.on('error', (error) => {
-        console.error(`⛔ Erreur socket ${socket.id}:`, error);
+        const user = connectedUsers.get(socket.id);
+        logActivity('ERROR', `Erreur socket`, {
+            socketId: socket.id,
+            username: user?.username || 'Inconnu',
+            error: error.message,
+            ip: clientIp
+        });
     });
 });
 
@@ -433,8 +678,13 @@ function addToHistory(message) {
     chatHistory.push(message);
     // Limiter l'historique
     if (chatHistory.length > MAX_HISTORY) {
+        const removed = chatHistory.length - MAX_HISTORY;
         chatHistory = chatHistory.slice(-MAX_HISTORY);
+        logActivity('SYSTEM', `Historique tronqué: ${removed} messages supprimés`);
     }
+    // Nettoyer les réactions d'images pour les messages supprimés de l'historique
+    const validIds = new Set(chatHistory.map(m => m.id));
+    Object.keys(imageReactions).forEach(mid => { if (!validIds.has(Number(mid))) delete imageReactions[mid]; });
 }
 
 function updateUsersList() {
@@ -443,12 +693,19 @@ function updateUsersList() {
         username: user.username,
         avatar: user.avatar,
         joinTime: user.joinTime,
-        lastActivity: user.lastActivity
+        lastActivity: user.lastActivity,
+        messagesCount: user.messagesCount,
+        repliesCount: user.repliesCount
     }));
     
     io.emit('users_update', {
         count: connectedUsers.size,
         users: usersList
+    });
+    
+    logActivity('SYSTEM', `Liste des utilisateurs mise à jour`, {
+        totalUsers: connectedUsers.size,
+        activeUsers: usersList.map(u => u.username)
     });
 }
 
@@ -466,22 +723,44 @@ function updateTypingIndicator() {
     });
     
     io.emit('typing_update', { users: activeTypers });
+    
+    if (activeTypers.length > 0) {
+        logActivity('TYPING', `Indicateur de frappe mis à jour`, {
+            activeTypers: activeTypers
+        });
+    }
 }
 
 // Tâches de maintenance périodiques
 setInterval(() => {
     // Nettoyer les indicateurs de frappe expirés
+    const beforeCount = typingUsers.size;
     updateTypingIndicator();
+    const afterCount = typingUsers.size;
+    
+    if (beforeCount > afterCount) {
+        logActivity('SYSTEM', `Nettoyage indicateurs de frappe expirés`, {
+            removed: beforeCount - afterCount
+        });
+    }
     
     // Nettoyer les utilisateurs inactifs (optionnel)
     const now = Date.now();
+    const inactiveUsers = [];
     connectedUsers.forEach((user, socketId) => {
         if (now - user.lastActivity.getTime() > 30 * 60 * 1000) { // 30 minutes
-            console.log(`⏰ Utilisateur inactif déconnecté: ${user.username}`);
+            inactiveUsers.push({username: user.username, socketId});
             const socket = io.sockets.sockets.get(socketId);
             if (socket) socket.disconnect(true);
         }
     });
+    
+    if (inactiveUsers.length > 0) {
+        logActivity('SYSTEM', `Utilisateurs inactifs déconnectés`, {
+            count: inactiveUsers.length,
+            users: inactiveUsers.map(u => u.username)
+        });
+    }
 }, 60000); // Chaque minute
 
 // Nettoyage des fichiers une fois par jour
@@ -489,9 +768,20 @@ setInterval(cleanupOldFiles, 24 * 60 * 60 * 1000);
 
 // Affichage des statistiques serveur
 setInterval(() => {
-    if (connectedUsers.size > 0) {
+    if (connectedUsers.size > 0 || serverStats.totalMessages > 0) {
         const memUsage = process.memoryUsage();
-        console.log(`📊 Stats: ${connectedUsers.size} utilisateurs, ${chatHistory.length} messages, RAM: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`);
+        const uptime = process.uptime();
+        
+        logActivity('SYSTEM', `Statistiques serveur`, {
+            utilisateursConnectes: connectedUsers.size,
+            totalMessages: serverStats.totalMessages,
+            totalUploads: serverStats.totalUploads,
+            totalConnexions: serverStats.totalConnections,
+            memoire: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+            uptime: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}min`,
+            messagesEnHistorique: chatHistory.length,
+            utilisateursEnFrappe: typingUsers.size
+        });
     }
 }, 300000); // Toutes les 5 minutes
 
@@ -500,11 +790,14 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 server.listen(PORT, HOST, () => {
-    console.log(`🚀 ChatRoom Server v2.0 démarré !`);
-    console.log(`📡 Port: ${PORT}`);
-    console.log(`🌐 Host: ${HOST}`);
-    console.log(`📁 Uploads: ${uploadDir}`);
-    console.log(`⚡ Environnement: ${process.env.NODE_ENV || 'development'}`);
+    logActivity('SYSTEM', `ChatRoom Server v2.3 démarré avec succès !`, {
+        port: PORT,
+        host: HOST,
+        uploadsDir: uploadDir,
+        environnement: process.env.NODE_ENV || 'development',
+        nodeVersion: process.version,
+        memoire: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`
+    });
     
     // Nettoyage initial des anciens fichiers
     cleanupOldFiles();
@@ -513,16 +806,27 @@ server.listen(PORT, HOST, () => {
 // Gestion des erreurs serveur
 server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${PORT} déjà utilisé`);
+        logActivity('ERROR', `Port ${PORT} déjà utilisé - arrêt du serveur`, {
+            port: PORT,
+            host: HOST
+        });
         process.exit(1);
     } else {
-        console.error('⛔ Erreur serveur:', error);
+        logActivity('ERROR', 'Erreur serveur critique', {
+            error: error.message,
+            code: error.code,
+            stack: error.stack
+        });
     }
 });
 
 // Gestion propre de l'arrêt
 function gracefulShutdown(signal) {
-    console.log(`\n🛑 Signal ${signal} reçu, arrêt propre du serveur...`);
+    logActivity('SYSTEM', `Signal ${signal} reçu - arrêt propre du serveur`, {
+        signal: signal,
+        utilisateursConnectes: connectedUsers.size,
+        totalMessages: serverStats.totalMessages
+    });
     
     // Notifier tous les clients
     io.emit('system_message', {
@@ -532,15 +836,26 @@ function gracefulShutdown(signal) {
         id: messageId++
     });
     
+    // Sauvegarder les statistiques finales
+    const finalStats = {
+        totalMessages: serverStats.totalMessages,
+        totalUploads: serverStats.totalUploads,
+        totalConnections: serverStats.totalConnections,
+        uptime: process.uptime(),
+        shutdownTime: new Date()
+    };
+    
+    logActivity('SYSTEM', `Statistiques finales du serveur`, finalStats);
+    
     // Fermer le serveur
     server.close(() => {
-        console.log('✅ Serveur arrêté proprement');
+        logActivity('SYSTEM', 'Serveur arrêté proprement');
         process.exit(0);
     });
     
     // Forcer l'arrêt après 10 secondes
     setTimeout(() => {
-        console.log('⏰ Arrêt forcé');
+        logActivity('SYSTEM', 'Arrêt forcé du serveur');
         process.exit(1);
     }, 10000);
 }
@@ -550,11 +865,22 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Gestion des erreurs non capturées
 process.on('uncaughtException', (error) => {
-    console.error('💥 Erreur non capturée:', error);
+    logActivity('ERROR', 'Erreur non capturée - arrêt critique', {
+        error: error.message,
+        stack: error.stack
+    });
     gracefulShutdown('uncaughtException');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('💥 Promesse rejetée:', reason);
+    logActivity('ERROR', 'Promesse rejetée non gérée', {
+        reason: reason,
+        promise: promise
+    });
     // Ne pas arrêter le serveur pour les promesses rejetées
+});
+
+logActivity('SYSTEM', 'Tous les gestionnaires d\'événements configurés', {
+    maxHistoryMessages: MAX_HISTORY,
+    uploadDir: uploadDir
 });
