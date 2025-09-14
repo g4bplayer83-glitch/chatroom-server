@@ -37,6 +37,50 @@
             --accent-color: #667eea;
             --typing-bg: rgba(255, 255, 255, 0.1);
         }
+        /* Thème bleu nuit */
+        .theme-bluenight {
+            --primary-gradient: linear-gradient(135deg, #232526 0%, #414345 100%);
+            --secondary-gradient: linear-gradient(135deg, #283e51 0%, #485563 100%);
+            --chat-bg: rgba(35, 37, 38, 0.97);
+            --message-own-bg: linear-gradient(135deg, #232526 0%, #414345 100%);
+            --message-other-bg: #283e51;
+            --text-primary: #e0e6ed;
+            --text-secondary: #b0b8c1;
+            --border-color: #3a3f47;
+            --sidebar-bg: #232526;
+            --input-bg: #283e51;
+            --accent-color: #3a8dde;
+        }
+
+        /* Thème rouge */
+        .theme-red {
+            --primary-gradient: linear-gradient(135deg, #ff5858 0%, #f857a6 100%);
+            --secondary-gradient: linear-gradient(135deg, #ff5858 0%, #f857a6 100%);
+            --chat-bg: rgba(255, 245, 245, 0.97);
+            --message-own-bg: linear-gradient(135deg, #ff5858 0%, #f857a6 100%);
+            --message-other-bg: #fff0f0;
+            --text-primary: #a80000;
+            --text-secondary: #d46a6a;
+            --border-color: #ffb3b3;
+            --sidebar-bg: #fff0f0;
+            --input-bg: #fff5f5;
+            --accent-color: #ff5858;
+        }
+
+        /* Thème jaune */
+        .theme-yellow {
+            --primary-gradient: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+            --secondary-gradient: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+            --chat-bg: rgba(255, 255, 240, 0.97);
+            --message-own-bg: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+            --message-other-bg: #fffbe0;
+            --text-primary: #7a5c00;
+            --text-secondary: #bfa600;
+            --border-color: #ffe066;
+            --sidebar-bg: #fffbe0;
+            --input-bg: #fffde7;
+            --accent-color: #ffd200;
+        }
 
         /* Thème violet */
         .theme-purple {
@@ -51,21 +95,6 @@
             --sidebar-bg: #fff;
             --input-bg: white;
             --accent-color: #8e2de2;
-        }
-
-        /* Thème vert */
-        .theme-green {
-            --primary-gradient: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            --secondary-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            --chat-bg: rgba(255, 255, 255, 0.95);
-            --message-own-bg: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            --message-other-bg: white;
-            --text-primary: #333;
-            --text-secondary: #666;
-            --border-color: #e0e0e0;
-            --sidebar-bg: #fff;
-            --input-bg: white;
-            --accent-color: #11998e;
         }
 
         /* Thème rose */
@@ -1154,6 +1183,168 @@
                 min-height: 44px;
             }
         }
+        /* Style emoji picker moderne */
+        #emojiPickerPopup {
+            display: none;
+            position: fixed;
+            bottom: 120px; /* Position au-dessus de la zone de chat */
+            right: 20px; /* Aligné à droite */
+            background: #36393f;
+            color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            padding: 0;
+            width: 350px;
+            height: 400px;
+            z-index: 4000;
+            flex-direction: column;
+            border: 1px solid #202225;
+        }
+
+        .emoji-picker-header {
+            padding: 8px;
+            border-bottom: 1px solid #202225;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .emoji-picker-search {
+            flex: 1;
+            background: #202225;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            color: #dcddde;
+            font-size: 14px;
+            outline: none;
+            direction: ltr;
+        }
+
+        .emoji-picker-search::placeholder {
+            color: #72767d;
+        }
+
+        .emoji-picker-close {
+            background: none;
+            border: none;
+            color: #dcddde;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 8px;
+        }
+
+        .emoji-picker-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .emoji-picker-section {
+            margin-bottom: 16px;
+        }
+
+        .emoji-picker-section-title {
+            color: #b9bbbe;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .emoji-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+        }
+
+        .emoji-picker-emoji {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.5em;
+            border-radius: 3px;
+            transition: background-color 0.1s;
+        }
+
+        .emoji-picker-emoji:hover {
+            background-color: #32353b;
+        }
+
+        .emoji-picker-categories {
+            display: flex;
+            padding: 8px;
+            gap: 2px;
+            border-top: 1px solid #202225;
+            background: #2f3136;
+        }
+
+        .emoji-picker-category-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            color: #b9bbbe;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.1s;
+            font-size: 20px;
+        }
+
+        .emoji-picker-category-btn:hover {
+            color: #dcddde;
+            background: #32353b;
+        }
+
+        .emoji-picker-category-btn.active {
+            color: #fff;
+            background: #32353b;
+        }
+
+        @media (max-width: 600px) {
+            #emojiPickerPopup {
+                width: 95vw;
+                max-height: 80vh;
+            }
+        }
+        /* Emoji reactions */
+        .attachment-has-reactions {
+            position: relative;
+        }
+        .emoji-reactions-corner {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            display: flex;
+            gap: 2px;
+            z-index: 2;
+            background: rgba(255,255,255,0.7);
+            border-radius: 12px;
+            padding: 2px 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: background 0.2s;
+        }
+        .emoji-reaction {
+            cursor: pointer;
+            font-size: 16px;
+            user-select: none;
+            transition: transform 0.15s, filter 0.15s;
+        }
+        .emoji-reaction:hover {
+            transform: scale(1.25) rotate(-10deg);
+            filter: brightness(1.2);
+        }
+        .emoji-reacted {
+            animation: emoji-pop 0.7s cubic-bezier(.36,1.56,.64,1) both;
+        }
+        @keyframes emoji-pop {
+            0% { transform: scale(1); }
+            30% { transform: scale(1.7) rotate(-10deg); }
+            60% { transform: scale(1.2) rotate(5deg); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -1260,7 +1451,242 @@
                     <input type="file" id="fileInput" style="display: none;" onchange="handleFileSelect(event)">
                 </div>
                 <textarea id="messageInput" data-i18n-placeholder="message_placeholder" placeholder="Tapez votre message..." maxlength="500" disabled rows="1"></textarea>
+                <button class="emoji-picker-btn" id="emojiPickerBtn" type="button" title="Emoji" tabindex="-1">😊</button>
                 <button id="sendButton" onclick="sendMessage()" disabled>Envoyer</button>
+        </div>
+    <div id="emojiPickerPopup" class="emoji-picker-popup" style="display:none;"></div>
+    <script>
+    // --- Emoji Picker Modern ---
+    const EMOJI_CATEGORIES = [
+        { id: 'recent', name: 'Récent', icon: '🕒' },
+        { id: 'people', name: 'Smileys', icon: '😃', emojis: ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😜','😝','😛','😎','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','😌','😔','😪','😴','😷','🤒','🤕','🤢','🤮','�','','😕','😟','🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','�','💀','☠️','🤡','','🤖','😺','😸','😹','😻','😼','😽','🙀','😿','😾'] },
+        { id: 'activity', name: 'Activités', icon: '⚽', emojis: ['⚽','🏀','🏈','⚾','🎾','🏐','🎱','🎳','','🎮','🎲','🎨','🎭','🎪','🎫','🎟️','🎬','🎤','🎧','🎼','🎹','🥁','🎷','🎺','🎸','🎻','🎲','♟️','🎯','🎳','🎮','🎰'] },
+        { id: 'travel', name: 'Voyages', icon: '✈️', emojis: ['�','�','�','🚌','🚎','🏎️','�','�','�','🚐','🛻','�','🚛','🚜','🛵','🏍️','�','🚲','�','🚅','�','🚝','🚈','🚂','✈️','🛩️','🛫','🛬','�','�','🚁','🚠','�','�','�','�','🚡','🚀','🛸','�','⛵','🛥️','�','�️','⛴️','🚢','⚓','�','⛽','�','�','�','�','🗺️','�','�','�','🏰','🏯','🏟️','🎡','🎢','🎠','⛲','⛱️','🏖️','🏝️','🏜️','🌋','⛰️','�'] },
+        { id: 'objects', name: 'Objets', icon: '💡', emojis: ['⌚','�','�','💻','⌨️','🖥️','🖨️','🖱️','🖲️','🕹️','🗜️','💽','💾','💿','📀','📼','📷','📸','📹','🎥','📽️','🎞️','📞','☎️','📟','📠','📺','📻','🎙️','🎚️','🎛️','🧭','⏱️','⏲️','⏰','🕰️','⏳','⌛','📡','🔋','🔌','💡','🔦','🕯️','🪔','🧯','🛢️','💸','💵','💴','💶','💷','💰','💳','💎','⚖️','🦯','🔧','🔨','⚒️','🛠️','⛏️','🔩','⚙️','�️','⚗️','🧪','🧬','�','🔭','📡'] },
+        { id: 'nature', name: 'Nature', icon: '🌺', emojis: ['🌸','💮','🏵️','🌹','🥀','🌺','🌻','🌼','🌷','🌱','🌲','🌳','🌴','🌵','🌾','🌿','☘️','🍀','🍁','🍂','🍃','🌍','🌎','🌏','🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘','🌙','🌚','🌛','🌜','🌝','🌞','🌟','⭐','🌠','☁️','⛅','⛈️','🌤️','🌥️','🌦️','🌧️','🌨️','🌩️','🌪️','🌫️','🌬️','🌈','☀️','🌤️','⛅','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌬️','�','🌪️','🌫️','�','💧','💦'] },
+        { id: 'food', name: 'Nourriture', icon: '🍔', emojis: ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🦴','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🫘','🍯','🥛','🍼','🫖','☕','🍵','🧃','🥤','🧋','🍶','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🧉','🍾','🧊','🥄','🍴','🍽️','🥢','🥡'] },
+        { id: 'symbols', name: 'Symboles', icon: '�', emojis: ['❤️','🧡','�','�','�','�','�','�','🤎','�','❤️‍�','❤️‍🩹','❣️','�','�','💓','�','�','�','�','�','☮️','✝️','☪️','�️','☸️','✡️','�','�','☯️','☦️','�','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','🉑','☢️','☣️','�','�','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','�','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','�','⛔','�','�','💯','💢','♨️','🚷','�','�','�','🔞','�','🚭','❗','❕','❓','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❇️','✳️','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🈳','🈂️','�','🛃','�','�','�','🚹','🚺','�','⚧️','🚻','🚮','🎦','📶','🈁','🔣','ℹ️','�','�','🔠','�','🆗','🆙','🆒','�','🆓','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','🔢','#️⃣','*️⃣','⏏️','▶️','⏸️','⏯️','⏹️','⏺️','⏭️','⏮️','⏩','⏪','⏫','⏬','◀️','🔼','🔽','➡️','⬅️','⬆️','⬇️','↗️','↘️','↙️','↖️','↕️','↔️','↪️','↩️','⤴️','⤵️','🔀','🔁','🔂','🔄','🔃','🎵','🎶','➕','➖','➗','✖️','🟰','💲','💱','™️','©️','®️','🔚','🔙','🔛','🔝','🔜','〰️','➰','➿','✔️','☑️','🔘','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','�','🔺','🔻','🔸','🔹','�','�','�','�','▪️','▫️','◾','◽','◼️','◻️','�','�','🟨','�','�','�','⬛','⬜','🟫','�','🔇','🔉','�','�','🔕','📣','📢','🗨️','💭','🗯️','�','�️','�','�️','📅'] }
+    ];
+
+    let recentEmojis = [];
+    let activeCategory = 'people';
+
+    function renderEmojiPicker() {
+        const popup = document.getElementById('emojiPickerPopup');
+        let html = `
+            <div class="emoji-picker-header">
+                <input type="text" class="emoji-picker-search" id="emojiPickerSearch" placeholder="Rechercher un emoji..." />
+                <button class="emoji-picker-close" onclick="closeEmojiPicker()">×</button>
+            </div>
+            <div class="emoji-picker-content">`;
+        
+        // Section Récents si disponible
+        if (recentEmojis.length > 0) {
+            html += `
+                <div class="emoji-picker-section">
+                    <div class="emoji-picker-section-title">Récent</div>
+                    <div class="emoji-picker-grid">
+                        ${recentEmojis.map(emoji => `
+                            <div class="emoji-picker-emoji" onclick="insertEmojiToInput('${emoji}')">${emoji}</div>
+                        `).join('')}
+                    </div>
+                </div>`;
+        }
+
+        // Section active
+        const category = EMOJI_CATEGORIES.find(c => c.id === activeCategory);
+        if (category && category.emojis) {
+            html += `
+                <div class="emoji-picker-section">
+                    <div class="emoji-picker-section-title">${category.name}</div>
+                    <div class="emoji-picker-grid">
+                        ${category.emojis.map(emoji => `
+                            <div class="emoji-picker-emoji" onclick="insertEmojiToInput('${emoji}')">${emoji}</div>
+                        `).join('')}
+                    </div>
+                </div>`;
+        }
+
+        html += `</div>
+            <div class="emoji-picker-categories">`;
+        
+        EMOJI_CATEGORIES.forEach(cat => {
+            html += `
+                <button class="emoji-picker-category-btn${cat.id === activeCategory ? ' active' : ''}" 
+                        onclick="switchCategory('${cat.id}')" 
+                        title="${cat.name}">
+                    ${cat.icon}
+                </button>`;
+        });
+        
+        html += `</div>`;
+        popup.innerHTML = html;
+
+        // Gestionnaire de recherche
+        const search = document.getElementById('emojiPickerSearch');
+        search && search.addEventListener('input', handleSearch);
+    }
+
+    function handleSearch(e) {
+        const searchText = e.target.value.toLowerCase();
+        const allEmojis = EMOJI_CATEGORIES.flatMap(cat => cat.emojis || []);
+        
+        const filtered = allEmojis.filter(emoji => {
+            // Vérifie si l'emoji lui-même contient la recherche
+            if (emoji.toLowerCase().includes(searchText)) return true;
+            
+            // Vérifie si un des noms de l'emoji correspond à la recherche
+            const names = emojiNames[emoji] || [];
+            return names.some(name => name.toLowerCase().includes(searchText));
+        });
+
+        const content = document.querySelector('.emoji-picker-content');
+        if (!content) return;
+
+        if (searchText) {
+            content.innerHTML = `
+                <div class="emoji-picker-section">
+                    <div class="emoji-picker-section-title">Résultats de recherche</div>
+                    <div class="emoji-picker-grid">
+                        ${filtered.map(emoji => {
+                            const names = emojiNames[emoji] || [];
+                            return `
+                                <div class="emoji-picker-emoji" 
+                                     onclick="insertEmojiToInput('${emoji}', event)" 
+                                     title="${names.join(', ')}">${emoji}</div>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+        } else {
+            renderEmojiPicker(); // Retour à l'affichage normal
+        }
+    }
+
+    function switchCategory(categoryId) {
+        activeCategory = categoryId;
+        renderEmojiPicker();
+    }
+
+    function closeEmojiPicker() {
+        const popup = document.getElementById('emojiPickerPopup');
+        popup.style.display = 'none';
+    }
+
+    const emojiNames = {
+        '😀': ['sourire', 'happy', 'smile'],
+        '😃': ['sourire', 'happy', 'smile', 'grin'],
+        '😄': ['sourire', 'happy', 'smile', 'laugh'],
+        '😊': ['blush', 'sourire', 'happy'],
+        '❤️': ['coeur', 'heart', 'love', 'amour'],
+        '😍': ['love', 'amour', 'heart eyes'],
+        '😂': ['rire', 'laugh', 'joy', 'tears'],
+        '🥰': ['love', 'amour', 'coeurs'],
+        '😘': ['bisou', 'kiss', 'love'],
+        '🌺': ['fleur', 'flower'],
+        '🌈': ['rainbow', 'arc-en-ciel'],
+        '🎮': ['game', 'jeu', 'manette'],
+        '🎨': ['art', 'palette', 'peinture'],
+        '🎭': ['theatre', 'masque', 'drama'],
+        '🎪': ['cirque', 'circus', 'chapiteau'],
+        // Ajoutez d'autres emojis avec leurs noms...
+    };
+
+    function insertEmojiToInput(emoji, event) {
+        const input = document.getElementById('messageInput');
+        const startPos = input.selectionStart;
+        const endPos = input.selectionEnd;
+        
+        input.value = 
+            input.value.substring(0, startPos) +
+            emoji +
+            input.value.substring(endPos);
+        
+        // Met à jour la position du curseur
+        const newPos = startPos + emoji.length;
+        input.selectionStart = input.selectionEnd = newPos;
+        
+        // Ajoute aux récents
+        if (!recentEmojis.includes(emoji)) {
+            recentEmojis.unshift(emoji);
+            if (recentEmojis.length > 20) recentEmojis.pop();
+        }
+        
+        // Ne ferme le picker que si Shift n'est pas pressé
+        if (!event.shiftKey) {
+            closeEmojiPicker();
+        }
+        input.focus();
+    }
+
+    // Expose functions to window
+    window.closeEmojiPicker = closeEmojiPicker;
+    window.insertEmojiToInput = insertEmojiToInput;
+    window.switchCategory = switchCategory;
+
+    // Gestion du sélecteur d'emoji
+    document.addEventListener('DOMContentLoaded', function() {
+        const emojiBtn = document.getElementById('emojiPickerBtn');
+        if (emojiBtn) {
+            emojiBtn.addEventListener('click', function(e) {
+                const popup = document.getElementById('emojiPickerPopup');
+                if (popup.style.display === 'none' || !popup.style.display) {
+                    renderEmojiPicker();
+                    popup.style.display = 'flex';
+                } else {
+                    popup.style.display = 'none';
+                }
+            });
+        }
+        // Ferme le picker si clic en dehors
+        document.addEventListener('mousedown', function(e) {
+            const popup = document.getElementById('emojiPickerPopup');
+            const btn = document.getElementById('emojiPickerBtn');
+            if (popup && e.target !== btn && !popup.contains(e.target)) {
+                popup.style.display = 'none';
+            }
+        });
+    });
+    // Fonction utilitaire pour insérer à la position du curseur
+    function insertAtCursor(input, text) {
+        if (document.selection) {
+            input.focus();
+            var sel = document.selection.createRange();
+            sel.text = text;
+        } else if (input.selectionStart || input.selectionStart === 0) {
+            let startPos = input.selectionStart;
+            let endPos = input.selectionEnd;
+            input.value = input.value.substring(0, startPos) + text + input.value.substring(endPos, input.value.length);
+            input.selectionStart = input.selectionEnd = startPos + text.length;
+            input.focus();
+        } else {
+            input.value += text;
+            input.focus();
+        }
+    }
+    // ...existing code...
+    </script>
+    <style>
+    .emoji-picker-btn {
+        background: #fff;
+        border: 2px solid var(--accent-color);
+        border-radius: 50%;
+        width: 35px;
+        height: 35px;
+        margin-left: 6px;
+        margin-right: 6px;
+        font-size: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s, border 0.2s;
+    }
+    .emoji-picker-btn:hover {
+        background: var(--accent-color);
+        color: #fff;
+        border-color: var(--accent-color);
+    }
+    </style>
             </div>
         </div>
     </div>
@@ -1313,6 +1739,18 @@
                     <div class="theme-option" data-theme="orange" onclick="changeTheme('orange')">
                         <div class="theme-preview" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);"></div>
                         <span id="themeOrange">Orange</span>
+                    </div>
+                    <div class="theme-option" data-theme="bluenight" onclick="changeTheme('bluenight')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #232526 0%, #414345 100%);"></div>
+                        <span id="themeBluenight">Bleu nuit</span>
+                    </div>
+                    <div class="theme-option" data-theme="red" onclick="changeTheme('red')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #ff5858 0%, #f857a6 100%);"></div>
+                        <span id="themeRed">Rouge</span>
+                    </div>
+                    <div class="theme-option" data-theme="yellow" onclick="changeTheme('yellow')">
+                        <div class="theme-preview" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);"></div>
+                        <span id="themeYellow">Jaune</span>
                     </div>
                 </div>
             </div>
@@ -1376,6 +1814,9 @@
         // Système de traduction
         const translations = {
             fr: {
+                theme_bluenight: "Bleu nuit",
+                theme_red: "Rouge",
+                theme_yellow: "Jaune",
                 join_title: "🚀 Rejoindre le Chat",
                 username_placeholder: "Votre pseudo",
                 server_placeholder: "IP du serveur (optionnel)",
@@ -1426,6 +1867,9 @@
                 connection_success: "Connexion réussie"
             },
             en: {
+                theme_bluenight: "Midnight Blue",
+                theme_red: "Red",
+                theme_yellow: "Yellow",
                 join_title: "🚀 Join Chat",
                 username_placeholder: "Your username",
                 server_placeholder: "Server IP (optional)",
@@ -1476,6 +1920,9 @@
                 connection_success: "Connection successful"
             },
             es: {
+                theme_bluenight: "Azul noche",
+                theme_red: "Rojo",
+                theme_yellow: "Amarillo",
                 join_title: "🚀 Unirse al Chat",
                 username_placeholder: "Tu nombre de usuario",
                 server_placeholder: "IP del servidor (opcional)",
@@ -1526,6 +1973,9 @@
                 connection_success: "Conexión exitosa"
             },
             de: {
+                theme_bluenight: "Mitternachtsblau",
+                theme_red: "Rot",
+                theme_yellow: "Gelb",
                 join_title: "🚀 Chat Beitreten",
                 username_placeholder: "Dein Benutzername",
                 server_placeholder: "Server IP (optional)",
@@ -1576,6 +2026,9 @@
                 connection_success: "Verbindung erfolgreich"
             },
             pl: {
+                theme_bluenight: "Granatowy nocny",
+                theme_red: "Czerwony",
+                theme_yellow: "Żółty",
                 join_title: "🚀 Dołącz do Czatu",
                 username_placeholder: "Twoja nazwa użytkownika",
                 server_placeholder: "IP serwera (opcjonalne)",
@@ -1626,6 +2079,9 @@
                 connection_success: "Połączenie udane"
             },
             ja: {
+                theme_bluenight: "ミッドナイトブルー",
+                theme_red: "赤",
+                theme_yellow: "黄色",
                 join_title: "🚀 チャットに参加",
                 username_placeholder: "ユーザー名",
                 server_placeholder: "サーバーIP（オプション）",
@@ -1676,6 +2132,9 @@
                 connection_success: "接続成功"
             },
             it: {
+                theme_bluenight: "Blu notte",
+                theme_red: "Rosso",
+                theme_yellow: "Giallo",
                 join_title: "🚀 Unisciti alla Chat",
                 username_placeholder: "Il tuo nome utente",
                 server_placeholder: "IP del server (opzionale)",
@@ -1726,6 +2185,9 @@
                 connection_success: "Connessione riuscita"
             },
             pt: {
+                theme_bluenight: "Azul meia-noite",
+                theme_red: "Vermelho",
+                theme_yellow: "Amarelo",
                 join_title: "🚀 Entrar no Chat",
                 username_placeholder: "Seu nome de usuário",
                 server_placeholder: "IP do servidor (opcional)",
@@ -1875,9 +2337,11 @@
             currentTheme = theme;
             const body = document.body;
             
-            // Retirer tous les thèmes existants
-            body.classList.remove('theme-dark', 'theme-purple', 'theme-green', 'theme-pink', 'theme-orange');
-            
+            // Retirer tous les thèmes custom (et éviter la fusion)
+            body.classList.remove(
+                'theme-dark', 'theme-purple', 'theme-green', 'theme-pink', 'theme-orange',
+                'theme-bluenight', 'theme-red', 'theme-yellow', 'theme-default'
+            );
             // Appliquer le nouveau thème si ce n'est pas le défaut
             if (theme !== 'default') {
                 body.classList.add('theme-' + theme);
@@ -2085,9 +2549,12 @@
             socket.on('connect', () => {
                 console.log('✅ Connecté au serveur');
                 updateConnectionStatus(true, serverUrl);
-                
                 // S'identifier auprès du serveur
                 socket.emit('user_join', { username, avatar });
+                // Débloquer l'UI dès la connexion
+                document.getElementById('connectBtn').textContent = translateText('connect_btn');
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('connectionOverlay').style.display = 'none';
             });
 
             socket.on('disconnect', () => {
@@ -2122,24 +2589,20 @@
             });
 
             socket.on('system_message', (message) => {
-                if (message.message.includes(`${username} ${translateText('joined_chat')}`)) {
+                // Toujours mettre à jour l'état utilisateur si on reçoit un message système de bienvenue
+                if (message.message.includes(username)) {
                     currentUsername = username;
                     currentUserAvatar = avatar;
                     isConnected = true;
-                    
-                    document.getElementById('connectionOverlay').style.display = 'none';
                     document.getElementById('currentUsername').textContent = username;
-                    
                     // Mettre à jour l'avatar de l'utilisateur actuel
                     const currentUserAvatarEl = document.getElementById('currentUserAvatar');
                     if (avatar) {
                         currentUserAvatarEl.innerHTML = `<img src="${avatar}" alt="Avatar">`;
                     }
-                    
                     document.getElementById('messageInput').disabled = false;
                     document.getElementById('sendButton').disabled = false;
                     document.getElementById('messageInput').focus();
-                    
                     clearError();
                     showNotification(translateText('connection_success'), `${translateText('welcome')} ${username} !`, 'success');
                 }
@@ -2327,9 +2790,17 @@
             let attachmentHtml = '';
             if (attachment) {
                 if (isImageFile(attachment.mimetype)) {
-                    // Afficher l'image directement dans le message
+                    // Afficher l'image avec coin réactions emoji façon Discord (avec compteurs)
+                    const emojiList = ['👍','😂','😍','🔥','😮'];
+                    let reactionsHtml = '';
+                    emojiList.forEach(emoji => {
+                        reactionsHtml += `<span class=\"emoji-reaction\" data-emoji=\"${emoji}\" data-count=\"0\" onclick=\"addEmojiReaction(this, '${emoji}')\">${emoji} <span class='emoji-count'>0</span></span>`;
+                    });
                     attachmentHtml = `
-                        <div class="attachment">
+                        <div class="attachment attachment-has-reactions">
+                            <div class="emoji-reactions-corner">
+                                ${reactionsHtml}
+                            </div>
                             <img src="${attachment.path}" class="message-image" onclick="openImageModal('${attachment.path}')" alt="${attachment.originalname}" title="Cliquez pour agrandir">
                             <div class="attachment-info">
                                 <div class="attachment-name">${escapeHtml(attachment.originalname)}</div>
@@ -2381,9 +2852,21 @@
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
 
-            // Confettis pour tous les messages
-            createMessageConfetti(isOwn);
+            // Confettis pour tous les messages (toujours)
+            createMessageConfetti();
         }
+
+// Gestion locale des réactions emoji sur images (compteur + animation)
+function addEmojiReaction(el, emoji) {
+    const countSpan = el.querySelector('.emoji-count');
+    let count = parseInt(el.getAttribute('data-count') || '0', 10);
+    count++;
+    el.setAttribute('data-count', count);
+    if (countSpan) countSpan.textContent = count;
+    el.classList.add('emoji-reacted');
+    setTimeout(() => el.classList.remove('emoji-reacted'), 700);
+}
+window.addEmojiReaction = addEmojiReaction;
 
         function replyToMessage(messageId, username, content) {
             replyingTo = { username, content };
