@@ -1172,21 +1172,36 @@
             display: none !important;
         }
 
-        /* Notifications style Discord */
-        .notification {
+        /* Container pour les notifications empilées */
+        .notification-container {
             position: fixed;
             top: 20px;
             right: 20px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+        
+        /* Notifications style Discord - empilables */
+        .notification {
+            position: relative;
             background: var(--sidebar-bg);
             border-radius: 8px;
             padding: 14px 18px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
             border-left: 4px solid var(--accent-color);
-            z-index: 3000;
-            animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             max-width: 320px;
             color: var(--text-primary);
             font-size: 13px;
+            pointer-events: auto;
+            animation: notifSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-origin: top right;
+        }
+        
+        .notification.removing {
+            animation: notifSlideOut 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
         }
 
         .notification.success {
@@ -1195,6 +1210,10 @@
 
         .notification.error {
             border-left-color: var(--danger-color, #F04747);
+        }
+        
+        .notification.info {
+            border-left-color: var(--accent-color, #5865F2);
         }
 
         .notification-title {
@@ -1207,16 +1226,190 @@
             font-size: 12px;
             color: var(--text-secondary);
         }
+        
+        .notification-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        
+        .notification-close:hover {
+            opacity: 1;
+        }
 
-        @keyframes slideInRight {
+        @keyframes notifSlideIn {
             from {
                 opacity: 0;
-                transform: translateX(100%);
+                transform: translateX(100%) scale(0.8);
             }
             to {
                 opacity: 1;
-                transform: translateX(0);
+                transform: translateX(0) scale(1);
             }
+        }
+        
+        @keyframes notifSlideOut {
+            from {
+                opacity: 1;
+                transform: translateX(0) scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100%) scale(0.8);
+            }
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.95); }
+        }
+        
+        /* Badge Admin */
+        .admin-badge {
+            background: linear-gradient(135deg, #F04747, #FF6B6B);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-left: 6px;
+            text-transform: uppercase;
+            animation: adminGlow 2s infinite;
+        }
+        
+        @keyframes adminGlow {
+            0%, 100% { box-shadow: 0 0 5px rgba(240, 71, 71, 0.5); }
+            50% { box-shadow: 0 0 15px rgba(240, 71, 71, 0.8); }
+        }
+        
+        /* Menu utilisateur (3 points) */
+        .user-menu-trigger {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 16px;
+            opacity: 0;
+            transition: all 0.2s;
+            margin-left: auto;
+        }
+        
+        .user-item:hover .user-menu-trigger {
+            opacity: 1;
+        }
+        
+        .user-menu-trigger:hover {
+            background: var(--hover-bg);
+            color: var(--text-primary);
+        }
+        
+        .user-context-menu {
+            position: absolute;
+            background: var(--sidebar-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            z-index: 2000;
+            min-width: 160px;
+            padding: 6px;
+            animation: menuPop 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        @keyframes menuPop {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .user-context-menu button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        
+        .user-context-menu button:hover {
+            background: var(--hover-bg);
+        }
+        
+        .user-context-menu button.danger {
+            color: #F04747;
+        }
+        
+        .user-context-menu button.danger:hover {
+            background: rgba(240, 71, 71, 0.1);
+        }
+        
+        .user-context-menu .menu-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 6px 0;
+        }
+        
+        /* Bouton supprimer message */
+        .delete-msg-btn {
+            position: absolute;
+            top: 8px;
+            background: rgba(240, 71, 71, 0.1);
+            border: none;
+            color: #F04747;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.2s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Pour les messages des autres - bouton à droite */
+        .message:not(.own) .delete-msg-btn {
+            right: 40px;
+        }
+        
+        /* Pour ses propres messages - bouton à gauche */
+        .message.own .delete-msg-btn {
+            left: 8px;
+        }
+        
+        .message:hover .delete-msg-btn {
+            opacity: 1;
+        }
+        
+        .delete-msg-btn:hover {
+            background: rgba(240, 71, 71, 0.2);
+            transform: scale(1.1);
+        }
+        
+        /* Badge admin dans la liste des utilisateurs */
+        .user-admin-badge {
+            background: linear-gradient(135deg, #F04747, #FF6B6B);
+            color: white;
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-weight: 600;
+            margin-left: 4px;
+            text-transform: uppercase;
         }
 
         @keyframes slideIn {
@@ -1539,6 +1732,123 @@
         .compact-mode .message-actions {
             margin-top: 2px;
         }
+
+        /* Panneau Admin Secret */
+        .admin-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 100000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .admin-content {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 2px solid #e94560;
+            border-radius: 16px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .admin-content h2 {
+            color: #e94560;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .admin-content h3 {
+            color: #fff;
+            margin: 20px 0 10px;
+            border-bottom: 1px solid #e94560;
+            padding-bottom: 5px;
+        }
+        .admin-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 28px;
+            cursor: pointer;
+        }
+        #adminLogin {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        #adminLogin input {
+            padding: 12px 16px;
+            border: 2px solid #e94560;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 14px;
+            width: 200px;
+        }
+        #adminLogin button {
+            padding: 12px 24px;
+            background: #e94560;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #adminUsersList {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .admin-user-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.1);
+            padding: 10px 15px;
+            border-radius: 8px;
+        }
+        .admin-user-item .username {
+            color: #fff;
+            font-weight: bold;
+        }
+        .admin-user-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .admin-user-actions button {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .admin-user-actions .kick { background: #f39c12; color: #000; }
+        .admin-user-actions .ban { background: #e74c3c; color: #fff; }
+        .admin-user-actions .rename { background: #3498db; color: #fff; }
+        .admin-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            background: #3498db;
+            color: #fff;
+        }
+        .admin-btn.danger { background: #e74c3c; }
+        .admin-btn:hover { opacity: 0.9; transform: scale(1.02); }
 
         /* Auto-reconnexion prompt */
         .auto-reconnect-prompt {
@@ -2549,7 +2859,7 @@
                     <div class="current-user-avatar" id="currentUserAvatar">
                         <span>👤</span>
                     </div>
-                    <span><span id="connectedAsText">Connecté en tant que:</span> <strong id="currentUsername">-</strong></span>
+                    <span><span id="connectedAsText">Connecté en tant que:</span> <strong id="currentUsername">-</strong><span id="adminBadge" class="admin-badge" style="display:none;">ADMIN</span></span>
                 </div>
                 <div class="user-controls">
                     <button class="settings-btn" onclick="openSettings()">⚙️</button>
@@ -2926,6 +3236,14 @@
                 </div>
                 <input type="file" id="settingsAvatarInput" accept="image/*" style="display: none;" onchange="handleAvatarChange(event)">
             </div>
+            
+            <div class="settings-section">
+                <label>✏️ Changer de pseudo</label>
+                <div style="display:flex;gap:10px;margin-top:8px;">
+                    <input type="text" id="newUsernameInput" placeholder="Nouveau pseudo..." style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border-color);background:var(--input-bg);color:var(--text-color);">
+                    <button onclick="changeUsernameFromSettings()" style="padding:10px 20px;background:var(--accent-color);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">Changer</button>
+                </div>
+            </div>
 
             <div class="settings-section">
                 <label>
@@ -3001,8 +3319,35 @@
         </div>
     </div>
 
-    <!-- Indicateur de version -->
-    <div class="version-info">V2.5.0</div>
+    <!-- Indicateur de version avec accès admin secret -->
+    <div class="version-info">V2.5.<span id="adminTrigger" onclick="showAdminLogin()" style="cursor:pointer;">1</span><span id="versionAdminBadge" class="admin-badge" style="display:none;margin-left:8px;">ADMIN</span></div>
+
+    <!-- Container pour notifications empilées -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- Panneau Admin Secret -->
+    <div id="adminPanel" class="admin-panel" style="display:none;">
+        <div class="admin-content">
+            <button class="admin-close" onclick="closeAdminPanel()">×</button>
+            <h2>🔐 Panneau Administrateur</h2>
+            
+            <!-- Login -->
+            <div id="adminLogin">
+                <input type="password" id="adminPassword" placeholder="Mot de passe admin" onkeypress="if(event.key==='Enter')checkAdminPassword()">
+                <button onclick="checkAdminPassword()">Connexion</button>
+            </div>
+            
+            <!-- Contenu Admin -->
+            <div id="adminControls" style="display:none;">
+                <h3>👥 Utilisateurs connectés</h3>
+                <div id="adminUsersList"></div>
+                
+                <h3>⚙️ Actions serveur</h3>
+                <button class="admin-btn danger" onclick="adminClearHistory()">🗑️ Effacer l'historique</button>
+                <button class="admin-btn" onclick="adminBroadcast()">📢 Message global</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         // Système de traduction
@@ -3768,9 +4113,15 @@
 
             // Événements du chat
             socket.on('username_taken', (data) => {
-                showError(translateText('username_taken'));
+                showNotification('❌ Pseudo déjà pris', translateText('username_taken'), 'error');
+                // Auto-déconnexion
+                if (socket) {
+                    socket.disconnect();
+                }
                 document.getElementById('connectBtn').textContent = translateText('connect_btn');
                 document.getElementById('connectBtn').disabled = false;
+                document.getElementById('usernameInput').value = '';
+                document.getElementById('usernameInput').focus();
             });
 
             socket.on('chat_history', (history) => {
@@ -3898,6 +4249,63 @@
                 // Mise à jour d'un statut en temps réel
                 if (data.username && data.status) {
                     userStatuses[data.username] = data.status;
+                }
+            });
+            
+            // === HANDLERS CHANGEMENT DE PSEUDO ===
+            socket.on('username_changed', (data) => {
+                const { oldUsername, newUsername } = data;
+                currentUsername = newUsername;
+                document.getElementById('currentUsername').textContent = newUsername;
+                localStorage.setItem('chatroom_username', newUsername);
+                showNotification('✅ Pseudo changé', `Vous êtes maintenant ${newUsername}`, 'success');
+            });
+            
+            socket.on('username_change_error', (data) => {
+                showNotification('❌ Erreur', data.message || 'Impossible de changer le pseudo', 'error');
+            });
+            
+            socket.on('force_rename', (data) => {
+                currentUsername = data.newUsername;
+                document.getElementById('currentUsername').textContent = data.newUsername;
+                localStorage.setItem('chatroom_username', data.newUsername);
+                showNotification('👤 Renommé', `Un admin vous a renommé en ${data.newUsername}`, 'info');
+            });
+            
+            socket.on('kicked', (data) => {
+                showNotification('⚠️ Expulsé', data.message || 'Vous avez été expulsé', 'error');
+                disconnectFromChat();
+            });
+            
+            socket.on('history_cleared', () => {
+                document.getElementById('chatMessages').innerHTML = '';
+                showNotification('🗑️ Historique', 'L\'historique a été effacé', 'info');
+            });
+            
+            // === SUPPRESSION DE MESSAGE ===
+            socket.on('message_deleted', (data) => {
+                const msgElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                if (msgElement) {
+                    msgElement.style.animation = 'fadeOut 0.3s forwards';
+                    setTimeout(() => msgElement.remove(), 300);
+                }
+            });
+            
+            // === HANDLERS ADMIN ===
+            socket.on('admin_response', (data) => {
+                if (data.success) {
+                    showNotification('✅ Admin', data.message, 'success');
+                } else {
+                    showNotification('❌ Admin', data.message, 'error');
+                }
+            });
+            
+            // Mise à jour de la liste des admins
+            socket.on('admin_list_update', (data) => {
+                adminUsers = data.admins || [];
+                // Rafraîchir la liste des utilisateurs pour afficher les badges
+                if (connectedUsers.length > 0) {
+                    updateUsersList(connectedUsers, connectedUsers.length);
                 }
             });
         }
@@ -4098,6 +4506,10 @@
             
             // Bouton épingler
             const pinBtnHtml = `<button class="pin-btn" onclick="pinMessage('${messageId}', '${escapeHtml(username)}', '${escapeHtml((content || '[Pièce jointe]').substring(0, 100))}')">📌</button>`;
+            
+            // Bouton supprimer (visible si admin OU si c'est son propre message)
+            const canDelete = isAdmin || isOwn;
+            const deleteBtnHtml = canDelete ? `<button class="delete-msg-btn" onclick="deleteMessage('${messageId}')" title="Supprimer">🗑️</button>` : '';
 
             const actionsHtml = `
                 <div class="message-actions">
@@ -4110,6 +4522,7 @@
             messageDiv.innerHTML = `
                 ${quickReactionsHtml}
                 ${pinBtnHtml}
+                ${deleteBtnHtml}
                 <div class="message-header">
                     ${avatarHtml}
                     ${username}${timeHtml}
@@ -4223,6 +4636,11 @@ window.addEmojiReaction = addEmojiReaction;
             // Stocker les utilisateurs connectés pour les mentions
             connectedUsers = users;
             
+            // Mettre à jour la liste admin aussi
+            if (isAdmin) {
+                updateAdminUsersList();
+            }
+            
             usersTitleElement.textContent = `${translateText('users_title')} (${count})`;
             onlineCountElement.textContent = `${count} ${count > 1 ? 'utilisateurs' : 'utilisateur'} en ligne`;
             
@@ -4230,7 +4648,7 @@ window.addEmojiReaction = addEmojiReaction;
             users.forEach(user => {
                 const userDiv = document.createElement('div');
                 userDiv.className = `user-item ${user.username === currentUsername ? 'current' : ''}`;
-                userDiv.onclick = () => mentionUser(user.username);
+                userDiv.style.position = 'relative';
                 
                 const statusClass = user.status || 'online';
                 const avatarHtml = user.avatar ? 
@@ -4240,16 +4658,59 @@ window.addEmojiReaction = addEmojiReaction;
                 const statusHtml = user.customStatus ? 
                     `<div class="user-status"><span class="status-text">${escapeHtml(user.customStatus)}</span></div>` : '';
                 
+                // Menu admin pour chaque utilisateur (seulement visible si admin et pas soi-même)
+                const adminMenuBtn = (isAdmin && user.username !== currentUsername) ? 
+                    `<button class="user-menu-trigger" onclick="event.stopPropagation(); showUserContextMenu(event, '${escapeHtml(user.username)}')">⋯</button>` : '';
+                
+                // Badge admin si l'utilisateur est admin (sera mis à jour via socket)
+                const userIsAdmin = adminUsers.includes(user.username);
+                const adminBadgeHtml = userIsAdmin ? '<span class="user-admin-badge">ADMIN</span>' : '';
+                
                 userDiv.innerHTML = `
                     ${avatarHtml}
                     <div class="status-indicator status-${statusClass}"></div>
-                    <div>
-                        <span>${user.username}</span>
+                    <div style="flex:1;" onclick="mentionUser('${escapeHtml(user.username)}')">
+                        <span>${user.username}${adminBadgeHtml}</span>
                         ${statusHtml}
                     </div>
+                    ${adminMenuBtn}
                 `;
                 usersListElement.appendChild(userDiv);
             });
+        }
+        
+        // Menu contextuel pour les utilisateurs (admin)
+        function showUserContextMenu(event, username) {
+            // Fermer tout menu existant
+            closeUserContextMenu();
+            
+            const menu = document.createElement('div');
+            menu.className = 'user-context-menu';
+            menu.id = 'userContextMenu';
+            menu.innerHTML = `
+                <button onclick="mentionUser('${username}'); closeUserContextMenu();">💬 Mentionner</button>
+                <div class="menu-divider"></div>
+                <button onclick="adminRenameUser('${username}'); closeUserContextMenu();">✏️ Renommer</button>
+                <button class="danger" onclick="adminKickUser('${username}'); closeUserContextMenu();">👢 Kick</button>
+                <button class="danger" onclick="adminBanUser('${username}'); closeUserContextMenu();">🚫 Ban</button>
+            `;
+            
+            document.body.appendChild(menu);
+            
+            // Positionner le menu
+            const rect = event.target.getBoundingClientRect();
+            menu.style.top = rect.bottom + 5 + 'px';
+            menu.style.left = Math.min(rect.left, window.innerWidth - 180) + 'px';
+            
+            // Fermer au clic ailleurs
+            setTimeout(() => {
+                document.addEventListener('click', closeUserContextMenu, { once: true });
+            }, 10);
+        }
+        
+        function closeUserContextMenu() {
+            const menu = document.getElementById('userContextMenu');
+            if (menu) menu.remove();
         }
 
         function updateTypingIndicator(typingUsers) {
@@ -4317,21 +4778,28 @@ window.addEmojiReaction = addEmojiReaction;
         }
 
         function showNotification(title, message, type = 'info') {
+            const container = document.getElementById('notificationContainer') || document.body;
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.innerHTML = `
+                <button class="notification-close" onclick="this.parentElement.classList.add('removing'); setTimeout(() => this.parentElement.remove(), 300);">×</button>
                 <div class="notification-title">${title}</div>
                 <div class="notification-message">${message}</div>
             `;
             
-            document.body.appendChild(notification);
+            container.appendChild(notification);
             
-            // Supprimer après 3 secondes
+            // Supprimer après 4 secondes avec animation
             setTimeout(() => {
                 if (notification.parentNode) {
-                    notification.remove();
+                    notification.classList.add('removing');
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.remove();
+                        }
+                    }, 300);
                 }
-            }, 3000);
+            }, 4000);
         }
 
         // Paramètres
@@ -5048,11 +5516,35 @@ window.addEmojiReaction = addEmojiReaction;
         }
         
         function processMentions(content) {
-            // Remplacer @username par des spans cliquables
-            return content.replace(/@(\w+)/g, (match, username) => {
+            // D'abord, essayer de matcher les pseudos connus (y compris avec espaces)
+            let result = content;
+            
+            // Trier les utilisateurs par longueur de pseudo (plus long d'abord)
+            const sortedUsers = [...connectedUsers].sort((a, b) => 
+                (b.username?.length || 0) - (a.username?.length || 0)
+            );
+            
+            // Remplacer les mentions de pseudos connus
+            sortedUsers.forEach(user => {
+                if (!user.username) return;
+                const username = user.username;
+                // Regex pour @pseudo (avec ou sans espaces)
+                const regex = new RegExp(`@${username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w])`, 'gi');
+                const isMentioningMe = username.toLowerCase() === currentUsername.toLowerCase();
+                result = result.replace(regex, 
+                    `<span class="mention${isMentioningMe ? ' highlight' : ''}" onclick="mentionUser('${username.replace(/'/g, "\\'")}')" data-username="${username}">@${username}</span>`
+                );
+            });
+            
+            // Aussi matcher les @mentions simples non reconnues
+            result = result.replace(/@(\w+)(?![^<]*>)/g, (match, username) => {
+                // Vérifier si déjà traité
+                if (result.includes(`data-username="${username}"`)) return match;
                 const isMentioningMe = username.toLowerCase() === currentUsername.toLowerCase();
                 return `<span class="mention${isMentioningMe ? ' highlight' : ''}" onclick="mentionUser('${username}')">${match}</span>`;
             });
+            
+            return result;
         }
         
         function mentionUser(username) {
@@ -5182,20 +5674,160 @@ window.addEmojiReaction = addEmojiReaction;
                 checkForMentions(this.value);
             });
             
-            console.log('🚀 ChatRoom Client v2.5.0 initialisé avec succès !');
-            console.log('✨ Nouvelles fonctionnalités V2.5:');
+            console.log('🚀 ChatRoom Client v2.5.1 initialisé avec succès !');
+            console.log('✨ Nouvelles fonctionnalités V2.5.1:');
             console.log('   • Réponses aux messages');
-            console.log('   • Réactions emoji');
-            console.log('   • Mentions @utilisateur');
+            console.log('   • Réactions emoji synchronisées');
+            console.log('   • Mentions @utilisateur (avec espaces)');
             console.log('   • Mode compact / confortable');
             console.log('   • Statuts personnalisés');
-            console.log('   • Indicateur de frappe amélioré');
-            console.log('   • Preview des liens & YouTube');
-            console.log('   • Galerie d\'images et fichiers');
-            console.log('   • Messages épinglés');
-            console.log('   • Recherche dans les messages');
-            console.log('   • Panneau emoji redesigné');
+            console.log('   • Historique persistant');
+            console.log('   • Panneau Admin secret');
+            console.log('   • Changement de pseudo en temps réel');
         });
+        
+        // === PANNEAU ADMIN SECRET ===
+        let isAdmin = false;
+        let adminUsers = []; // Liste des admins connectés
+        const ADMIN_PASSWORD = 'IndieGabVR2024';
+        
+        function showAdminLogin() {
+            document.getElementById('adminPanel').style.display = 'flex';
+            document.getElementById('adminPassword').focus();
+        }
+        
+        function closeAdminPanel() {
+            document.getElementById('adminPanel').style.display = 'none';
+            document.getElementById('adminPassword').value = '';
+        }
+        
+        function checkAdminPassword() {
+            const password = document.getElementById('adminPassword').value;
+            if (password === ADMIN_PASSWORD) {
+                isAdmin = true;
+                document.getElementById('adminLogin').style.display = 'none';
+                document.getElementById('adminControls').style.display = 'block';
+                
+                // Afficher les badges admin
+                document.getElementById('adminBadge').style.display = 'inline';
+                document.getElementById('versionAdminBadge').style.display = 'inline';
+                
+                // Notifier le serveur qu'on est admin
+                if (socket && isConnected) {
+                    socket.emit('admin_login', { password: ADMIN_PASSWORD, username: currentUsername });
+                }
+                
+                updateAdminUsersList();
+                showNotification('🔓 Admin', 'Accès administrateur activé', 'success');
+            } else {
+                showNotification('❌ Erreur', 'Mot de passe incorrect', 'error');
+                document.getElementById('adminPassword').value = '';
+            }
+        }
+        
+        function updateAdminUsersList() {
+            if (!isAdmin) return;
+            const list = document.getElementById('adminUsersList');
+            if (!list) return;
+            
+            if (connectedUsers.length === 0) {
+                list.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">Aucun utilisateur connecté</div>';
+                return;
+            }
+            
+            list.innerHTML = connectedUsers.map(user => `
+                <div class="admin-user-item">
+                    <span class="username">${user.username}</span>
+                    <div class="admin-user-actions">
+                        <button class="rename" onclick="adminRenameUser('${user.username}')">✏️ Renommer</button>
+                        <button class="kick" onclick="adminKickUser('${user.username}')">👢 Kick</button>
+                        <button class="ban" onclick="adminBanUser('${user.username}')">🚫 Ban</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function adminKickUser(username) {
+            if (!isAdmin || !socket) return;
+            if (confirm(`Voulez-vous vraiment kick ${username} ?`)) {
+                socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'kick', target: username });
+            }
+        }
+        
+        function adminBanUser(username) {
+            if (!isAdmin || !socket) return;
+            if (confirm(`Voulez-vous vraiment ban ${username} ?`)) {
+                socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'ban', target: username });
+            }
+        }
+        
+        function adminRenameUser(username) {
+            if (!isAdmin || !socket) return;
+            const newName = prompt(`Nouveau pseudo pour ${username}:`, username);
+            if (newName && newName !== username) {
+                socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'rename', target: username, value: newName });
+            }
+        }
+        
+        function adminClearHistory() {
+            if (!isAdmin || !socket) return;
+            if (confirm('Voulez-vous vraiment effacer tout l\'historique ?')) {
+                socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'clear_history' });
+            }
+        }
+        
+        function adminBroadcast() {
+            if (!isAdmin || !socket) return;
+            const message = prompt('Message à diffuser à tous:');
+            if (message) {
+                socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'broadcast', value: message });
+                showNotification('📢 Diffusé', 'Message envoyé à tous', 'success');
+            }
+        }
+        
+        // === CHANGEMENT DE PSEUDO EN TEMPS RÉEL ===
+        function changeUsername() {
+            if (!socket || !isConnected) {
+                showNotification('❌ Erreur', 'Vous devez être connecté', 'error');
+                return;
+            }
+            
+            const newUsername = prompt('Nouveau pseudo:', currentUsername);
+            if (!newUsername || newUsername.trim() === '' || newUsername === currentUsername) return;
+            
+            socket.emit('change_username', { newUsername: newUsername.trim() });
+        }
+        
+        function changeUsernameFromSettings() {
+            if (!socket || !isConnected) {
+                showNotification('❌ Erreur', 'Vous devez être connecté', 'error');
+                return;
+            }
+            
+            const input = document.getElementById('newUsernameInput');
+            const newUsername = (input.value || '').trim();
+            
+            if (!newUsername || newUsername === currentUsername) {
+                showNotification('❌ Erreur', 'Entrez un nouveau pseudo valide', 'error');
+                return;
+            }
+            
+            socket.emit('change_username', { newUsername: newUsername });
+            input.value = '';
+        }
+        
+        // === SUPPRESSION DE MESSAGE ===
+        function deleteMessage(messageId) {
+            if (!socket || !isConnected) return;
+            
+            if (confirm('Supprimer ce message pour tout le monde ?')) {
+                socket.emit('delete_message', { 
+                    messageId: messageId, 
+                    password: isAdmin ? ADMIN_PASSWORD : null,
+                    username: currentUsername
+                });
+            }
+        }
     </script>
 </body>
 </html>
