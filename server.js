@@ -85,7 +85,7 @@ app.use('/uploads', express.static(uploadDir));
 // Variables pour stocker les données
 let connectedUsers = new Map(); // socketId -> userData
 let chatHistory = []; // Historique des messages
-const MAX_HISTORY = 100; // Limite de l'historique
+const MAX_HISTORY = 500; // Limite de l'historique (augmentée pour persistance)
 let typingUsers = new Map(); // socketId -> {username, timestamp}
 let userProfiles = new Map(); // username -> profile data
 let messageId = 1; // Compteur pour les IDs de messages
@@ -96,8 +96,89 @@ let serverStats = {
     startTime: new Date()
 };
 
-// Stockage temporaire des réactions emoji sur les images (messageId -> {emoji: [usernames]})
-let imageReactions = {};
+// Stockage des réactions emoji sur les messages (messageId -> {emoji: [usernames]})
+let messageReactions = {};
+
+// Stockage des statuts personnalisés (username -> {status, customText})
+let userStatuses = {};
+
+// === FICHIERS DE SAUVEGARDE POUR PERSISTANCE ===
+// Pour render.com: créer un Disk persistant et définir RENDER_DISK_PATH=/var/data
+// Sinon utilise le dossier local 'data'
+const DATA_DIR = process.env.RENDER_DISK_PATH || path.join(__dirname, 'data');
+const HISTORY_FILE = path.join(DATA_DIR, 'chat_history.json');
+const REACTIONS_FILE = path.join(DATA_DIR, 'reactions.json');
+
+console.log(`📂 Dossier de données: ${DATA_DIR}`);
+
+// Créer le dossier data si nécessaire
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    console.log(`📁 Dossier créé: ${DATA_DIR}`);
+}
+
+// === FONCTIONS DE PERSISTANCE ===
+// Variable d'environnement: RESET_HISTORY=true pour effacer l'historique au démarrage
+const RESET_ON_START = process.env.RESET_HISTORY === 'true';
+
+function loadPersistedData() {
+    // Si RESET_HISTORY=true, on efface tout au démarrage
+    if (RESET_ON_START) {
+        console.log('🗑️ RESET_HISTORY activé - Historique effacé');
+        chatHistory = [];
+        messageReactions = {};
+        messageId = 1;
+        saveHistory();
+        saveReactions();
+        return;
+    }
+    
+    try {
+        // Charger l'historique
+        if (fs.existsSync(HISTORY_FILE)) {
+            const data = fs.readFileSync(HISTORY_FILE, 'utf8');
+            const parsed = JSON.parse(data);
+            chatHistory = parsed.messages || [];
+            messageId = parsed.lastMessageId || 1;
+            console.log(`✅ Historique chargé: ${chatHistory.length} messages`);
+        } else {
+            console.log('📝 Pas d\'historique existant - démarrage à zéro');
+        }
+        
+        // Charger les réactions
+        if (fs.existsSync(REACTIONS_FILE)) {
+            const data = fs.readFileSync(REACTIONS_FILE, 'utf8');
+            messageReactions = JSON.parse(data) || {};
+            console.log(`✅ Réactions chargées: ${Object.keys(messageReactions).length} messages avec réactions`);
+        }
+    } catch (error) {
+        console.error('❌ Erreur lors du chargement des données:', error.message);
+    }
+}
+
+function saveHistory() {
+    try {
+        const data = {
+            messages: chatHistory,
+            lastMessageId: messageId,
+            savedAt: new Date().toISOString()
+        };
+        fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde historique:', error.message);
+    }
+}
+
+function saveReactions() {
+    try {
+        fs.writeFileSync(REACTIONS_FILE, JSON.stringify(messageReactions, null, 2));
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde réactions:', error.message);
+    }
+}
+
+// Charger les données au démarrage
+loadPersistedData();
 
 // Fonction de logging améliorée
 function logActivity(type, message, data = {}) {
@@ -260,6 +341,42 @@ app.get('/download/:filename', (req, res) => {
     }
 });
 
+// === ROUTE ADMIN POUR RESET L'HISTORIQUE ===
+// Utiliser avec: /admin/reset?key=VOTRE_CLE_SECRETE
+// Définir ADMIN_KEY dans les variables d'environnement de render.com
+app.get('/admin/reset', (req, res) => {
+    const adminKey = process.env.ADMIN_KEY || 'chatroom2024';
+    
+    if (req.query.key !== adminKey) {
+        return res.status(403).json({ error: 'Accès refusé' });
+    }
+    
+    const oldCount = chatHistory.length;
+    chatHistory = [];
+    messageReactions = {};
+    messageId = 1;
+    saveHistory();
+    saveReactions();
+    
+    // Notifier tous les clients
+    io.emit('system_message', {
+        type: 'system',
+        message: '🗑️ L\'historique a été effacé par un administrateur',
+        timestamp: new Date(),
+        id: messageId++
+    });
+    
+    logActivity('ADMIN', 'Historique effacé', { 
+        oldMessagesCount: oldCount,
+        ip: req.ip 
+    });
+    
+    res.json({ 
+        success: true, 
+        message: `Historique effacé (${oldCount} messages supprimés)` 
+    });
+});
+
 // Route de santé pour Render avec stats détaillées
 app.get('/health', (req, res) => {
     const uptime = Math.floor(process.uptime());
@@ -299,25 +416,82 @@ io.on('connection', (socket) => {
         totalConnections: serverStats.totalConnections
     });
 
-    // Envoi de l'historique des messages au nouveau client
-    socket.emit('chat_history', chatHistory);
-    // Envoi des réactions emoji sur images à la connexion
-    socket.emit('image_reactions', imageReactions);
-    logActivity('SYSTEM', `Historique envoyé`, {
-        socketId: socket.id,
-        messagesCount: chatHistory.length
-    });
-    // Synchronisation des réactions emoji sur images
-    socket.on('add_image_reaction', ({ messageId, emoji, username }) => {
-        if (!messageId || !emoji || !username) return;
-        if (!imageReactions[messageId]) imageReactions[messageId] = {};
-        if (!imageReactions[messageId][emoji]) imageReactions[messageId][emoji] = [];
-        // Empêche le spam : un utilisateur ne peut réagir qu'une fois par emoji par image
-        if (!imageReactions[messageId][emoji].includes(username)) {
-            imageReactions[messageId][emoji].push(username);
-            io.emit('image_reaction_update', { messageId, emoji, users: imageReactions[messageId][emoji] });
-            logActivity('MESSAGE', `Réaction emoji ajoutée`, { messageId, emoji, username });
+    // L'historique sera envoyé après que l'utilisateur se soit identifié (user_join)
+    
+    // Réactions emoji sur les messages (synchronisées)
+    socket.on('reaction', ({ messageId, emoji, action }) => {
+        const user = connectedUsers.get(socket.id);
+        if (!user || !messageId || !emoji) return;
+        
+        const username = user.username;
+        
+        if (!messageReactions[messageId]) {
+            messageReactions[messageId] = {};
         }
+        if (!messageReactions[messageId][emoji]) {
+            messageReactions[messageId][emoji] = [];
+        }
+        
+        const userIndex = messageReactions[messageId][emoji].indexOf(username);
+        
+        if (action === 'add' && userIndex === -1) {
+            messageReactions[messageId][emoji].push(username);
+            logActivity('MESSAGE', `Réaction ajoutée`, { messageId, emoji, username });
+        } else if (action === 'remove' && userIndex > -1) {
+            messageReactions[messageId][emoji].splice(userIndex, 1);
+            // Nettoyer si vide
+            if (messageReactions[messageId][emoji].length === 0) {
+                delete messageReactions[messageId][emoji];
+            }
+            if (Object.keys(messageReactions[messageId]).length === 0) {
+                delete messageReactions[messageId];
+            }
+            logActivity('MESSAGE', `Réaction retirée`, { messageId, emoji, username });
+        }
+        
+        // Diffuser la mise à jour à tous les clients
+        io.emit('reaction_update', { 
+            messageId, 
+            reactions: messageReactions[messageId] || {} 
+        });
+        
+        // Sauvegarder les réactions
+        saveReactions();
+    });
+    
+    // Mise à jour du statut personnalisé
+    socket.on('update_status', ({ status, customText }) => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        const username = user.username;
+        
+        // Sauvegarder le statut
+        userStatuses[username] = {
+            status: status || 'online',
+            customText: (customText || '').substring(0, 50),
+            lastUpdate: new Date()
+        };
+        
+        // Mettre à jour les données utilisateur
+        user.status = status;
+        user.customStatus = customText;
+        connectedUsers.set(socket.id, user);
+        
+        logActivity('PROFILE', `Statut mis à jour`, { 
+            username, 
+            status, 
+            customText: customText || '(vide)' 
+        });
+        
+        // Diffuser la mise à jour à tous les clients
+        io.emit('status_update', { 
+            username, 
+            status: userStatuses[username] 
+        });
+        
+        // Mettre à jour la liste des utilisateurs
+        updateUsersList();
     });
 
     // Connexion d'un utilisateur
@@ -379,7 +553,18 @@ io.on('connection', (socket) => {
                 totalReplies: existingProfile.totalReplies || 0
             });
 
-            // Message de bienvenue
+            // === ENVOYER L'HISTORIQUE AU NOUVEAU CLIENT ===
+            // Envoyer TOUT l'historique AVANT le message de bienvenue
+            socket.emit('chat_history', chatHistory);
+            socket.emit('message_reactions_sync', messageReactions);
+            socket.emit('user_statuses_sync', userStatuses);
+            
+            logActivity('SYSTEM', `Historique envoyé à ${cleanUsername}`, {
+                messagesCount: chatHistory.length,
+                reactionsCount: Object.keys(messageReactions).length
+            });
+            
+            // Message de bienvenue (APRES l'historique)
             const joinMessage = {
                 type: 'system',
                 message: `${cleanUsername} a rejoint le chat`,
@@ -497,6 +682,9 @@ io.on('connection', (socket) => {
             addToHistory(message);
             io.emit('new_message', message);
             serverStats.totalMessages++;
+            
+            // Sauvegarder l'historique après chaque message
+            saveHistory();
             
             // Arrêter l'indicateur de frappe pour cet utilisateur
             if (typingUsers.has(socket.id)) {
@@ -681,22 +869,38 @@ function addToHistory(message) {
         const removed = chatHistory.length - MAX_HISTORY;
         chatHistory = chatHistory.slice(-MAX_HISTORY);
         logActivity('SYSTEM', `Historique tronqué: ${removed} messages supprimés`);
+        
+        // Nettoyer les réactions pour les messages supprimés de l'historique
+        const validIds = new Set(chatHistory.map(m => String(m.id)));
+        let reactionsRemoved = 0;
+        Object.keys(messageReactions).forEach(mid => { 
+            if (!validIds.has(mid) && !validIds.has(String(mid))) {
+                delete messageReactions[mid];
+                reactionsRemoved++;
+            }
+        });
+        if (reactionsRemoved > 0) {
+            saveReactions();
+        }
     }
-    // Nettoyer les réactions d'images pour les messages supprimés de l'historique
-    const validIds = new Set(chatHistory.map(m => m.id));
-    Object.keys(imageReactions).forEach(mid => { if (!validIds.has(Number(mid))) delete imageReactions[mid]; });
 }
 
 function updateUsersList() {
-    const usersList = Array.from(connectedUsers.values()).map(user => ({
-        id: user.id,
-        username: user.username,
-        avatar: user.avatar,
-        joinTime: user.joinTime,
-        lastActivity: user.lastActivity,
-        messagesCount: user.messagesCount,
-        repliesCount: user.repliesCount
-    }));
+    const usersList = Array.from(connectedUsers.values()).map(user => {
+        // Récupérer le statut personnalisé s'il existe
+        const savedStatus = userStatuses[user.username] || {};
+        return {
+            id: user.id,
+            username: user.username,
+            avatar: user.avatar,
+            joinTime: user.joinTime,
+            lastActivity: user.lastActivity,
+            messagesCount: user.messagesCount,
+            repliesCount: user.repliesCount,
+            status: savedStatus.status || 'online',
+            customStatus: savedStatus.customText || ''
+        };
+    });
     
     io.emit('users_update', {
         count: connectedUsers.size,
