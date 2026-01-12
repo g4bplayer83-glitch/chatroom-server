@@ -102,6 +102,9 @@ let messageReactions = {};
 // Stockage des statuts personnalisés (username -> {status, customText})
 let userStatuses = {};
 
+// Liste des admins connectés
+let adminUsersList = [];
+
 // === FICHIERS DE SAUVEGARDE POUR PERSISTANCE ===
 // Pour render.com: créer un Disk persistant et définir RENDER_DISK_PATH=/var/data
 // Sinon utilise le dossier local 'data'
@@ -494,6 +497,289 @@ io.on('connection', (socket) => {
         updateUsersList();
     });
 
+    // === CHANGEMENT DE PSEUDO EN TEMPS RÉEL ===
+    socket.on('change_username', (data) => {
+        try {
+            const { newUsername } = data;
+            const user = connectedUsers.get(socket.id);
+            
+            if (!user) {
+                socket.emit('username_change_error', { message: 'Utilisateur non connecté' });
+                return;
+            }
+            
+            const oldUsername = user.username;
+            const cleanNewUsername = (newUsername || '').trim().substring(0, 20);
+            
+            if (!cleanNewUsername || cleanNewUsername.length < 1) {
+                socket.emit('username_change_error', { message: 'Pseudo invalide' });
+                return;
+            }
+            
+            // Vérifier si le nouveau pseudo est déjà pris
+            const existingUser = Array.from(connectedUsers.values()).find(u => 
+                u.username.toLowerCase() === cleanNewUsername.toLowerCase() && u.id !== socket.id
+            );
+            
+            if (existingUser) {
+                socket.emit('username_change_error', { message: 'Ce pseudo est déjà pris!' });
+                return;
+            }
+            
+            // Mettre à jour le pseudo
+            user.username = cleanNewUsername;
+            connectedUsers.set(socket.id, user);
+            
+            // Transférer le statut
+            if (userStatuses[oldUsername]) {
+                userStatuses[cleanNewUsername] = userStatuses[oldUsername];
+                delete userStatuses[oldUsername];
+            }
+            
+            // Mettre à jour le profil
+            if (userProfiles.has(oldUsername)) {
+                const profile = userProfiles.get(oldUsername);
+                profile.username = cleanNewUsername;
+                userProfiles.set(cleanNewUsername, profile);
+                userProfiles.delete(oldUsername);
+            }
+            
+            logActivity('PROFILE', `Pseudo changé`, { 
+                oldUsername, 
+                newUsername: cleanNewUsername,
+                socketId: socket.id 
+            });
+            
+            // Confirmer au client
+            socket.emit('username_changed', { 
+                oldUsername, 
+                newUsername: cleanNewUsername 
+            });
+            
+            // Annoncer à tous
+            const changeMessage = {
+                type: 'system',
+                message: `${oldUsername} a changé son pseudo en ${cleanNewUsername}`,
+                timestamp: new Date(),
+                id: messageId++
+            };
+            
+            addToHistory(changeMessage);
+            io.emit('system_message', changeMessage);
+            
+            // Mettre à jour la liste
+            updateUsersList();
+            
+        } catch (error) {
+            logActivity('ERROR', 'Erreur changement pseudo', { error: error.message });
+            socket.emit('username_change_error', { message: 'Erreur lors du changement' });
+        }
+    });
+
+    // === ACTIONS ADMIN ===
+    socket.on('admin_action', (data) => {
+        const { password, action, target, value } = data;
+        const adminPassword = process.env.ADMIN_PASSWORD || 'IndieGabVR2024';
+        
+        if (password !== adminPassword) {
+            socket.emit('admin_response', { success: false, message: 'Mot de passe incorrect' });
+            return;
+        }
+        
+        const adminUser = connectedUsers.get(socket.id);
+        const adminName = adminUser ? adminUser.username : 'Admin';
+        
+        logActivity('ADMIN', `Action admin: ${action}`, { admin: adminName, target, value });
+        
+        switch (action) {
+            case 'kick':
+                // Trouver et déconnecter l'utilisateur
+                let kickedSocket = null;
+                connectedUsers.forEach((user, sid) => {
+                    if (user.username.toLowerCase() === target.toLowerCase()) {
+                        kickedSocket = io.sockets.sockets.get(sid);
+                    }
+                });
+                
+                if (kickedSocket) {
+                    kickedSocket.emit('kicked', { message: 'Vous avez été expulsé par un administrateur' });
+                    kickedSocket.disconnect(true);
+                    socket.emit('admin_response', { success: true, message: `${target} a été expulsé` });
+                    
+                    const kickMsg = {
+                        type: 'system',
+                        message: `⚠️ ${target} a été expulsé par un administrateur`,
+                        timestamp: new Date(),
+                        id: messageId++
+                    };
+                    addToHistory(kickMsg);
+                    io.emit('system_message', kickMsg);
+                } else {
+                    socket.emit('admin_response', { success: false, message: 'Utilisateur non trouvé' });
+                }
+                break;
+                
+            case 'ban':
+                // Simple kick pour l'instant (le ban permanent nécessiterait une BDD)
+                let bannedSocket = null;
+                connectedUsers.forEach((user, sid) => {
+                    if (user.username.toLowerCase() === target.toLowerCase()) {
+                        bannedSocket = io.sockets.sockets.get(sid);
+                    }
+                });
+                
+                if (bannedSocket) {
+                    bannedSocket.emit('kicked', { message: 'Vous avez été banni par un administrateur' });
+                    bannedSocket.disconnect(true);
+                    socket.emit('admin_response', { success: true, message: `${target} a été banni` });
+                    
+                    const banMsg = {
+                        type: 'system',
+                        message: `🚫 ${target} a été banni par un administrateur`,
+                        timestamp: new Date(),
+                        id: messageId++
+                    };
+                    addToHistory(banMsg);
+                    io.emit('system_message', banMsg);
+                } else {
+                    socket.emit('admin_response', { success: false, message: 'Utilisateur non trouvé' });
+                }
+                break;
+                
+            case 'rename':
+                // Renommer un utilisateur
+                let targetSocket = null;
+                let targetUser = null;
+                connectedUsers.forEach((user, sid) => {
+                    if (user.username.toLowerCase() === target.toLowerCase()) {
+                        targetSocket = io.sockets.sockets.get(sid);
+                        targetUser = user;
+                    }
+                });
+                
+                if (targetUser && value) {
+                    const oldName = targetUser.username;
+                    targetUser.username = value.substring(0, 20);
+                    
+                    const renameMsg = {
+                        type: 'system',
+                        message: `👤 ${oldName} a été renommé en ${value} par un administrateur`,
+                        timestamp: new Date(),
+                        id: messageId++
+                    };
+                    addToHistory(renameMsg);
+                    io.emit('system_message', renameMsg);
+                    
+                    if (targetSocket) {
+                        targetSocket.emit('force_rename', { newUsername: value });
+                    }
+                    
+                    updateUsersList();
+                    socket.emit('admin_response', { success: true, message: `${oldName} renommé en ${value}` });
+                } else {
+                    socket.emit('admin_response', { success: false, message: 'Utilisateur non trouvé ou valeur manquante' });
+                }
+                break;
+                
+            case 'clear_history':
+                chatHistory.length = 0;
+                Object.keys(messageReactions).forEach(k => delete messageReactions[k]);
+                saveHistory();
+                saveReactions();
+                
+                const clearMsg = {
+                    type: 'system',
+                    message: `🗑️ L'historique a été effacé par un administrateur`,
+                    timestamp: new Date(),
+                    id: messageId++
+                };
+                io.emit('system_message', clearMsg);
+                io.emit('history_cleared');
+                
+                socket.emit('admin_response', { success: true, message: 'Historique effacé' });
+                break;
+                
+            case 'broadcast':
+                if (value) {
+                    const broadcastMsg = {
+                        type: 'system',
+                        message: `📢 [ADMIN] ${value}`,
+                        timestamp: new Date(),
+                        id: messageId++
+                    };
+                    addToHistory(broadcastMsg);
+                    io.emit('system_message', broadcastMsg);
+                    socket.emit('admin_response', { success: true, message: 'Message diffusé' });
+                }
+                break;
+                
+            default:
+                socket.emit('admin_response', { success: false, message: 'Action non reconnue' });
+        }
+    });
+
+    // === LOGIN ADMIN ===
+    socket.on('admin_login', (data) => {
+        const { password, username } = data;
+        const adminPassword = process.env.ADMIN_PASSWORD || 'IndieGabVR2024';
+        
+        if (password === adminPassword && username) {
+            // Ajouter à la liste des admins
+            if (!adminUsersList.includes(username)) {
+                adminUsersList.push(username);
+                logActivity('ADMIN', `${username} s'est connecté en tant qu'admin`);
+            }
+            
+            // Broadcaster la liste des admins à tout le monde
+            io.emit('admin_list_update', { admins: adminUsersList });
+        }
+    });
+
+    // === SUPPRESSION DE MESSAGE ===
+    socket.on('delete_message', (data) => {
+        const { messageId, password } = data;
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        const adminPassword = process.env.ADMIN_PASSWORD || 'IndieGabVR2024';
+        const isAdmin = password === adminPassword;
+        
+        // Trouver le message dans l'historique
+        const msgIndex = chatHistory.findIndex(m => m.id == messageId);
+        if (msgIndex === -1) {
+            socket.emit('admin_response', { success: false, message: 'Message non trouvé' });
+            return;
+        }
+        
+        const msg = chatHistory[msgIndex];
+        
+        // Vérifier les permissions (admin ou propriétaire du message)
+        if (!isAdmin && msg.username !== user.username) {
+            socket.emit('admin_response', { success: false, message: 'Pas la permission' });
+            return;
+        }
+        
+        // Supprimer le message
+        chatHistory.splice(msgIndex, 1);
+        
+        // Supprimer les réactions associées
+        if (messageReactions[messageId]) {
+            delete messageReactions[messageId];
+        }
+        
+        saveHistory();
+        saveReactions();
+        
+        logActivity('MESSAGE', `Message supprimé`, { 
+            messageId, 
+            deletedBy: user.username, 
+            isAdmin 
+        });
+        
+        // Notifier tous les clients
+        io.emit('message_deleted', { messageId });
+    });
+
     // Connexion d'un utilisateur
     socket.on('user_join', (userData) => {
         try {
@@ -558,6 +844,7 @@ io.on('connection', (socket) => {
             socket.emit('chat_history', chatHistory);
             socket.emit('message_reactions_sync', messageReactions);
             socket.emit('user_statuses_sync', userStatuses);
+            socket.emit('admin_list_update', { admins: adminUsersList });
             
             logActivity('SYSTEM', `Historique envoyé à ${cleanUsername}`, {
                 messagesCount: chatHistory.length,
@@ -801,6 +1088,13 @@ io.on('connection', (socket) => {
         const user = connectedUsers.get(socket.id);
         if (user) {
             const sessionDuration = Date.now() - user.joinTime.getTime();
+            
+            // Retirer de la liste des admins
+            const adminIndex = adminUsersList.indexOf(user.username);
+            if (adminIndex > -1) {
+                adminUsersList.splice(adminIndex, 1);
+                io.emit('admin_list_update', { admins: adminUsersList });
+            }
             
             // Message de départ
             const leaveMessage = {
