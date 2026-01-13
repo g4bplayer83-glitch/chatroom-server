@@ -84,7 +84,7 @@ app.use('/uploads', express.static(uploadDir));
 
 // Variables pour stocker les données
 let connectedUsers = new Map(); // socketId -> userData
-let chatHistory = []; // Historique des messages
+let chatHistory = []; // Historique des messages (général - rétrocompatibilité)
 const MAX_HISTORY = 500; // Limite de l'historique (augmentée pour persistance)
 let typingUsers = new Map(); // socketId -> {username, timestamp}
 let userProfiles = new Map(); // username -> profile data
@@ -96,6 +96,17 @@ let serverStats = {
     startTime: new Date()
 };
 
+// === SALONS MULTIPLES (BETA) ===
+const AVAILABLE_CHANNELS = ['général', 'présentation', 'jeux', 'musique', 'films', 'random', 'aide'];
+let channelHistories = {}; // { channelName: [messages] }
+let channelReactions = {}; // { channelName: { messageId: {emoji: [usernames]} } }
+
+// Initialiser les historiques par salon
+AVAILABLE_CHANNELS.forEach(ch => {
+    channelHistories[ch] = [];
+    channelReactions[ch] = {};
+});
+
 // Stockage des réactions emoji sur les messages (messageId -> {emoji: [usernames]})
 let messageReactions = {};
 
@@ -105,12 +116,38 @@ let userStatuses = {};
 // Liste des admins connectés
 let adminUsersList = [];
 
+// === NOUVELLES VARIABLES ADMIN ===
+// Configuration du serveur
+let serverConfig = {
+    isPrivate: false,
+    accessCode: '',
+    slowMode: 0, // secondes entre les messages (0 = désactivé)
+    globalMute: false
+};
+
+// Liste des utilisateurs bannis: { identifier: { username, bannedAt, expiresAt, permanent, ip } }
+let bannedUsers = new Map();
+
+// Derniers messages par utilisateur (pour slow mode)
+let lastMessageTime = new Map(); // socketId -> timestamp
+
+// === SONDAGES ===
+let polls = {}; // pollId -> { id, question, options: [{text, votes}], channel, creator, createdAt }
+let pollVotes = {}; // pollId -> { username: optionIndex }
+let pollIdCounter = 1;
+
+// === MESSAGES PRIVÉS (DM) ===
+let dmHistory = {}; // "user1:user2" (trié) -> [messages]
+
 // === FICHIERS DE SAUVEGARDE POUR PERSISTANCE ===
 // Pour render.com: créer un Disk persistant et définir RENDER_DISK_PATH=/var/data
 // Sinon utilise le dossier local 'data'
 const DATA_DIR = process.env.RENDER_DISK_PATH || path.join(__dirname, 'data');
 const HISTORY_FILE = path.join(DATA_DIR, 'chat_history.json');
 const REACTIONS_FILE = path.join(DATA_DIR, 'reactions.json');
+const CHANNELS_FILE = path.join(DATA_DIR, 'channel_histories.json');
+const DM_FILE = path.join(DATA_DIR, 'dm_history.json');
+const POLLS_FILE = path.join(DATA_DIR, 'polls.json');
 
 console.log(`📂 Dossier de données: ${DATA_DIR}`);
 
@@ -130,22 +167,49 @@ function loadPersistedData() {
         console.log('🗑️ RESET_HISTORY activé - Historique effacé');
         chatHistory = [];
         messageReactions = {};
+        channelHistories = {};
+        AVAILABLE_CHANNELS.forEach(ch => {
+            channelHistories[ch] = [];
+            channelReactions[ch] = {};
+        });
         messageId = 1;
         saveHistory();
         saveReactions();
+        saveChannelHistories();
         return;
     }
     
     try {
-        // Charger l'historique
+        // Charger l'historique général (rétrocompatibilité)
         if (fs.existsSync(HISTORY_FILE)) {
             const data = fs.readFileSync(HISTORY_FILE, 'utf8');
             const parsed = JSON.parse(data);
             chatHistory = parsed.messages || [];
             messageId = parsed.lastMessageId || 1;
             console.log(`✅ Historique chargé: ${chatHistory.length} messages`);
+            
+            // Migrer l'ancien historique vers le salon "général" si les salons sont vides
+            if (chatHistory.length > 0 && (!channelHistories['général'] || channelHistories['général'].length === 0)) {
+                channelHistories['général'] = chatHistory.map(msg => ({...msg, channel: 'général'}));
+                console.log(`📦 Migration de ${chatHistory.length} messages vers le salon #général`);
+            }
         } else {
             console.log('📝 Pas d\'historique existant - démarrage à zéro');
+        }
+        
+        // Charger les historiques des salons
+        if (fs.existsSync(CHANNELS_FILE)) {
+            const data = fs.readFileSync(CHANNELS_FILE, 'utf8');
+            const parsed = JSON.parse(data);
+            if (parsed.histories) {
+                channelHistories = parsed.histories;
+                // S'assurer que tous les salons existent
+                AVAILABLE_CHANNELS.forEach(ch => {
+                    if (!channelHistories[ch]) channelHistories[ch] = [];
+                });
+                const totalMessages = Object.values(channelHistories).reduce((sum, arr) => sum + arr.length, 0);
+                console.log(`✅ Historiques salons chargés: ${totalMessages} messages total`);
+            }
         }
         
         // Charger les réactions
@@ -169,6 +233,18 @@ function saveHistory() {
         fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
     } catch (error) {
         console.error('❌ Erreur sauvegarde historique:', error.message);
+    }
+}
+
+function saveChannelHistories() {
+    try {
+        const data = {
+            histories: channelHistories,
+            savedAt: new Date().toISOString()
+        };
+        fs.writeFileSync(CHANNELS_FILE, JSON.stringify(data, null, 2));
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde salons:', error.message);
     }
 }
 
@@ -620,27 +696,51 @@ io.on('connection', (socket) => {
                 break;
                 
             case 'ban':
-                // Simple kick pour l'instant (le ban permanent nécessiterait une BDD)
+                // Ban avec durée (0 = permanent)
+                const banDuration = data.duration || 0; // en minutes
                 let bannedSocket = null;
+                let bannedUserInfo = null;
+                
                 connectedUsers.forEach((user, sid) => {
                     if (user.username.toLowerCase() === target.toLowerCase()) {
                         bannedSocket = io.sockets.sockets.get(sid);
+                        bannedUserInfo = user;
                     }
                 });
                 
-                if (bannedSocket) {
-                    bannedSocket.emit('kicked', { message: 'Vous avez été banni par un administrateur' });
-                    bannedSocket.disconnect(true);
-                    socket.emit('admin_response', { success: true, message: `${target} a été banni` });
+                if (bannedSocket || target) {
+                    // Créer l'entrée de ban
+                    const banIdentifier = target.toLowerCase();
+                    const banEntry = {
+                        username: target,
+                        bannedAt: new Date(),
+                        expiresAt: banDuration > 0 ? new Date(Date.now() + banDuration * 60 * 1000) : null,
+                        permanent: banDuration === 0,
+                        ip: bannedSocket ? bannedSocket.handshake.address : null
+                    };
+                    
+                    bannedUsers.set(banIdentifier, banEntry);
+                    
+                    // Déconnecter l'utilisateur s'il est connecté
+                    if (bannedSocket) {
+                        const banDurationText = banDuration === 0 ? 'permanent' : `${banDuration} minutes`;
+                        bannedSocket.emit('kicked', { message: `Vous avez été banni (${banDurationText})` });
+                        bannedSocket.disconnect(true);
+                    }
+                    
+                    const banDurationText = banDuration === 0 ? 'permanentement' : `pour ${banDuration} minutes`;
+                    socket.emit('admin_response', { success: true, message: `${target} a été banni ${banDurationText}` });
                     
                     const banMsg = {
                         type: 'system',
-                        message: `🚫 ${target} a été banni par un administrateur`,
+                        message: `🚫 ${target} a été banni ${banDurationText}`,
                         timestamp: new Date(),
                         id: messageId++
                     };
                     addToHistory(banMsg);
                     io.emit('system_message', banMsg);
+                    
+                    logActivity('ADMIN', `Ban: ${target}`, { admin: adminName, duration: banDuration });
                 } else {
                     socket.emit('admin_response', { success: false, message: 'Utilisateur non trouvé' });
                 }
@@ -712,6 +812,137 @@ io.on('connection', (socket) => {
                     socket.emit('admin_response', { success: true, message: 'Message diffusé' });
                 }
                 break;
+            
+            // === NOUVELLES ACTIONS ADMIN ===
+            case 'set_private':
+                serverConfig.isPrivate = !!value;
+                socket.emit('admin_response', { 
+                    success: true, 
+                    message: serverConfig.isPrivate ? 'Serveur en mode privé' : 'Serveur en mode public' 
+                });
+                logActivity('ADMIN', `Mode serveur: ${serverConfig.isPrivate ? 'privé' : 'public'}`, { admin: adminName });
+                break;
+            
+            case 'set_access_code':
+                if (value) {
+                    serverConfig.accessCode = value;
+                    socket.emit('admin_response', { success: true, message: `Code d'accès défini: ${value}` });
+                    logActivity('ADMIN', 'Code d\'accès modifié', { admin: adminName });
+                }
+                break;
+            
+            case 'slow_mode':
+                serverConfig.slowMode = parseInt(value) || 0;
+                const slowModeMsg = {
+                    type: 'system',
+                    message: serverConfig.slowMode > 0 
+                        ? `🐢 Mode lent activé (${serverConfig.slowMode}s entre les messages)`
+                        : `🐢 Mode lent désactivé`,
+                    timestamp: new Date(),
+                    id: messageId++
+                };
+                io.emit('system_message', slowModeMsg);
+                socket.emit('admin_response', { success: true, message: `Mode lent: ${serverConfig.slowMode}s` });
+                break;
+            
+            case 'mute_all':
+                serverConfig.globalMute = !serverConfig.globalMute;
+                const muteMsg = {
+                    type: 'system',
+                    message: serverConfig.globalMute 
+                        ? `🔇 Tous les utilisateurs sont maintenant mutés`
+                        : `🔊 Les utilisateurs peuvent parler à nouveau`,
+                    timestamp: new Date(),
+                    id: messageId++
+                };
+                io.emit('system_message', muteMsg);
+                socket.emit('admin_response', { 
+                    success: true, 
+                    message: serverConfig.globalMute ? 'Mute global activé' : 'Mute global désactivé' 
+                });
+                break;
+            
+            case 'kick_all':
+                const kickAllMsg = {
+                    type: 'system',
+                    message: `👢 Tous les utilisateurs ont été expulsés par un administrateur`,
+                    timestamp: new Date(),
+                    id: messageId++
+                };
+                io.emit('system_message', kickAllMsg);
+                
+                // Expulser tout le monde sauf l'admin actuel
+                connectedUsers.forEach((user, sid) => {
+                    if (sid !== socket.id) {
+                        const targetSocket = io.sockets.sockets.get(sid);
+                        if (targetSocket) {
+                            targetSocket.emit('kicked', { message: 'Tous les utilisateurs ont été expulsés' });
+                            targetSocket.disconnect(true);
+                        }
+                    }
+                });
+                socket.emit('admin_response', { success: true, message: 'Tout le monde a été expulsé' });
+                break;
+            
+            case 'restart':
+                const restartMsg = {
+                    type: 'system',
+                    message: `🔄 Le serveur va redémarrer...`,
+                    timestamp: new Date(),
+                    id: messageId++
+                };
+                io.emit('system_message', restartMsg);
+                io.emit('server_restart');
+                socket.emit('admin_response', { success: true, message: 'Redémarrage en cours...' });
+                
+                // Sauvegarder avant de redémarrer
+                saveHistory();
+                saveReactions();
+                
+                setTimeout(() => {
+                    process.exit(0); // render.com redémarrera automatiquement
+                }, 2000);
+                break;
+            
+            case 'get_stats':
+                const uptimeSeconds = Math.floor((new Date() - serverStats.startTime) / 1000);
+                socket.emit('server_stats', {
+                    connectedUsers: connectedUsers.size,
+                    totalMessages: serverStats.totalMessages,
+                    totalUploads: serverStats.totalUploads,
+                    uptime: uptimeSeconds,
+                    isPrivate: serverConfig.isPrivate,
+                    slowMode: serverConfig.slowMode
+                });
+                break;
+            
+            case 'get_banned_users':
+                // Nettoyer les bans expirés
+                const now = new Date();
+                bannedUsers.forEach((ban, id) => {
+                    if (!ban.permanent && new Date(ban.expiresAt) < now) {
+                        bannedUsers.delete(id);
+                    }
+                });
+                
+                const bannedList = Array.from(bannedUsers.entries()).map(([id, ban]) => ({
+                    identifier: id,
+                    username: ban.username,
+                    bannedAt: ban.bannedAt,
+                    expiresAt: ban.expiresAt,
+                    permanent: ban.permanent
+                }));
+                
+                socket.emit('banned_users_list', { bannedUsers: bannedList });
+                break;
+            
+            case 'unban':
+                if (target) {
+                    bannedUsers.delete(target);
+                    socket.emit('admin_response', { success: true, message: `${target} a été débanni` });
+                    logActivity('ADMIN', `${target} débanni`, { admin: adminName });
+                }
+                break;
                 
             default:
                 socket.emit('admin_response', { success: false, message: 'Action non reconnue' });
@@ -780,10 +1011,72 @@ io.on('connection', (socket) => {
         io.emit('message_deleted', { messageId });
     });
 
+    // === ÉDITION DE MESSAGE ===
+    socket.on('edit_message', (data) => {
+        const { messageId, newContent } = data;
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        // Trouver le message dans l'historique
+        const msgIndex = chatHistory.findIndex(m => m.id == messageId);
+        if (msgIndex === -1) {
+            socket.emit('edit_response', { success: false, message: 'Message non trouvé' });
+            return;
+        }
+        
+        const msg = chatHistory[msgIndex];
+        
+        // Vérifier que c'est bien le propriétaire du message
+        if (msg.username !== user.username) {
+            socket.emit('edit_response', { success: false, message: 'Vous ne pouvez modifier que vos propres messages' });
+            return;
+        }
+        
+        // Valider le nouveau contenu
+        const cleanContent = (newContent || '').trim().substring(0, 500);
+        if (!cleanContent) {
+            socket.emit('edit_response', { success: false, message: 'Le message ne peut pas être vide' });
+            return;
+        }
+        
+        // Échapper le contenu
+        const escapedContent = cleanContent
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        
+        // Sauvegarder l'ancien contenu
+        const oldContent = msg.content;
+        
+        // Mettre à jour le message
+        msg.content = escapedContent;
+        msg.edited = true;
+        msg.editedAt = new Date();
+        
+        saveHistory();
+        
+        logActivity('MESSAGE', `Message modifié`, { 
+            messageId, 
+            username: user.username,
+            oldContent: oldContent.substring(0, 50),
+            newContent: escapedContent.substring(0, 50)
+        });
+        
+        // Notifier tous les clients
+        io.emit('message_edited', { 
+            messageId, 
+            newContent: escapedContent,
+            edited: true,
+            editedAt: msg.editedAt
+        });
+        
+        socket.emit('edit_response', { success: true, message: 'Message modifié' });
+    });
+
     // Connexion d'un utilisateur
     socket.on('user_join', (userData) => {
         try {
-            const { username, avatar } = userData;
+            const { username, avatar, accessCode } = userData;
             
             // Validation
             if (!username || typeof username !== 'string' || username.trim().length === 0) {
@@ -797,6 +1090,44 @@ io.on('connection', (socket) => {
             }
             
             const cleanUsername = username.trim().substring(0, 20);
+            
+            // === VÉRIFICATION DU BAN ===
+            const banIdentifier = cleanUsername.toLowerCase();
+            if (bannedUsers.has(banIdentifier)) {
+                const ban = bannedUsers.get(banIdentifier);
+                const now = new Date();
+                
+                // Vérifier si le ban a expiré
+                if (!ban.permanent && new Date(ban.expiresAt) < now) {
+                    bannedUsers.delete(banIdentifier);
+                } else {
+                    const remainingTime = ban.permanent ? 'permanent' : 
+                        `expire ${new Date(ban.expiresAt).toLocaleString()}`;
+                    socket.emit('kicked', { 
+                        message: `Vous êtes banni (${remainingTime})` 
+                    });
+                    logActivity('BLOCKED', `Utilisateur banni tenté de rejoindre`, {
+                        username: cleanUsername,
+                        ip: clientIp
+                    });
+                    socket.disconnect(true);
+                    return;
+                }
+            }
+            
+            // === VÉRIFICATION DU SERVEUR PRIVÉ ===
+            if (serverConfig.isPrivate && serverConfig.accessCode) {
+                if (accessCode !== serverConfig.accessCode) {
+                    socket.emit('access_denied', { 
+                        message: 'Ce serveur est privé. Code d\'accès requis.' 
+                    });
+                    logActivity('BLOCKED', `Accès refusé - serveur privé`, {
+                        username: cleanUsername,
+                        ip: clientIp
+                    });
+                    return;
+                }
+            }
             
             // Vérifier si le pseudo est déjà pris
             const existingUser = Array.from(connectedUsers.values()).find(user => 
@@ -897,10 +1228,38 @@ io.on('connection', (socket) => {
                 socket.emit('error', { message: 'Vous devez d\'abord vous connecter' });
                 return;
             }
+            
+            // === VÉRIFICATION MUTE GLOBAL ===
+            if (serverConfig.globalMute && !adminUsersList.includes(user.username)) {
+                socket.emit('muted', { message: 'Le chat est actuellement en mode silencieux' });
+                return;
+            }
+            
+            // === VÉRIFICATION SLOW MODE ===
+            if (serverConfig.slowMode > 0 && !adminUsersList.includes(user.username)) {
+                const lastTime = lastMessageTime.get(socket.id) || 0;
+                const now = Date.now();
+                const timeSinceLastMessage = (now - lastTime) / 1000;
+                
+                if (timeSinceLastMessage < serverConfig.slowMode) {
+                    const remainingTime = Math.ceil(serverConfig.slowMode - timeSinceLastMessage);
+                    socket.emit('slow_mode_active', { remainingTime });
+                    return;
+                }
+                
+                lastMessageTime.set(socket.id, now);
+            }
 
             // Mettre à jour la dernière activité
             user.lastActivity = new Date();
             user.messagesCount++;
+
+            // === GESTION DES SALONS ===
+            const channel = messageData.channel || 'général';
+            if (!AVAILABLE_CHANNELS.includes(channel)) {
+                socket.emit('error', { message: 'Salon invalide' });
+                return;
+            }
 
             const message = {
                 type: messageData.type || 'user',
@@ -911,7 +1270,8 @@ io.on('connection', (socket) => {
                 timestamp: new Date(),
                 userId: socket.id,
                 replyTo: messageData.replyTo || null,
-                attachment: messageData.attachment || null
+                attachment: messageData.attachment || null,
+                channel: channel // Ajouter le salon au message
             };
 
             // Validation du message
@@ -965,13 +1325,15 @@ io.on('connection', (socket) => {
                 userProfiles.set(user.username, profile);
             }
 
-            // Ajouter à l'historique et diffuser
-            addToHistory(message);
+            // Ajouter à l'historique du salon et diffuser
+            addToChannelHistory(message, channel);
+            addToHistory(message); // Garder aussi dans l'historique global pour rétrocompatibilité
             io.emit('new_message', message);
             serverStats.totalMessages++;
             
             // Sauvegarder l'historique après chaque message
             saveHistory();
+            saveChannelHistories();
             
             // Arrêter l'indicateur de frappe pour cet utilisateur
             if (typingUsers.has(socket.id)) {
@@ -990,20 +1352,51 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Indicateur de frappe
-    socket.on('typing_start', () => {
+    // === CHANGEMENT DE SALON ===
+    socket.on('switch_channel', (data) => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        const { channel, previousChannel } = data;
+        
+        if (!AVAILABLE_CHANNELS.includes(channel)) {
+            socket.emit('error', { message: 'Salon invalide' });
+            return;
+        }
+        
+        // Mettre à jour le salon actuel de l'utilisateur
+        user.currentChannel = channel;
+        connectedUsers.set(socket.id, user);
+        
+        // Envoyer l'historique du nouveau salon
+        const channelHistory = channelHistories[channel] || [];
+        socket.emit('channel_history', { 
+            channel: channel,
+            messages: channelHistory,
+            reactions: messageReactions // Envoyer aussi les réactions
+        });
+        
+        logActivity('SYSTEM', `Changement de salon`, {
+            username: user.username,
+            from: previousChannel,
+            to: channel
+        });
+    });
+
+    // Indicateur de frappe (avec salon)
+    socket.on('typing_start', (data) => {
         const user = connectedUsers.get(socket.id);
         if (user) {
+            const channel = data?.channel || user.currentChannel || 'général';
             typingUsers.set(socket.id, {
                 username: user.username,
+                channel: channel,
                 timestamp: Date.now()
             });
             updateTypingIndicator();
             
-            logActivity('TYPING', `Début de frappe`, {
-                username: user.username,
-                typingUsersCount: typingUsers.size
-            });
+            // Envoyer la mise à jour du typing par salon à tous
+            io.emit('channel_typing_update', getChannelTypingUsers());
         }
     });
 
@@ -1013,12 +1406,8 @@ io.on('connection', (socket) => {
             typingUsers.delete(socket.id);
             updateTypingIndicator();
             
-            if (user) {
-                logActivity('TYPING', `Arrêt de frappe`, {
-                    username: user.username,
-                    typingUsersCount: typingUsers.size
-                });
-            }
+            // Envoyer la mise à jour du typing par salon
+            io.emit('channel_typing_update', getChannelTypingUsers());
         }
     });
 
@@ -1153,6 +1542,170 @@ io.on('connection', (socket) => {
             ip: clientIp
         });
     });
+    
+    // === HANDLERS SONDAGES ===
+    socket.on('create_poll', (data) => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        const pollId = 'poll_' + pollIdCounter++;
+        const poll = {
+            id: pollId,
+            question: data.question,
+            options: data.options.map(text => ({ text, votes: 0 })),
+            channel: data.channel || 'général',
+            creator: user.username,
+            createdAt: new Date()
+        };
+        
+        polls[pollId] = poll;
+        pollVotes[pollId] = {};
+        
+        // Émettre à tous les utilisateurs du même salon
+        io.emit('poll_created', poll);
+        
+        logActivity('POLL', `Sondage créé`, {
+            pollId,
+            question: data.question,
+            creator: user.username,
+            channel: poll.channel
+        });
+    });
+    
+    socket.on('vote_poll', (data) => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        const { pollId, optionIndex } = data;
+        const poll = polls[pollId];
+        if (!poll) {
+            socket.emit('vote_response', { success: false, message: 'Sondage introuvable' });
+            return;
+        }
+        
+        // Vérifier si l'utilisateur a déjà voté
+        if (pollVotes[pollId] && pollVotes[pollId][user.username] !== undefined) {
+            socket.emit('vote_response', { success: false, message: 'Vous avez déjà voté' });
+            return;
+        }
+        
+        // Enregistrer le vote
+        if (!pollVotes[pollId]) pollVotes[pollId] = {};
+        pollVotes[pollId][user.username] = optionIndex;
+        poll.options[optionIndex].votes++;
+        
+        socket.emit('vote_response', { success: true, pollId, optionIndex });
+        io.emit('poll_update', poll);
+        
+        logActivity('POLL', `Vote enregistré`, {
+            pollId,
+            username: user.username,
+            optionIndex
+        });
+    });
+    
+    // === HANDLER PROFIL UTILISATEUR ===
+    socket.on('get_user_profile', (data) => {
+        const targetUsername = data.username;
+        
+        // Chercher l'utilisateur en ligne
+        let targetUser = null;
+        let isOnline = false;
+        connectedUsers.forEach((u, sid) => {
+            if (u.username === targetUsername) {
+                targetUser = u;
+                isOnline = true;
+            }
+        });
+        
+        // Récupérer le profil sauvegardé
+        const savedProfile = userProfiles.get(targetUsername) || {};
+        
+        // Déterminer le statut
+        let status = 'offline';
+        if (isOnline) {
+            status = userStatuses[targetUsername]?.status || 'online';
+        }
+        
+        const profile = {
+            username: targetUsername,
+            status: status,
+            bio: savedProfile.bio || '',
+            joinDate: savedProfile.firstJoin || savedProfile.joinedAt,
+            messageCount: savedProfile.totalMessages || 0,
+            avatar: savedProfile.avatar || (targetUser?.avatar)
+        };
+        
+        socket.emit('user_profile', profile);
+    });
+    
+    // === HANDLERS MESSAGES PRIVÉS (DM) ===
+    socket.on('send_dm', (data) => {
+        const sender = connectedUsers.get(socket.id);
+        if (!sender) return;
+        
+        const { to, content } = data;
+        if (!to || !content) return;
+        
+        // Créer la clé de conversation (triée pour unicité)
+        const key = [sender.username, to].sort().join(':');
+        
+        // Initialiser l'historique si nécessaire
+        if (!dmHistory[key]) {
+            dmHistory[key] = [];
+        }
+        
+        const message = {
+            from: sender.username,
+            to: to,
+            content: content,
+            timestamp: new Date()
+        };
+        
+        dmHistory[key].push(message);
+        
+        // Limiter l'historique DM
+        if (dmHistory[key].length > 100) {
+            dmHistory[key] = dmHistory[key].slice(-100);
+        }
+        
+        // Trouver le destinataire s'il est connecté
+        let recipientSocket = null;
+        connectedUsers.forEach((u, sid) => {
+            if (u.username === to) {
+                recipientSocket = sid;
+            }
+        });
+        
+        // Envoyer au destinataire
+        if (recipientSocket) {
+            io.to(recipientSocket).emit('dm_received', {
+                from: sender.username,
+                content: content,
+                timestamp: message.timestamp,
+                avatar: sender.avatar
+            });
+        }
+        
+        logActivity('DM', `Message privé envoyé`, {
+            from: sender.username,
+            to: to
+        });
+    });
+    
+    socket.on('get_dm_history', (data) => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        const { username } = data;
+        const key = [user.username, username].sort().join(':');
+        const history = dmHistory[key] || [];
+        
+        socket.emit('dm_history', {
+            username: username,
+            messages: history
+        });
+    });
 });
 
 // Fonctions utilitaires
@@ -1177,6 +1730,41 @@ function addToHistory(message) {
             saveReactions();
         }
     }
+}
+
+// === FONCTION POUR HISTORIQUE PAR SALON ===
+function addToChannelHistory(message, channel) {
+    if (!channelHistories[channel]) {
+        channelHistories[channel] = [];
+    }
+    channelHistories[channel].push(message);
+    
+    // Limiter l'historique par salon (200 messages max par salon)
+    const MAX_CHANNEL_HISTORY = 200;
+    if (channelHistories[channel].length > MAX_CHANNEL_HISTORY) {
+        channelHistories[channel] = channelHistories[channel].slice(-MAX_CHANNEL_HISTORY);
+    }
+}
+
+// === FONCTION POUR TYPING PAR SALON ===
+function getChannelTypingUsers() {
+    const now = Date.now();
+    const channelTyping = {};
+    
+    AVAILABLE_CHANNELS.forEach(ch => {
+        channelTyping[ch] = [];
+    });
+    
+    typingUsers.forEach((data, socketId) => {
+        if (now - data.timestamp < 5000 && connectedUsers.has(socketId)) {
+            const channel = data.channel || 'général';
+            if (channelTyping[channel]) {
+                channelTyping[channel].push(data.username);
+            }
+        }
+    });
+    
+    return channelTyping;
 }
 
 function updateUsersList() {
@@ -1377,6 +1965,45 @@ process.on('unhandledRejection', (reason, promise) => {
     });
     // Ne pas arrêter le serveur pour les promesses rejetées
 });
+
+// === NETTOYAGE AUTOMATIQUE DES TYPINGS EXPIRÉS ===
+// Vérifie toutes les 2 secondes et nettoie les typings > 5 secondes
+setInterval(() => {
+    const now = Date.now();
+    let hasExpired = false;
+    
+    typingUsers.forEach((data, socketId) => {
+        if (now - data.timestamp > 5000) {
+            typingUsers.delete(socketId);
+            hasExpired = true;
+        }
+    });
+    
+    // Si des typings ont expiré, envoyer la mise à jour
+    if (hasExpired) {
+        io.emit('channel_typing_update', getChannelTypingUsers());
+        updateTypingIndicator();
+    }
+}, 2000);
+
+// === KEEP-ALIVE POUR RENDER.COM ===
+// Ping automatique toutes les 5 minutes pour éviter que le serveur s'éteigne
+const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+setInterval(() => {
+    const now = new Date().toISOString();
+    console.log(`[${now}] 💓 Keep-alive ping - Serveur actif`);
+    
+    // Optionnel: faire une requête HTTP à soi-même pour garder le serveur actif
+    const PORT = process.env.PORT || 3000;
+    const http = require('http');
+    http.get(`http://localhost:${PORT}/`, (res) => {
+        // Ignorer la réponse
+    }).on('error', (err) => {
+        // Ignorer les erreurs
+    });
+}, KEEP_ALIVE_INTERVAL);
+
+console.log(`⏰ Keep-alive configuré: ping toutes les 5 minutes`);
 
 logActivity('SYSTEM', 'Tous les gestionnaires d\'événements configurés', {
     maxHistoryMessages: MAX_HISTORY,
