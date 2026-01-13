@@ -783,7 +783,7 @@ io.on('connection', (socket) => {
     // Connexion d'un utilisateur
     socket.on('user_join', (userData) => {
         try {
-            const { username, avatar } = userData;
+            const { username, avatar, uniqueUserId } = userData;
             
             // Validation
             if (!username || typeof username !== 'string' || username.trim().length === 0) {
@@ -814,11 +814,12 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            // Ajouter l'utilisateur
+            // Ajouter l'utilisateur avec l'uniqueUserId
             const userInfo = {
                 id: socket.id,
                 username: cleanUsername,
                 avatar: avatar || '',
+                uniqueUserId: uniqueUserId || null,
                 joinTime: new Date(),
                 ip: clientIp,
                 lastActivity: new Date(),
@@ -848,7 +849,8 @@ io.on('connection', (socket) => {
             
             logActivity('SYSTEM', `Historique envoyé à ${cleanUsername}`, {
                 messagesCount: chatHistory.length,
-                reactionsCount: Object.keys(messageReactions).length
+                reactionsCount: Object.keys(messageReactions).length,
+                uniqueUserId: uniqueUserId || 'none'
             });
             
             // Message de bienvenue (APRES l'historique)
@@ -868,6 +870,7 @@ io.on('connection', (socket) => {
             logActivity('CONNECTION', `Utilisateur rejoint le chat`, {
                 username: cleanUsername,
                 socketId: socket.id,
+                uniqueUserId: uniqueUserId || 'none',
                 hasAvatar: !!avatar,
                 ip: clientIp,
                 totalUsers: connectedUsers.size,
@@ -910,6 +913,7 @@ io.on('connection', (socket) => {
                 content: messageData.content ? messageData.content.trim().substring(0, 500) : '',
                 timestamp: new Date(),
                 userId: socket.id,
+                uniqueUserId: messageData.uniqueUserId || user.uniqueUserId || null,
                 replyTo: messageData.replyTo || null,
                 attachment: messageData.attachment || null
             };
