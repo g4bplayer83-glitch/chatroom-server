@@ -4078,6 +4078,9 @@
         }
 
         function initializeSocket(serverUrl, username, avatar) {
+            // Générer ou récupérer l'identifiant unique persistant
+            uniqueUserId = generateUniqueUserId();
+            
             // Connexion Socket.IO
             socket = io(serverUrl, {
                 timeout: 10000,
@@ -4088,8 +4091,13 @@
             socket.on('connect', () => {
                 console.log('✅ Connecté au serveur');
                 updateConnectionStatus(true, serverUrl);
-                // S'identifier auprès du serveur
-                socket.emit('user_join', { username, avatar, deviceId: generateDeviceId() });
+                // S'identifier auprès du serveur avec l'uniqueUserId
+                socket.emit('user_join', { 
+                    username, 
+                    avatar, 
+                    deviceId: generateDeviceId(),
+                    uniqueUserId: uniqueUserId 
+                });
                 // Sauvegarder la session pour auto-reconnexion
                 saveSession(username, serverUrl, avatar);
                 // Débloquer l'UI dès la connexion
@@ -4140,7 +4148,9 @@
                     if (msg.type === 'system') {
                         addSystemMessage(msg.message, msg.timestamp);
                     } else {
-                        addMessage(msg.username, msg.content, msg.timestamp, false, msg.avatar, msg.replyTo, msg.attachment, msg.id);
+                        // Utiliser uniqueUserId pour déterminer si c'est notre message
+                        const isOwn = msg.uniqueUserId === uniqueUserId;
+                        addMessage(msg.username, msg.content, msg.timestamp, isOwn, msg.avatar, msg.replyTo, msg.attachment, msg.id);
                     }
                 }
                 
@@ -4179,10 +4189,12 @@
             });
 
             socket.on('new_message', (message) => {
-                addMessage(message.username, message.content, message.timestamp, message.userId === socket.id, message.avatar, message.replyTo, message.attachment, message.id);
+                // Utiliser uniqueUserId pour déterminer si c'est notre message
+                const isOwn = message.uniqueUserId === uniqueUserId;
+                addMessage(message.username, message.content, message.timestamp, isOwn, message.avatar, message.replyTo, message.attachment, message.id);
                 
-                // Effet confetti pour les messages
-                if (message.userId !== socket.id) {
+                // Effet confetti pour les messages des autres
+                if (!isOwn) {
                     createConfetti();
                     
                     // Notification si autorisée
@@ -4358,7 +4370,8 @@
             const messageData = {
                 content: content,
                 replyTo: replyingTo,
-                attachment: pendingAttachment
+                attachment: pendingAttachment,
+                uniqueUserId: uniqueUserId
             };
             
             socket.emit('send_message', messageData);
@@ -5116,6 +5129,22 @@ window.addEmojiReaction = addEmojiReaction;
         
         // === SESSION PERSISTANTE ===
         const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes en millisecondes
+        
+        // === IDENTIFIANT UNIQUE UTILISATEUR ===
+        // Génère ou récupère un identifiant unique persistant pour l'utilisateur
+        let uniqueUserId = null;
+        
+        function generateUniqueUserId() {
+            let userId = localStorage.getItem('chatUniqueUserId');
+            if (!userId) {
+                userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('chatUniqueUserId', userId);
+                console.log('🆔 Nouvel identifiant unique généré:', userId);
+            } else {
+                console.log('🆔 Identifiant unique récupéré:', userId);
+            }
+            return userId;
+        }
         
         function generateDeviceId() {
             let deviceId = localStorage.getItem('chatDeviceId');
