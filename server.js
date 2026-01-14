@@ -256,6 +256,32 @@ function saveReactions() {
     }
 }
 
+// === SAUVEGARDE/CHARGEMENT DMs ===
+function saveDMs() {
+    try {
+        fs.writeFileSync(DM_FILE, JSON.stringify(dmHistory, null, 2));
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde DMs:', error.message);
+    }
+}
+
+function loadDMs() {
+    try {
+        if (fs.existsSync(DM_FILE)) {
+            const data = fs.readFileSync(DM_FILE, 'utf8');
+            dmHistory = JSON.parse(data);
+            const convCount = Object.keys(dmHistory).length;
+            console.log(`✅ DMs chargés: ${convCount} conversations`);
+        }
+    } catch (error) {
+        console.error('❌ Erreur chargement DMs:', error.message);
+        dmHistory = {};
+    }
+}
+
+// Charger les DMs au démarrage
+loadDMs();
+
 // Charger les données au démarrage
 loadPersistedData();
 
@@ -454,6 +480,95 @@ app.get('/admin/reset', (req, res) => {
         success: true, 
         message: `Historique effacé (${oldCount} messages supprimés)` 
     });
+});
+
+// === GEMINI AI API ===
+const GEMINI_API_KEY = 'AIzaSyBlf5GI0LHIX82Itz6_18gOFgfIm3_nSqM';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+app.post('/api/gemini', express.json(), async (req, res) => {
+    try {
+        const { prompt, history } = req.body;
+        
+        if (!prompt) {
+            return res.status(400).json({ error: 'Prompt requis' });
+        }
+        
+        const systemPrompt = `Tu es GeminiBot, un assistant IA intégré dans ChatRoom, une application de chat en temps réel.
+Tu es amical, serviable et tu réponds en français.
+Tu peux aider avec des questions générales, donner des conseils, expliquer des concepts, écrire du code, raconter des blagues, etc.
+Garde tes réponses concises (max 300 mots) car c'est un chat.
+Si on te demande qui tu es, dis que tu es GeminiBot, l'IA de ChatRoom powered by Google Gemini.
+N'utilise pas de markdown complexe, juste du texte simple avec des emojis.`;
+        
+        const contents = [];
+        
+        // Ajouter l'historique si présent
+        if (history && Array.isArray(history)) {
+            history.slice(-10).forEach(msg => {
+                contents.push({
+                    role: msg.role,
+                    parts: [{ text: msg.text }]
+                });
+            });
+        }
+        
+        // Ajouter le message actuel
+        contents.push({
+            role: 'user',
+            parts: [{ text: systemPrompt + '\n\nQuestion: ' + prompt }]
+        });
+        
+        const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: contents,
+                generationConfig: {
+                    temperature: 0.8,
+                    topK: 40,
+                    topP: 0.95,
+                    maxOutputTokens: 1024,
+                },
+                safetySettings: [
+                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
+                ]
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Gemini API Error:', errorData);
+            
+            // Vérifier si c'est une erreur de quota
+            if (errorData.error && errorData.error.status === 'RESOURCE_EXHAUSTED') {
+                return res.status(429).json({ 
+                    error: 'Quota dépassé', 
+                    message: 'Trop de requêtes, réessaie dans 1 minute !',
+                    retryAfter: 60
+                });
+            }
+            
+            return res.status(500).json({ error: 'Erreur API Gemini', details: errorData });
+        }
+        
+        const data = await response.json();
+        
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+            const aiResponse = data.candidates[0].content.parts[0].text;
+            res.json({ response: aiResponse });
+        } else {
+            res.status(500).json({ error: 'Format de réponse invalide' });
+        }
+    } catch (error) {
+        console.error('Gemini Server Error:', error);
+        res.status(500).json({ error: 'Erreur serveur', message: error.message });
+    }
 });
 
 // Route de santé pour Render avec stats détaillées
@@ -1216,6 +1331,53 @@ io.on('connection', (socket) => {
         }
     });
 
+    // === GEMINI BOT RESPONSE ===
+    socket.on('gemini_response', (data) => {
+        try {
+            const user = connectedUsers.get(socket.id);
+            if (!user) return;
+            
+            const channel = data.channel || 'général';
+            
+            const botMessage = {
+                type: 'user',
+                id: messageId++,
+                username: '🤖 GeminiBot',
+                avatar: 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+                content: data.content,
+                timestamp: new Date(),
+                userId: 'gemini-bot',
+                replyTo: null,
+                attachment: null,
+                channel: channel,
+                isBot: true
+            };
+            
+            // Sauvegarder dans l'historique du salon
+            if (!channelHistories[channel]) {
+                channelHistories[channel] = [];
+            }
+            channelHistories[channel].push(botMessage);
+            
+            // Limiter l'historique
+            if (channelHistories[channel].length > 500) {
+                channelHistories[channel] = channelHistories[channel].slice(-500);
+            }
+            
+            // Envoyer à tous les utilisateurs du salon
+            io.emit('new_message', botMessage);
+            
+            logActivity('GEMINI', 'Réponse GeminiBot envoyée', {
+                channel: channel,
+                contentLength: data.content.length,
+                requestedBy: user.username
+            });
+            
+        } catch (error) {
+            logActivity('ERROR', 'Erreur GeminiBot', { error: error.message });
+        }
+    });
+
     // Réception d'un message
     socket.on('send_message', (messageData) => {
         try {
@@ -1687,10 +1849,45 @@ io.on('connection', (socket) => {
             });
         }
         
+        // Sauvegarder les DMs
+        saveDMs();
+        
         logActivity('DM', `Message privé envoyé`, {
             from: sender.username,
             to: to
         });
+    });
+    
+    // Récupérer la liste des conversations DM de l'utilisateur
+    socket.on('get_dm_conversations', () => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        const conversations = [];
+        Object.keys(dmHistory).forEach(key => {
+            const users = key.split(':');
+            if (users.includes(user.username)) {
+                const otherUser = users[0] === user.username ? users[1] : users[0];
+                const messages = dmHistory[key];
+                const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+                
+                conversations.push({
+                    username: otherUser,
+                    lastMessage: lastMessage ? lastMessage.content.substring(0, 50) : '',
+                    lastTimestamp: lastMessage ? lastMessage.timestamp : null,
+                    unread: 0 // Pour l'instant pas de système de non-lu
+                });
+            }
+        });
+        
+        // Trier par date du dernier message
+        conversations.sort((a, b) => {
+            if (!a.lastTimestamp) return 1;
+            if (!b.lastTimestamp) return -1;
+            return new Date(b.lastTimestamp) - new Date(a.lastTimestamp);
+        });
+        
+        socket.emit('dm_conversations', conversations);
     });
     
     socket.on('get_dm_history', (data) => {
@@ -1706,7 +1903,281 @@ io.on('connection', (socket) => {
             messages: history
         });
     });
+
+    // === HANDLERS MINI-JEUX MULTIJOUEURS ===
+    
+    // Stocker les parties en cours
+    if (!global.activeGames) global.activeGames = new Map();
+    if (!global.gameInvites) global.gameInvites = new Map();
+    
+    // Envoyer une invitation de jeu
+    socket.on('game_invite', (data) => {
+        const sender = connectedUsers.get(socket.id);
+        if (!sender) return;
+        
+        const { to, gameType } = data;
+        
+        // Trouver le destinataire
+        let recipientSocket = null;
+        connectedUsers.forEach((u, sid) => {
+            if (u.username === to) {
+                recipientSocket = sid;
+            }
+        });
+        
+        if (recipientSocket) {
+            const inviteId = `${sender.username}-${to}-${Date.now()}`;
+            global.gameInvites.set(inviteId, {
+                from: sender.username,
+                fromSocket: socket.id,
+                to: to,
+                toSocket: recipientSocket,
+                gameType: gameType,
+                timestamp: Date.now()
+            });
+            
+            io.to(recipientSocket).emit('game_invite_received', {
+                inviteId: inviteId,
+                from: sender.username,
+                gameType: gameType
+            });
+            
+            socket.emit('game_invite_sent', { to, gameType });
+            
+            logActivity('GAME', `Invitation de jeu envoyée`, {
+                from: sender.username,
+                to: to,
+                game: gameType
+            });
+        }
+    });
+    
+    // Accepter une invitation
+    socket.on('game_accept', (data) => {
+        const { inviteId } = data;
+        const invite = global.gameInvites.get(inviteId);
+        
+        if (!invite) return;
+        
+        const gameId = `game-${Date.now()}`;
+        const game = {
+            id: gameId,
+            type: invite.gameType,
+            players: [
+                { username: invite.from, socket: invite.fromSocket },
+                { username: invite.to, socket: invite.toSocket }
+            ],
+            state: initGameState(invite.gameType),
+            currentTurn: 0, // Index du joueur dont c'est le tour
+            started: Date.now()
+        };
+        
+        global.activeGames.set(gameId, game);
+        global.gameInvites.delete(inviteId);
+        
+        // Notifier les deux joueurs
+        io.to(invite.fromSocket).emit('game_start', {
+            gameId: gameId,
+            gameType: invite.gameType,
+            opponent: invite.to,
+            yourTurn: true,
+            playerIndex: 0
+        });
+        
+        io.to(invite.toSocket).emit('game_start', {
+            gameId: gameId,
+            gameType: invite.gameType,
+            opponent: invite.from,
+            yourTurn: false,
+            playerIndex: 1
+        });
+        
+        logActivity('GAME', `Partie commencée`, {
+            game: invite.gameType,
+            players: [invite.from, invite.to]
+        });
+    });
+    
+    // Refuser une invitation
+    socket.on('game_decline', (data) => {
+        const { inviteId } = data;
+        const invite = global.gameInvites.get(inviteId);
+        
+        if (!invite) return;
+        
+        io.to(invite.fromSocket).emit('game_declined', {
+            by: invite.to,
+            gameType: invite.gameType
+        });
+        
+        global.gameInvites.delete(inviteId);
+    });
+    
+    // Jouer un coup
+    socket.on('game_move', (data) => {
+        const { gameId, move } = data;
+        const game = global.activeGames.get(gameId);
+        
+        if (!game) return;
+        
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        // Vérifier que c'est bien le tour du joueur
+        const playerIndex = game.players.findIndex(p => p.username === user.username);
+        if (playerIndex === -1 || playerIndex !== game.currentTurn) return;
+        
+        // Appliquer le coup selon le type de jeu
+        const result = applyGameMove(game, move, playerIndex);
+        
+        if (result.valid) {
+            game.state = result.state;
+            game.currentTurn = result.nextTurn;
+            
+            // Notifier les deux joueurs
+            game.players.forEach((p, idx) => {
+                io.to(p.socket).emit('game_update', {
+                    gameId: gameId,
+                    state: game.state,
+                    yourTurn: idx === game.currentTurn,
+                    lastMove: move,
+                    lastMoveBy: user.username,
+                    winner: result.winner,
+                    draw: result.draw
+                });
+            });
+            
+            // Fin de partie
+            if (result.winner || result.draw) {
+                global.activeGames.delete(gameId);
+                logActivity('GAME', `Partie terminée`, {
+                    game: game.type,
+                    winner: result.winner || 'Égalité'
+                });
+            }
+        }
+    });
+    
+    // Quitter une partie
+    socket.on('game_quit', (data) => {
+        const { gameId } = data;
+        const game = global.activeGames.get(gameId);
+        
+        if (!game) return;
+        
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        
+        // Notifier l'adversaire
+        game.players.forEach(p => {
+            if (p.username !== user.username) {
+                io.to(p.socket).emit('game_opponent_quit', {
+                    gameId: gameId,
+                    quitter: user.username
+                });
+            }
+        });
+        
+        global.activeGames.delete(gameId);
+    });
 });
+
+// Initialiser l'état d'un jeu
+function initGameState(gameType) {
+    switch (gameType) {
+        case 'tictactoe':
+            return { board: ['', '', '', '', '', '', '', '', ''] };
+        case 'connect4':
+            return { board: Array(6).fill(null).map(() => Array(7).fill('')) };
+        default:
+            return {};
+    }
+}
+
+// Appliquer un coup
+function applyGameMove(game, move, playerIndex) {
+    const symbols = ['X', 'O'];
+    const colors = ['red', 'yellow'];
+    
+    switch (game.type) {
+        case 'tictactoe': {
+            const { index } = move;
+            if (game.state.board[index]) {
+                return { valid: false };
+            }
+            
+            game.state.board[index] = symbols[playerIndex];
+            
+            const winner = checkTTTWinner(game.state.board);
+            const draw = !winner && !game.state.board.includes('');
+            
+            return {
+                valid: true,
+                state: game.state,
+                nextTurn: winner || draw ? -1 : (playerIndex + 1) % 2,
+                winner: winner ? game.players[playerIndex].username : null,
+                draw: draw
+            };
+        }
+        
+        case 'connect4': {
+            const { col } = move;
+            let row = -1;
+            for (let r = 5; r >= 0; r--) {
+                if (!game.state.board[r][col]) {
+                    row = r;
+                    break;
+                }
+            }
+            if (row === -1) return { valid: false };
+            
+            game.state.board[row][col] = colors[playerIndex];
+            
+            const winner = checkC4Winner(game.state.board, row, col, colors[playerIndex]);
+            const draw = !winner && game.state.board[0].every(cell => cell);
+            
+            return {
+                valid: true,
+                state: game.state,
+                nextTurn: winner || draw ? -1 : (playerIndex + 1) % 2,
+                winner: winner ? game.players[playerIndex].username : null,
+                draw: draw
+            };
+        }
+        
+        default:
+            return { valid: false };
+    }
+}
+
+function checkTTTWinner(board) {
+    const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    for (const [a, b, c] of lines) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+            return board[a];
+        }
+    }
+    return null;
+}
+
+function checkC4Winner(board, row, col, player) {
+    const directions = [[0,1], [1,0], [1,1], [1,-1]];
+    
+    for (const [dr, dc] of directions) {
+        let count = 1;
+        for (let dir = -1; dir <= 1; dir += 2) {
+            for (let i = 1; i < 4; i++) {
+                const r = row + dr * i * dir;
+                const c = col + dc * i * dir;
+                if (r >= 0 && r < 6 && c >= 0 && c < 7 && board[r][c] === player) {
+                    count++;
+                } else break;
+            }
+        }
+        if (count >= 4) return player;
+    }
+    return null;
+}
 
 // Fonctions utilitaires
 function addToHistory(message) {
@@ -1986,24 +2457,60 @@ setInterval(() => {
     }
 }, 2000);
 
-// === KEEP-ALIVE POUR RENDER.COM ===
-// Ping automatique toutes les 5 minutes pour éviter que le serveur s'éteigne
-const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
-setInterval(() => {
-    const now = new Date().toISOString();
-    console.log(`[${now}] 💓 Keep-alive ping - Serveur actif`);
-    
-    // Optionnel: faire une requête HTTP à soi-même pour garder le serveur actif
-    const PORT = process.env.PORT || 3000;
-    const http = require('http');
-    http.get(`http://localhost:${PORT}/`, (res) => {
-        // Ignorer la réponse
-    }).on('error', (err) => {
-        // Ignorer les erreurs
-    });
-}, KEEP_ALIVE_INTERVAL);
+// === KEEP-ALIVE AMÉLIORÉ POUR RENDER.COM ===
+// Render.com éteint les serveurs inactifs après 15 minutes
+// On fait des pings réguliers pour maintenir le serveur actif
+const KEEP_ALIVE_INTERVAL = 4 * 60 * 1000; // 4 minutes (plus fréquent)
+let keepAliveCount = 0;
 
-console.log(`⏰ Keep-alive configuré: ping toutes les 5 minutes`);
+// Créer une route /health pour le ping
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+        users: connectedUsers.size,
+        keepAliveCount: keepAliveCount
+    });
+});
+
+// Self-ping pour garder le serveur actif
+const https = require('https');
+function keepAlive() {
+    keepAliveCount++;
+    const now = new Date().toLocaleTimeString('fr-FR');
+    
+    // Log moins verbeux (1 sur 5)
+    if (keepAliveCount % 5 === 1) {
+        console.log(`[${now}] 💓 Keep-alive #${keepAliveCount} - ${connectedUsers.size} utilisateurs connectés`);
+    }
+    
+    // Sur Render, utiliser l'URL publique si disponible
+    const renderUrl = process.env.RENDER_EXTERNAL_URL;
+    if (renderUrl) {
+        const protocol = renderUrl.startsWith('https') ? https : require('http');
+        protocol.get(`${renderUrl}/health`, (res) => {
+            // Ping réussi
+        }).on('error', (err) => {
+            // Ignorer les erreurs silencieusement
+        });
+    } else {
+        // En local, ping localhost
+        const PORT = process.env.PORT || 3000;
+        require('http').get(`http://localhost:${PORT}/health`, (res) => {
+            // Ping réussi
+        }).on('error', (err) => {
+            // Ignorer les erreurs
+        });
+    }
+}
+
+// Démarrer le keep-alive
+setInterval(keepAlive, KEEP_ALIVE_INTERVAL);
+keepAlive(); // Premier ping immédiat
+
+console.log(`⏰ Keep-alive configuré: ping toutes les 4 minutes`);
+console.log(`🌐 Route /health disponible pour monitoring`);
 
 logActivity('SYSTEM', 'Tous les gestionnaires d\'événements configurés', {
     maxHistoryMessages: MAX_HISTORY,

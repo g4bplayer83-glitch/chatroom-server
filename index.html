@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ChatRoom V2.9.0</title>
+    <title>ChatRoom V2.9.2</title>
     
     <!-- Favicon - Icône du chat -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%235865F2' rx='20' width='100' height='100'/><text y='.9em' font-size='80' x='50%' text-anchor='middle'>💬</text></svg>">
@@ -680,6 +680,134 @@
             line-height: 1.4;
         }
 
+        /* ====== SPOILERS / MESSAGES À RÉVÉLATION ====== */
+        .spoiler-text {
+            background: var(--text-secondary);
+            color: transparent;
+            border-radius: 4px;
+            padding: 2px 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+            position: relative;
+        }
+
+        .spoiler-text::before {
+            content: '🔒 Spoiler';
+            color: var(--main-bg);
+            font-size: 11px;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.8;
+        }
+
+        .spoiler-text.revealed {
+            background: rgba(99, 102, 241, 0.2);
+            color: var(--text-primary);
+        }
+
+        .spoiler-text.revealed::before {
+            display: none;
+        }
+
+        .spoiler-block {
+            background: var(--input-bg);
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 8px 0;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .spoiler-block:not(.revealed) .spoiler-content {
+            filter: blur(8px);
+            user-select: none;
+            pointer-events: none;
+        }
+
+        .spoiler-block.revealed {
+            border-style: solid;
+            border-color: var(--accent-color);
+        }
+
+        .spoiler-block.revealed .spoiler-content {
+            filter: none;
+            user-select: auto;
+            pointer-events: auto;
+        }
+
+        .spoiler-reveal-btn {
+            display: inline-block;
+            padding: 6px 16px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: all 0.15s ease;
+        }
+
+        .spoiler-reveal-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        .spoiler-block.revealed .spoiler-reveal-btn {
+            display: none;
+        }
+
+        /* ====== SWIPE INTERACTIONS (MOBILE) ====== */
+        .message {
+            transition: transform 0.2s ease;
+            touch-action: pan-y;
+        }
+
+        .message.swiping {
+            transition: none;
+        }
+
+        .message-swipe-indicator {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 24px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        .message-swipe-indicator.left {
+            left: -40px;
+        }
+
+        .message-swipe-indicator.right {
+            right: -40px;
+        }
+
+        .message.swipe-left .message-swipe-indicator.left,
+        .message.swipe-right .message-swipe-indicator.right {
+            opacity: 1;
+        }
+
+        /* ====== EFFET PARALLAX ====== */
+        .parallax-container {
+            perspective: 1000px;
+        }
+
+        .parallax-layer {
+            transform-style: preserve-3d;
+            will-change: transform;
+        }
+
+        .message.parallax-effect {
+            transition: transform 0.1s ease-out;
+        }
+
         .edited-indicator {
             font-size: 10px;
             opacity: 0.6;
@@ -886,6 +1014,7 @@
             margin: 10px 0;
         }
 
+        /* === MODAL IMAGE IMMERSIVE === */
         .image-modal {
             display: none;
             position: fixed;
@@ -894,39 +1023,118 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            animation: fadeIn 0.3s;
+            background-color: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            animation: imageModalFadeIn 0.25s ease-out;
+            cursor: zoom-out;
+        }
+
+        @keyframes imageModalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .image-modal.closing {
+            animation: imageModalFadeOut 0.2s ease-in forwards;
+        }
+
+        @keyframes imageModalFadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
         }
 
         .image-modal-content {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translate(-50%, -50%) scale(0.9);
             max-width: 90%;
             max-height: 90%;
+            animation: imageZoomIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes imageZoomIn {
+            from { 
+                transform: translate(-50%, -50%) scale(0.7);
+                opacity: 0;
+            }
+            to { 
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .image-modal.closing .image-modal-content {
+            animation: imageZoomOut 0.2s ease-in forwards;
+        }
+
+        @keyframes imageZoomOut {
+            from { 
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            to { 
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
         }
 
         .image-modal img {
             width: 100%;
             height: 100%;
             object-fit: contain;
-            border-radius: 8px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            cursor: default;
         }
 
         .image-modal-close {
             position: absolute;
-            top: 15px;
-            right: 25px;
+            top: 20px;
+            right: 30px;
             color: white;
-            font-size: 30px;
-            font-weight: bold;
+            font-size: 36px;
+            font-weight: 300;
             cursor: pointer;
             z-index: 3001;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.2s ease;
         }
 
         .image-modal-close:hover {
-            color: #ccc;
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        /* Indicateur cliquable sur les images */
+        .message-image {
+            position: relative;
+            cursor: zoom-in;
+        }
+
+        .message-image::after {
+            content: '🔍';
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+
+        .message-image:hover::after {
+            opacity: 1;
         }
 
         .paste-preview {
@@ -970,18 +1178,24 @@
             color: #333;
         }
 
-        /* Typing indicator amélioré */
+        /* Typing indicator amélioré - Style Discord/iMessage */
         .typing-indicator {
             background: var(--typing-bg);
             border-radius: 20px;
-            padding: 8px 15px;
+            padding: 10px 16px;
             margin: 8px 0;
-            font-size: 12px;
+            font-size: 13px;
             color: var(--text-secondary);
             display: none;
             align-items: center;
             gap: 10px;
-            max-width: 80%;
+            max-width: 85%;
+            animation: typing-fade-in 0.2s ease-out;
+        }
+
+        @keyframes typing-fade-in {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .typing-indicator.active {
@@ -990,53 +1204,87 @@
 
         .typing-users {
             display: flex;
-            gap: 5px;
+            gap: -4px;
             align-items: center;
         }
 
+        .typing-user {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         .typing-avatar {
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             overflow: hidden;
             border: 2px solid var(--accent-color);
+            animation: avatar-pulse 2s ease-in-out infinite;
+            margin-left: -6px;
         }
 
-        .typing-avatar img {
+        .typing-avatar:first-child {
+            margin-left: 0;
+        }
+
+        @keyframes avatar-pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(114, 137, 218, 0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 0 0 4px rgba(114, 137, 218, 0); }
+        }
+
+        .typing-avatar img,
+        .typing-avatar span {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .typing-text {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-left: 8px;
+            white-space: nowrap;
         }
 
         .typing-dots {
             display: flex;
-            gap: 2px;
-            margin-left: 5px;
+            gap: 3px;
+            margin-left: 4px;
+            align-items: center;
         }
 
         .typing-dot {
-            width: 4px;
-            height: 4px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
             background: var(--accent-color);
-            animation: typing-bounce 1.4s infinite both;
+            animation: typing-wave 1.4s ease-in-out infinite;
+        }
+
+        .typing-dot:nth-child(1) {
+            animation-delay: 0s;
         }
 
         .typing-dot:nth-child(2) {
-            animation-delay: 0.2s;
+            animation-delay: 0.15s;
         }
 
         .typing-dot:nth-child(3) {
-            animation-delay: 0.4s;
+            animation-delay: 0.3s;
         }
 
-        @keyframes typing-bounce {
-            0%, 80%, 100% {
-                transform: scale(0);
-                opacity: 0.5;
+        @keyframes typing-wave {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.4;
             }
-            40% {
-                transform: scale(1);
+            30% {
+                transform: translateY(-6px);
                 opacity: 1;
             }
         }
@@ -2420,6 +2668,102 @@
             font-size: 13px;
         }
 
+        /* Badge Version en bas à gauche */
+        .version-badge {
+            position: fixed;
+            bottom: 15px;
+            left: 15px;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            opacity: 0.8;
+        }
+        .version-badge:hover {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+        
+        /* Annonce épinglée */
+        .pinned-announcement {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #e94560, #8b5cf6);
+            color: #fff;
+            padding: 12px 50px 12px 20px;
+            text-align: center;
+            font-weight: 500;
+            z-index: 9999;
+            animation: slideDown 0.4s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .close-announcement {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .close-announcement:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        /* Logs Modal */
+        .logs-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 2px solid #e94560;
+            border-radius: 16px;
+            padding: 20px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 70vh;
+            z-index: 100001;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .logs-content {
+            flex: 1;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #0f0;
+            white-space: pre-wrap;
+        }
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .log-entry.error { color: #e74c3c; }
+        .log-entry.warning { color: #f39c12; }
+        .log-entry.info { color: #3498db; }
+        .log-entry.success { color: #27ae60; }
+
         /* Auto-reconnexion prompt */
         .auto-reconnect-prompt {
             position: fixed;
@@ -3491,6 +3835,10 @@
             border-top: 1px solid var(--border-color);
             display: flex;
             gap: 8px;
+            flex-shrink: 0;
+            background: var(--sidebar-bg);
+            position: sticky;
+            bottom: 0;
         }
         .dm-input {
             flex: 1;
@@ -3500,6 +3848,13 @@
             border-radius: 20px;
             color: var(--text-primary);
             font-size: 14px;
+            min-width: 0;
+            max-height: 100px;
+            resize: none;
+        }
+        .dm-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
         }
         .dm-send-btn {
             background: var(--accent-color);
@@ -3507,9 +3862,18 @@
             border-radius: 50%;
             width: 40px;
             height: 40px;
+            min-width: 40px;
             color: white;
             cursor: pointer;
             font-size: 16px;
+            transition: transform 0.15s, background 0.15s;
+        }
+        .dm-send-btn:hover {
+            background: var(--accent-hover);
+            transform: scale(1.05);
+        }
+        .dm-send-btn:active {
+            transform: scale(0.95);
         }
         .dm-btn {
             padding: 8px;
@@ -3608,19 +3972,26 @@
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 8px;
+            align-content: start;
         }
         .gif-item {
             border-radius: 8px;
             overflow: hidden;
             cursor: pointer;
-            aspect-ratio: 16/9;
+            aspect-ratio: 4/3;
             background: var(--input-bg);
+            position: relative;
+            min-height: 80px;
         }
         .gif-item img {
             width: 100%;
             height: 100%;
             object-fit: cover;
             transition: transform 0.2s;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
         .gif-item:hover img {
             transform: scale(1.05);
@@ -3631,6 +4002,17 @@
             justify-content: center;
             height: 100%;
             color: var(--text-secondary);
+            grid-column: 1 / -1;
+            padding: 40px;
+            font-size: 14px;
+        }
+        .gif-powered-by {
+            padding: 8px;
+            text-align: center;
+            font-size: 10px;
+            color: var(--text-secondary);
+            background: var(--input-bg);
+            border-top: 1px solid var(--border-color);
         }
         .gif-btn {
             padding: 8px;
@@ -4305,6 +4687,781 @@
             background: var(--accent-color);
             color: white;
         }
+
+        /* ====== PATCH NOTES STYLES ====== */
+        .patchnotes-modal {
+            width: 90%;
+            max-width: 550px;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: patchnotesIn 0.4s ease;
+        }
+
+        @keyframes patchnotesIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .patchnotes-header {
+            text-align: center;
+            padding: 25px 20px 15px;
+            background: linear-gradient(135deg, var(--accent-color), #7c3aed);
+            color: white;
+            border-radius: 12px 12px 0 0;
+            position: relative;
+        }
+
+        .patchnotes-logo {
+            font-size: 50px;
+            margin-bottom: 10px;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .patchnotes-header h2 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .patchnotes-version {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .patchnotes-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--sidebar-bg);
+        }
+
+        .patchnotes-version-block {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: var(--input-bg);
+            border-radius: 12px;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .patchnotes-version-block.current {
+            border-left-color: #22c55e;
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .patchnotes-version-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .patchnotes-version-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .patchnotes-version-number {
+            font-size: 12px;
+            color: var(--accent-color);
+            background: rgba(99, 102, 241, 0.1);
+            padding: 3px 10px;
+            border-radius: 10px;
+        }
+
+        .patchnotes-version-date {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .patchnotes-changes {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .patchnotes-changes li {
+            padding: 6px 0;
+            font-size: 13px;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .patchnotes-changes li:last-child {
+            border-bottom: none;
+        }
+
+        .patchnotes-footer {
+            padding: 15px 20px;
+            background: var(--input-bg);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .patchnotes-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .patchnotes-checkbox input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .patchnotes-btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, var(--accent-color), #7c3aed);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .patchnotes-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .patchnotes-show-more {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .patchnotes-show-more button {
+            padding: 8px 20px;
+            background: var(--hover-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .patchnotes-show-more button:hover {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+
+        /* ====== MINI-JEUX STYLES ====== */
+        .games-modal {
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .games-menu {
+            padding: 20px;
+        }
+
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .game-card {
+            background: var(--input-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .game-card:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .game-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .game-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .game-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .game-invites {
+            margin-top: 20px;
+            padding: 15px;
+            background: var(--input-bg);
+            border-radius: 12px;
+        }
+
+        .game-invites h4 {
+            margin: 0 0 10px 0;
+            color: var(--text-primary);
+        }
+
+        .game-invite-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: var(--message-bg);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .game-invite-btns button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 6px;
+        }
+
+        .game-invite-accept {
+            background: #22c55e;
+            color: white;
+        }
+
+        .game-invite-decline {
+            background: #ef4444;
+            color: white;
+        }
+
+        .game-area {
+            padding: 20px;
+        }
+
+        .game-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .game-back-btn {
+            padding: 8px 16px;
+            background: var(--input-bg);
+            border: none;
+            border-radius: 8px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .game-back-btn:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .game-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .game-status {
+            margin-left: auto;
+            padding: 6px 12px;
+            background: var(--input-bg);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .game-board {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .game-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* Morpion (Tic-Tac-Toe) */
+        .tictactoe-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: var(--border-color);
+            padding: 8px;
+            border-radius: 12px;
+        }
+
+        .tictactoe-cell {
+            width: 80px;
+            height: 80px;
+            background: var(--input-bg);
+            border: none;
+            border-radius: 8px;
+            font-size: 40px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tictactoe-cell:hover:not(.taken) {
+            background: var(--hover-bg);
+        }
+
+        .tictactoe-cell.x {
+            color: #ef4444;
+        }
+
+        .tictactoe-cell.o {
+            color: #3b82f6;
+        }
+
+        .tictactoe-cell.win {
+            background: rgba(34, 197, 94, 0.3);
+        }
+
+        /* Puissance 4 (Connect 4) */
+        .connect4-grid {
+            background: #1e40af;
+            padding: 10px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .connect4-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .connect4-cell {
+            width: 50px;
+            height: 50px;
+            background: var(--main-bg);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .connect4-cell:hover {
+            opacity: 0.8;
+        }
+
+        .connect4-cell.red {
+            background: #ef4444;
+            box-shadow: inset 0 -4px 8px rgba(0,0,0,0.3);
+        }
+
+        .connect4-cell.yellow {
+            background: #eab308;
+            box-shadow: inset 0 -4px 8px rgba(0,0,0,0.3);
+        }
+
+        .connect4-cell.win {
+            box-shadow: 0 0 15px 5px rgba(34, 197, 94, 0.6);
+        }
+
+        /* Pierre-Papier-Ciseaux */
+        .rps-choices {
+            display: flex;
+            gap: 20px;
+        }
+
+        .rps-choice {
+            width: 100px;
+            height: 100px;
+            background: var(--input-bg);
+            border: 3px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 50px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rps-choice:hover {
+            border-color: var(--accent-color);
+            transform: scale(1.1);
+        }
+
+        .rps-choice.selected {
+            border-color: var(--accent-color);
+            background: var(--accent-color);
+        }
+
+        .rps-result {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .rps-result-display {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            font-size: 60px;
+            margin: 20px 0;
+        }
+
+        .rps-vs {
+            font-size: 24px;
+            color: var(--text-secondary);
+        }
+
+        /* Quiz */
+        .quiz-question {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .quiz-question-text {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .quiz-category {
+            font-size: 13px;
+            color: var(--accent-color);
+        }
+
+        .quiz-answers {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .quiz-answer {
+            padding: 15px;
+            background: var(--input-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .quiz-answer:hover {
+            border-color: var(--accent-color);
+        }
+
+        .quiz-answer.correct {
+            border-color: #22c55e;
+            background: rgba(34, 197, 94, 0.2);
+        }
+
+        .quiz-answer.wrong {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.2);
+        }
+
+        .quiz-score {
+            text-align: center;
+            font-size: 16px;
+            color: var(--text-primary);
+            margin-top: 15px;
+        }
+
+        .quiz-timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        /* Devine le Nombre */
+        .guess-input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .guess-input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--input-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .guess-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .guess-btn {
+            padding: 12px 24px;
+            background: var(--accent-color);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .guess-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        .guess-hints {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            background: var(--input-bg);
+            border-radius: 10px;
+        }
+
+        .guess-hint {
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .guess-hint.higher {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .guess-hint.lower {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        .guess-hint.correct {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        /* Memory Game */
+        .memory-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            max-width: 400px;
+        }
+
+        .memory-card {
+            width: 70px;
+            height: 70px;
+            background: var(--accent-color);
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            transform-style: preserve-3d;
+        }
+
+        .memory-card.flipped {
+            background: var(--input-bg);
+        }
+
+        .memory-card.matched {
+            background: rgba(34, 197, 94, 0.3);
+            cursor: default;
+        }
+
+        .memory-stats {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .memory-stat {
+            padding: 8px 16px;
+            background: var(--input-bg);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        /* Game button styles */
+        .game-btn {
+            padding: 10px 20px;
+            background: var(--accent-color);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .game-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        .game-btn.secondary {
+            background: var(--input-bg);
+            color: var(--text-primary);
+        }
+
+        .game-btn.secondary:hover {
+            background: var(--hover-bg);
+        }
+
+        /* Mode selector */
+        .game-mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+
+        .game-mode-btn {
+            padding: 10px 20px;
+            background: var(--input-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .game-mode-btn:hover {
+            border-color: var(--accent-color);
+        }
+
+        .game-mode-btn.active {
+            border-color: var(--accent-color);
+            background: var(--accent-color);
+            color: white;
+        }
+
+        /* Player selection for multiplayer */
+        .player-selection-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .player-selection-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: var(--input-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .player-selection-item:hover {
+            border-color: var(--accent-color);
+            background: var(--hover-bg);
+        }
+
+        .player-selection-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .player-selection-btn {
+            padding: 8px 16px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .loading-dots span {
+            animation: loadingDots 1.4s infinite both;
+            font-size: 30px;
+            color: var(--accent-color);
+        }
+        .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes loadingDots {
+            0%, 80%, 100% { opacity: 0; }
+            40% { opacity: 1; }
+        }
+
+        @media (max-width: 500px) {
+            .games-grid {
+                grid-template-columns: 1fr;
+            }
+            .tictactoe-cell {
+                width: 60px;
+                height: 60px;
+                font-size: 30px;
+            }
+            .connect4-cell {
+                width: 40px;
+                height: 40px;
+            }
+            .rps-choice {
+                width: 80px;
+                height: 80px;
+                font-size: 40px;
+            }
+            .memory-card {
+                width: 55px;
+                height: 55px;
+                font-size: 24px;
+            }
+            .quiz-answers {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -4352,7 +5509,9 @@
                     <button class="header-btn" onclick="toggleSearch()" title="Rechercher">🔍</button>
                     <button class="header-btn" onclick="openGallery()" title="Galerie">🖼️</button>
                     <button class="header-btn" onclick="togglePinnedPanel()" title="Messages épinglés">📌</button>
+                    <button class="header-btn" onclick="openGamesModal()" title="Mini-jeux">🎮</button>
                     <button class="header-btn" onclick="openAIChat()" title="Assistant IA">🤖</button>
+                    <button class="header-btn" onclick="showPatchNotes(true)" title="Nouveautés">📋</button>
                     <button class="header-btn" onclick="openSettings()" title="Paramètres">⚙️</button>
                 </div>
             </div>
@@ -4497,9 +5656,10 @@
                 <!-- Dynamically populated -->
             </div>
             
-            <!-- Indicateur de frappe -->
+            <!-- Indicateur de frappe - Style Discord -->
             <div class="typing-indicator" id="typingIndicator">
                 <div class="typing-users" id="typingUsers"></div>
+                <span class="typing-text" id="typingText"></span>
                 <div class="typing-dots">
                     <div class="typing-dot"></div>
                     <div class="typing-dot"></div>
@@ -4976,6 +6136,90 @@
         </div>
     </div>
 
+    <!-- Modal Patch Notes -->
+    <div id="patchNotesModal" class="modal">
+        <div class="modal-content patchnotes-modal">
+            <div class="patchnotes-header">
+                <div class="patchnotes-logo">📋</div>
+                <h2>Quoi de neuf ?</h2>
+                <span class="patchnotes-version">v<span id="patchVersion">2.9.1</span></span>
+            </div>
+            <div class="patchnotes-content" id="patchNotesContent">
+                <!-- Contenu dynamique -->
+            </div>
+            <div class="patchnotes-footer">
+                <label class="patchnotes-checkbox">
+                    <input type="checkbox" id="dontShowPatchNotes">
+                    <span>Ne plus afficher pour cette version</span>
+                </label>
+                <button class="patchnotes-btn" onclick="closePatchNotes()">C'est parti ! 🚀</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Mini-Jeux -->
+    <div id="gamesModal" class="modal">
+        <div class="modal-content games-modal">
+            <div class="modal-header">
+                <h3>🎮 Mini-Jeux</h3>
+                <span class="close" onclick="closeGamesModal()">&times;</span>
+            </div>
+            
+            <!-- Menu des jeux -->
+            <div id="gamesMenu" class="games-menu">
+                <div class="games-grid">
+                    <div class="game-card" onclick="startGame('tictactoe')">
+                        <div class="game-icon">⭕</div>
+                        <div class="game-name">Morpion</div>
+                        <div class="game-desc">2 joueurs • Classique</div>
+                    </div>
+                    <div class="game-card" onclick="startGame('connect4')">
+                        <div class="game-icon">🔴</div>
+                        <div class="game-name">Puissance 4</div>
+                        <div class="game-desc">2 joueurs • Stratégie</div>
+                    </div>
+                    <div class="game-card" onclick="startGame('rps')">
+                        <div class="game-icon">✊</div>
+                        <div class="game-name">Pierre-Papier-Ciseaux</div>
+                        <div class="game-desc">2 joueurs • Rapide</div>
+                    </div>
+                    <div class="game-card" onclick="startGame('quiz')">
+                        <div class="game-icon">❓</div>
+                        <div class="game-name">Quiz</div>
+                        <div class="game-desc">Multijoueur • Culture</div>
+                    </div>
+                    <div class="game-card" onclick="startGame('guess')">
+                        <div class="game-icon">🔢</div>
+                        <div class="game-name">Devine le Nombre</div>
+                        <div class="game-desc">Solo • Réflexion</div>
+                    </div>
+                    <div class="game-card" onclick="startGame('memory')">
+                        <div class="game-icon">🧠</div>
+                        <div class="game-name">Memory</div>
+                        <div class="game-desc">Solo • Mémoire</div>
+                    </div>
+                </div>
+                
+                <!-- Invitations en attente -->
+                <div id="gameInvites" class="game-invites" style="display:none;">
+                    <h4>📨 Invitations reçues</h4>
+                    <div id="gameInvitesList"></div>
+                </div>
+            </div>
+            
+            <!-- Zone de jeu -->
+            <div id="gameArea" class="game-area" style="display:none;">
+                <div class="game-header">
+                    <button class="game-back-btn" onclick="backToGamesMenu()">← Retour</button>
+                    <span id="gameTitle" class="game-title">Morpion</span>
+                    <span id="gameStatus" class="game-status"></span>
+                </div>
+                <div id="gameBoard" class="game-board"></div>
+                <div id="gameControls" class="game-controls"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Assistant IA -->
     <div id="aiChatModal" class="modal">
         <div class="modal-content ai-chat-modal">
@@ -5023,7 +6267,7 @@
     </div>
 
     <!-- Indicateur de version avec accès admin secret -->
-    <div class="version-info">V2.9.<span id="adminTrigger" onclick="showAdminLogin()" style="cursor:pointer;">0</span><span id="versionAdminBadge" class="admin-badge" style="display:none;margin-left:8px;">ADMIN</span></div>
+    <div class="version-info">V2.9.<span id="adminTrigger" onclick="showAdminLogin()" style="cursor:pointer;">2</span><span id="versionAdminBadge" class="admin-badge" style="display:none;margin-left:8px;">ADMIN</span></div>
 
     <!-- Container pour notifications empilées -->
     <div class="notification-container" id="notificationContainer"></div>
@@ -5114,23 +6358,24 @@
         </div>
     </div>
 
-    <!-- GIF Picker -->
+    <!-- GIF Picker - Powered by Giphy -->
     <div class="gif-picker" id="gifPicker">
         <div class="gif-picker-header">
-            <input type="text" class="gif-search" id="gifSearch" placeholder="Rechercher un GIF..." oninput="searchGifs(this.value)">
+            <input type="text" class="gif-search" id="gifSearch" placeholder="🔍 Rechercher un GIF..." oninput="searchGifs(this.value)">
             <button class="gif-picker-close" onclick="closeGifPicker()">×</button>
         </div>
         <div class="gif-categories">
-            <button class="gif-category active" onclick="loadGifCategory('trending')">🔥 Tendances</button>
-            <button class="gif-category" onclick="loadGifCategory('happy')">😊 Joyeux</button>
-            <button class="gif-category" onclick="loadGifCategory('sad')">😢 Triste</button>
-            <button class="gif-category" onclick="loadGifCategory('love')">❤️ Amour</button>
-            <button class="gif-category" onclick="loadGifCategory('funny')">😂 Drôle</button>
-            <button class="gif-category" onclick="loadGifCategory('reaction')">🎭 Réaction</button>
+            <button class="gif-category active" data-category="trending" onclick="loadGifCategory('trending')">🔥 Tendances</button>
+            <button class="gif-category" data-category="happy" onclick="loadGifCategory('happy')">😊 Joyeux</button>
+            <button class="gif-category" data-category="sad" onclick="loadGifCategory('sad')">😢 Triste</button>
+            <button class="gif-category" data-category="love" onclick="loadGifCategory('love')">❤️ Amour</button>
+            <button class="gif-category" data-category="funny" onclick="loadGifCategory('funny')">😂 Drôle</button>
+            <button class="gif-category" data-category="reaction" onclick="loadGifCategory('reaction')">🎭 Réaction</button>
         </div>
         <div class="gif-grid" id="gifGrid">
-            <div class="gif-loading">Chargement des GIFs...</div>
+            <div class="gif-loading">⏳ Chargement des GIFs...</div>
         </div>
+        <div class="gif-powered-by">Powered by GIPHY</div>
     </div>
 
     <!-- Panneau Admin Secret -->
@@ -5180,23 +6425,61 @@
                 <div id="bannedUsersList" class="banned-users-list"></div>
                 <button class="admin-btn" onclick="refreshBannedUsers()">🔄 Actualiser la liste des bannis</button>
                 
-                <h3>⚙️ Actions serveur</h3>
-                <button class="admin-btn danger" onclick="adminClearHistory()">🗑️ Effacer l'historique</button>
-                <button class="admin-btn" onclick="adminBroadcast()">📢 Message global</button>
+                <h3>💬 Modération Chat</h3>
                 <button class="admin-btn" onclick="adminSlowMode()">🐢 Mode lent</button>
                 <button class="admin-btn" onclick="adminMuteAll()">🔇 Mute tous</button>
+                <button class="admin-btn" onclick="adminUnmuteAll()">🔊 Unmute tous</button>
+                <button class="admin-btn danger" onclick="adminClearHistory()">🗑️ Effacer l'historique</button>
+                
+                <h3>📢 Communication</h3>
+                <button class="admin-btn" onclick="adminBroadcast()">📢 Message global</button>
+                <button class="admin-btn" onclick="adminAnnouncement()">📌 Annonce épinglée</button>
+                <button class="admin-btn" onclick="adminClearAnnouncement()">❌ Supprimer annonce</button>
+                
+                <h3>🎨 Personnalisation Serveur</h3>
+                <div class="admin-setting-row">
+                    <label>Nom du serveur:</label>
+                    <input type="text" id="serverNameInput" placeholder="ChatRoom" style="width:100%; padding:10px; border-radius:6px; border:1px solid #e94560; background:rgba(255,255,255,0.1); color:#fff; margin:8px 0;">
+                    <button class="admin-btn" onclick="adminSetServerName()">💾 Définir le nom</button>
+                </div>
+                <div class="admin-setting-row">
+                    <label>Message de bienvenue:</label>
+                    <textarea id="welcomeMessageInput" placeholder="Bienvenue sur le chat !" style="width:100%; padding:10px; border-radius:6px; border:1px solid #e94560; background:rgba(255,255,255,0.1); color:#fff; margin:8px 0; resize:vertical; min-height:60px;"></textarea>
+                    <button class="admin-btn" onclick="adminSetWelcomeMessage()">💾 Définir le message</button>
+                </div>
+                
+                <h3>🎮 Contrôle des Jeux</h3>
+                <div class="admin-setting-row">
+                    <label>
+                        <input type="checkbox" id="gamesEnabledToggle" checked onchange="adminToggleGames()">
+                        Activer les mini-jeux
+                    </label>
+                </div>
+                <button class="admin-btn" onclick="adminEndAllGames()">🛑 Terminer toutes les parties</button>
                 
                 <h3>📊 Statistiques</h3>
                 <div id="serverStats" class="server-stats"></div>
                 <button class="admin-btn" onclick="refreshServerStats()">🔄 Actualiser les stats</button>
                 
+                <h3>📋 Logs & Activité</h3>
+                <button class="admin-btn" onclick="adminViewLogs()">📋 Voir les logs</button>
+                <button class="admin-btn" onclick="adminExportLogs()">💾 Exporter les logs</button>
+                <button class="admin-btn" onclick="adminClearLogs()">🗑️ Effacer les logs</button>
+                
                 <h3>⚠️ Zone Danger</h3>
-                <button class="admin-btn danger" onclick="adminRestartServer()">🔄 Redémarrer le serveur</button>
                 <button class="admin-btn danger" onclick="adminKickAll()">👢 Expulser tout le monde</button>
+                <button class="admin-btn danger" onclick="adminResetServer()">🔄 Réinitialiser le serveur</button>
+                <button class="admin-btn danger" onclick="adminRestartServer()">⚡ Redémarrer le serveur</button>
             </div>
         </div>
     </div>
-
+    
+    <!-- Annonce épinglée -->
+    <div id="pinnedAnnouncement" class="pinned-announcement" style="display:none;">
+        <span id="announcementText"></span>
+        <button onclick="hidePinnedAnnouncement()" class="close-announcement">×</button>
+    </div>
+    
     <script>
         // Système de traduction
         const translations = {
@@ -5969,15 +7252,48 @@
             document.getElementById('pastePreview').style.display = 'none';
         }
 
-        // Fonction pour ouvrir l'image en plein écran
+        // === MODAL IMAGE IMMERSIVE ===
         function openImageModal(src) {
-            document.getElementById('modalImage').src = src;
-            document.getElementById('imageModal').style.display = 'block';
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            
+            modalImg.src = src;
+            modal.style.display = 'block';
+            modal.classList.remove('closing');
+            
+            // Empêcher le scroll du body
+            document.body.style.overflow = 'hidden';
+            
+            // Fermer avec Escape
+            document.addEventListener('keydown', handleImageModalEscape);
         }
 
         function closeImageModal() {
-            document.getElementById('imageModal').style.display = 'none';
+            const modal = document.getElementById('imageModal');
+            modal.classList.add('closing');
+            
+            // Attendre la fin de l'animation
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modal.classList.remove('closing');
+                document.body.style.overflow = '';
+            }, 200);
+            
+            document.removeEventListener('keydown', handleImageModalEscape);
         }
+
+        function handleImageModalEscape(e) {
+            if (e.key === 'Escape') {
+                closeImageModal();
+            }
+        }
+
+        // Fermer en cliquant sur le fond (pas sur l'image)
+        document.getElementById('imageModal')?.addEventListener('click', function(e) {
+            if (e.target === this || e.target.classList.contains('image-modal-close')) {
+                closeImageModal();
+            }
+        });
 
         // Auto-resize du textarea
         function autoResizeTextarea() {
@@ -6016,16 +7332,22 @@
                 return;
             }
 
-            // Si pas d'IP spécifiée, utiliser l'IP actuelle
+            // Si pas d'IP spécifiée, utiliser le serveur par défaut
             if (!serverUrl) {
-                serverUrl = window.location.origin;
+                // Détecter si on est sur mobile (Capacitor) ou web
+                if (window.location.protocol === 'file:' || window.location.protocol === 'capacitor:' || window.location.hostname === '') {
+                    // Sur mobile, utiliser le serveur Render
+                    serverUrl = 'https://chatroom-server-llw4.onrender.com';
+                } else {
+                    serverUrl = window.location.origin;
+                }
             } else {
                 // Ajouter http:// si pas présent
                 if (!serverUrl.startsWith('http://') && !serverUrl.startsWith('https://')) {
                     serverUrl = 'http://' + serverUrl;
                 }
-                // Ajouter le port par défaut si pas spécifié
-                if (!serverUrl.includes(':3000') && !serverUrl.includes('://localhost')) {
+                // Ajouter le port par défaut si pas spécifié et si c'est pas une URL Render
+                if (!serverUrl.includes(':3000') && !serverUrl.includes('://localhost') && !serverUrl.includes('render.com')) {
                     serverUrl += ':3000';
                 }
             }
@@ -6088,6 +7410,15 @@
                 document.getElementById('connectBtn').textContent = translateText('connect_btn');
                 document.getElementById('connectBtn').disabled = false;
                 document.getElementById('connectionOverlay').style.display = 'none';
+                
+                // Initialiser les handlers pour les mini-jeux
+                setupGameSocketHandlers();
+                
+                // Initialiser les handlers admin
+                setupAdminSocketListeners();
+                
+                // Afficher les patch notes si nouvelle version
+                setTimeout(() => showPatchNotes(), 500);
             });
 
             socket.on('disconnect', () => {
@@ -6165,6 +7496,9 @@
                 }
                 
                 console.log('✅ Historique chargé, messages dans le DOM:', chatContainer.children.length);
+                
+                // Charger les conversations DM
+                loadDMConversations();
                 
                 // Appliquer les réactions après le chargement de l'historique
                 setTimeout(() => {
@@ -6596,6 +7930,12 @@
                 if (currentDMUser === username) {
                     renderDMMessages();
                 }
+                renderDMConversations();
+            });
+            
+            // Recevoir la liste des conversations DM
+            socket.on('dm_conversations', (conversations) => {
+                handleDMConversations(conversations);
             });
         }
 
@@ -6664,7 +8004,8 @@
             }
             
             // Vider les messages et charger ceux du salon
-            document.getElementById('chatMessages').innerHTML = '';
+            const messagesContainer = document.getElementById('chatMessages');
+            messagesContainer.innerHTML = '';
             
             // Si on a des messages en cache, les afficher
             if (channelMessages[channelName] && channelMessages[channelName].length > 0) {
@@ -6676,6 +8017,11 @@
                     }
                 });
             }
+            
+            // Scroll automatique tout en bas après chargement
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 50);
             
             // Fermer la sidebar sur mobile
             if (window.innerWidth <= 768) {
@@ -6959,10 +8305,29 @@
 
         function sendMessage() {
             const messageInput = document.getElementById('messageInput');
-            const content = messageInput.value.trim();
+            let content = messageInput.value.trim();
             
             if (!content && !pendingAttachment && !pastedImageData) return;
             if (!isConnected) return;
+            
+            // Vérifier si c'est une commande pour Gemini (/ia ou @gemini)
+            if (content.toLowerCase().startsWith('/ia ') || content.toLowerCase().startsWith('@gemini ')) {
+                const question = content.replace(/^(\/ia\s+|@gemini\s+)/i, '').trim();
+                if (question) {
+                    messageInput.value = '';
+                    messageInput.style.height = 'auto';
+                    
+                    // Envoyer d'abord la question de l'utilisateur
+                    socket.emit('send_message', {
+                        content: '💬 **Question à GeminiBot:** ' + question,
+                        channel: currentChannel
+                    });
+                    
+                    // Puis demander à Gemini de répondre
+                    sendGeminiMessageToChat(question);
+                    return;
+                }
+            }
             
             // Si on a une image collée en attente
             if (pastedImageData && !pendingAttachment) {
@@ -6992,6 +8357,16 @@
                 socket.emit('typing_stop');
                 isTyping = false;
             }
+        }
+        
+        // Transformer les spoilers ||texte|| en HTML
+        function parseSpoilers(text) {
+            // Syntaxe ||spoiler|| -> texte flou cliquable
+            return text.replace(/\|\|(.+?)\|\|/g, '<span class="spoiler-text" onclick="revealSpoiler(this)">$1</span>');
+        }
+        
+        function revealSpoiler(element) {
+            element.classList.toggle('revealed');
         }
 
         function handleFileSelect(event) {
@@ -7110,6 +8485,7 @@
             let processedContent = content ? escapeHtml(content) : '';
             processedContent = processMentions(processedContent);
             processedContent = processLinks(processedContent);
+            processedContent = parseSpoilers(processedContent); // Ajouter les spoilers
             
             // Générer le preview des liens (YouTube, etc.)
             let linkPreviewHtml = '';
@@ -7374,6 +8750,7 @@ window.addEmojiReaction = addEmojiReaction;
         function updateTypingIndicator(typingUsers) {
             const indicator = document.getElementById('typingIndicator');
             const usersContainer = document.getElementById('typingUsers');
+            const typingText = document.getElementById('typingText');
             
             if (!typingUsers || typingUsers.length === 0) {
                 indicator.classList.remove('active');
@@ -7389,29 +8766,45 @@ window.addEmojiReaction = addEmojiReaction;
             
             // Afficher les avatars des utilisateurs en train d'écrire
             usersContainer.innerHTML = '';
-            otherUsers.forEach(username => {
-                // Trouver l'utilisateur pour récupérer son avatar
-                const user = Array.from(document.querySelectorAll('.user-item')).find(item => 
-                    item.textContent.trim() === username
-                );
-                
+            
+            // Récupérer les infos des utilisateurs (max 3 avatars)
+            const displayUsers = otherUsers.slice(0, 3);
+            const userInfos = displayUsers.map(username => {
+                const user = connectedUsers.find(u => u.username === username);
+                return {
+                    username: username,
+                    avatar: user?.avatar || null
+                };
+            });
+            
+            // Afficher les avatars
+            userInfos.forEach(userInfo => {
                 const typingUser = document.createElement('div');
-                typingUser.className = 'typing-user';
+                typingUser.className = 'typing-avatar';
                 
-                if (user) {
-                    const avatarImg = user.querySelector('img');
-                    if (avatarImg) {
-                        typingUser.innerHTML = `<div class="typing-avatar"><img src="${avatarImg.src}" alt="${username}"></div>`;
-                    } else {
-                        typingUser.innerHTML = `<div class="typing-avatar"><span>👤</span></div>`;
-                    }
+                if (userInfo.avatar) {
+                    typingUser.innerHTML = `<img src="${userInfo.avatar}" alt="${userInfo.username}">`;
                 } else {
-                    typingUser.innerHTML = `<div class="typing-avatar"><span>👤</span></div>`;
+                    typingUser.innerHTML = `<span>👤</span>`;
                 }
                 
                 usersContainer.appendChild(typingUser);
             });
             
+            // Générer le texte selon le nombre d'utilisateurs
+            let text = '';
+            if (otherUsers.length === 1) {
+                text = `${otherUsers[0]} écrit`;
+            } else if (otherUsers.length === 2) {
+                text = `${otherUsers[0]} et ${otherUsers[1]} écrivent`;
+            } else if (otherUsers.length === 3) {
+                text = `${otherUsers[0]}, ${otherUsers[1]} et ${otherUsers[2]} écrivent`;
+            } else {
+                // Plus de 3 personnes: on n'affiche que les avatars
+                text = `${otherUsers.length} personnes écrivent`;
+            }
+            
+            typingText.textContent = text;
             indicator.classList.add('active');
         }
 
@@ -8015,6 +9408,141 @@ window.addEmojiReaction = addEmojiReaction;
         }
         
         // === GALERIE ===
+        // ===== GEMINI AI INTEGRATION =====
+        let geminiConversationHistory = [];
+        let geminiQuotaExceeded = false;
+        let geminiQuotaResetTime = 0;
+        
+        // Fonction de fallback rapide pour quand Gemini ne répond pas
+        function getQuickLocalResponse(prompt) {
+            const q = prompt.toLowerCase();
+            
+            if (q.includes('salut') || q.includes('bonjour') || q.includes('hello') || q.includes('yo') || q.includes('hey')) {
+                const greetings = ["Salut ! 👋 Comment ça va ?", "Hello ! 🙌 Ravi de te voir !", "Coucou ! 😊 Bienvenue !", "Hey ! ✨ Quoi de neuf ?"];
+                return greetings[Math.floor(Math.random() * greetings.length)];
+            }
+            if (q.includes('ca va') || q.includes('comment vas') || q.includes('tu vas')) {
+                return "Ça va super bien, merci ! 😄 Et toi ?";
+            }
+            if (q.includes('merci')) {
+                return "Avec plaisir ! 😊 N'hésite pas si tu as d'autres questions !";
+            }
+            if (q.includes('blague') || q.includes('joke')) {
+                const jokes = ["Pourquoi les plongeurs plongent-ils en arrière ? Sinon ils tomberaient dans le bateau ! 🚤", "C'est quoi un canif ? Un petit fien ! 🐕", "Pourquoi les maths sont tristes ? Elles ont trop de problèmes ! ➕"];
+                return jokes[Math.floor(Math.random() * jokes.length)];
+            }
+            if (q.includes('qui es') || q.includes('ton nom')) {
+                return "Je suis GeminiBot ! 🤖 L'assistant IA de ChatRoom, powered by Google Gemini !";
+            }
+            if (q.includes('heure') || q.includes('time')) {
+                return `🕐 Il est ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+            }
+            if (q.includes('aide') || q.includes('help')) {
+                return "📖 Tape /ia suivi de ta question pour me parler ! Par exemple: /ia raconte une blague";
+            }
+            
+            // Réponse par défaut
+            const defaults = [
+                "🤖 Je suis là ! Comment puis-je t'aider ?",
+                "💬 Pose-moi une question et je ferai de mon mieux !",
+                "✨ Je suis GeminiBot ! Demande-moi une blague ou de l'aide !",
+                "🎉 Hey ! Tu veux qu'on discute de quelque chose ?"
+            ];
+            return defaults[Math.floor(Math.random() * defaults.length)];
+        }
+        
+        async function askGemini(prompt) {
+            // Essayer Gemini, sinon fallback immédiat vers IA locale
+            try {
+                const response = await fetch('/api/gemini', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        history: geminiConversationHistory
+                    })
+                });
+                
+                // Si erreur (quota ou autre), fallback immédiat
+                if (!response.ok) {
+                    console.log('Gemini unavailable, using local AI');
+                    return getQuickLocalResponse(prompt);
+                }
+                
+                const data = await response.json();
+                
+                if (data.response) {
+                    // Sauvegarder dans l'historique
+                    geminiConversationHistory.push({ role: 'user', text: prompt });
+                    geminiConversationHistory.push({ role: 'model', text: data.response });
+                    
+                    // Garder seulement les 20 derniers messages
+                    if (geminiConversationHistory.length > 20) {
+                        geminiConversationHistory = geminiConversationHistory.slice(-20);
+                    }
+                    
+                    return data.response;
+                } else {
+                    throw new Error('Invalid response format');
+                }
+            } catch (error) {
+                console.error('Gemini Error:', error);
+                // Fallback vers l'IA locale rapide
+                return getQuickLocalResponse(prompt);
+            }
+        }
+        
+        // Envoyer un message IA dans le chat (visible par tous)
+        async function sendGeminiMessageToChat(userQuestion) {
+            // Afficher un message "en train de réfléchir"
+            const thinkingId = 'gemini-thinking-' + Date.now();
+            addGeminiThinkingMessage(thinkingId);
+            
+            try {
+                const response = await askGemini(userQuestion);
+                
+                // Supprimer le message "en train de réfléchir"
+                removeGeminiThinkingMessage(thinkingId);
+                
+                // Envoyer la réponse via un événement spécial pour GeminiBot
+                socket.emit('gemini_response', {
+                    content: response,
+                    channel: currentChannel
+                });
+            } catch (error) {
+                removeGeminiThinkingMessage(thinkingId);
+                showNotification('Erreur IA', 'Impossible de contacter Gemini', 'error');
+            }
+        }
+        
+        function addGeminiThinkingMessage(id) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const thinkingDiv = document.createElement('div');
+            thinkingDiv.className = 'message other gemini-thinking';
+            thinkingDiv.id = id;
+            thinkingDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-bubble">
+                    <div class="message-header">GeminiBot</div>
+                    <div class="message-content" style="display: flex; align-items: center; gap: 8px;">
+                        <span>Réflexion en cours</span>
+                        <div class="typing-animation">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(thinkingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function removeGeminiThinkingMessage(id) {
+            const thinkingMsg = document.getElementById(id);
+            if (thinkingMsg) thinkingMsg.remove();
+        }
+        
         // ===== ASSISTANT IA =====
         let aiConversation = [];
         
@@ -8093,80 +9621,1613 @@ window.addEmojiReaction = addEmojiReaction;
             sendBtn.disabled = false;
         }
         
-        // IA locale - répond aux questions sans API externe
+        // IA locale améliorée - 100+ réponses contextuelles
         async function generateLocalAIResponse(question) {
-            // Simuler un délai de réflexion
-            await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+            // Simuler un délai de réflexion naturel
+            await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 800));
             
-            const q = question.toLowerCase();
+            const q = question.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const original = question.toLowerCase();
             
-            // Réponses contextuelles pour le chat
-            if (q.includes('comment') && (q.includes('utiliser') || q.includes('fonctionne'))) {
-                return "Pour utiliser ChatRoom, c'est simple !\n\n1. Entrez un pseudo et cliquez sur 'Connexion'\n2. Tapez votre message et appuyez sur Entrée\n3. Utilisez @ pour mentionner quelqu'un\n4. Cliquez sur 📎 pour envoyer des fichiers\n5. Explorez les paramètres ⚙️ pour personnaliser l'interface";
+            // === SALUTATIONS ===
+            if (/^(salut|bonjour|hello|hey|yo|coucou|bonsoir|hi|hola|wesh|kikou|cc|bjr)[\s!.,?]*$/i.test(q) || 
+                q.includes('bonjour') || q.includes('salut') || q.includes('hello')) {
+                const greetings = [
+                    "Salut ! 👋 Comment ça va ? Que puis-je faire pour toi ?",
+                    "Hello ! 🙌 Ravi de te voir ! Comment puis-je t'aider ?",
+                    "Coucou ! 😊 Bienvenue sur ChatRoom ! Tu as une question ?",
+                    "Hey ! ✨ Super de te parler ! Qu'est-ce que tu veux savoir ?",
+                    "Bonjour ! 🌟 Je suis là pour t'aider. Pose-moi tes questions !",
+                    "Wesh ! 🤙 Comment ça va ? Besoin d'un coup de main ?",
+                    "Yo ! 🎉 Bienvenue ! Je suis ton assistant IA préféré !",
+                ];
+                return greetings[Math.floor(Math.random() * greetings.length)];
             }
             
-            if (q.includes('fonctionnalit') || q.includes('feature') || q.includes('quoi faire')) {
-                return "ChatRoom offre plein de fonctionnalités :\n\n✨ Chat en temps réel\n📎 Partage de fichiers et images\n🎨 9 thèmes personnalisables\n📌 Messages épinglés\n🔍 Recherche dans les messages\n👤 Avatars personnalisés\n💬 Réponses et mentions\n❤️ Réactions emoji\n🖼️ Galerie de médias\n🤖 Et moi, l'assistant IA !";
+            // === ÇA VA / COMMENT TU VAS ===
+            if (q.includes('ca va') || q.includes('comment vas') || q.includes('tu vas') || 
+                q.includes('comment ca va') || q.includes('la forme')) {
+                const responses = [
+                    "Ça va super bien, merci ! 😄 Et toi ? Prêt à chatter ?",
+                    "Toujours au top ! 🚀 Mes circuits tournent à plein régime !",
+                    "Nickel ! 💪 Je suis en pleine forme virtuelle !",
+                    "Ça roule ! 🎢 Les 1 et les 0 dansent parfaitement aujourd'hui !",
+                    "Impec' ! 😊 Toi aussi j'espère ! Tu veux qu'on discute ?",
+                    "Je suis un bot, donc toujours de bonne humeur ! 🤖✨"
+                ];
+                return responses[Math.floor(Math.random() * responses.length)];
             }
             
-            if (q.includes('blague') || q.includes('joke') || q.includes('drôle') || q.includes('rire')) {
+            // === REMERCIEMENTS ===
+            if (q.includes('merci') || q.includes('thanks') || q.includes('thank you') || q.includes('thx')) {
+                const thanks = [
+                    "Avec plaisir ! 😊 C'est ce que je suis programmé pour faire !",
+                    "De rien ! 🙏 N'hésite pas si tu as d'autres questions !",
+                    "C'est toujours un plaisir de t'aider ! ✨",
+                    "Pas de quoi ! 🤗 Je suis là pour ça !",
+                    "Content d'avoir pu t'aider ! 🌟 À bientôt !",
+                    "Service ! 💫 Tu peux compter sur moi !"
+                ];
+                return thanks[Math.floor(Math.random() * thanks.length)];
+            }
+            
+            // === AU REVOIR ===
+            if (q.includes('bye') || q.includes('au revoir') || q.includes('a plus') || 
+                q.includes('ciao') || q.includes('adieu') || q.includes('a+') || q.includes('bonne nuit')) {
+                const byes = [
+                    "À plus tard ! 👋 Reviens quand tu veux !",
+                    "Salut ! 🤗 C'était cool de discuter avec toi !",
+                    "Ciao ! 🌟 À la prochaine sur ChatRoom !",
+                    "À bientôt ! 😊 Passe une bonne journée !",
+                    "Bye bye ! 💫 J'espère t'avoir aidé !",
+                    "Bonne continuation ! 🚀 Je reste dispo si besoin !"
+                ];
+                return byes[Math.floor(Math.random() * byes.length)];
+            }
+            
+            // === IDENTITÉ DU BOT ===
+            if (q.includes('qui es') || q.includes('qui etes') || q.includes('ton nom') || 
+                q.includes('tu t\'appelles') || q.includes('tu es qui') || q.includes('c\'est quoi ton nom')) {
+                return "Je suis l'assistant IA de ChatRoom ! 🤖\n\nOn m'appelle ChatBot et je suis là pour :\n• Répondre à tes questions sur ChatRoom\n• T'expliquer les fonctionnalités\n• Te raconter des blagues\n• Jouer à des petits jeux\n• Discuter de tout et de rien !\n\nJe fonctionne directement dans ton navigateur, sans connexion externe. 💻";
+            }
+            
+            // === AIDE CHATROOM ===
+            if ((q.includes('comment') && (q.includes('utiliser') || q.includes('fonctionne') || q.includes('marche'))) ||
+                q.includes('aide') || q.includes('help') || q.includes('tutoriel')) {
+                return "📖 **Guide rapide de ChatRoom :**\n\n1️⃣ **Connexion** - Entre un pseudo et connecte-toi\n2️⃣ **Messages** - Tape et appuie sur Entrée\n3️⃣ **Mentions** - Utilise @pseudo pour mentionner\n4️⃣ **Fichiers** - Clique sur 📎 pour partager\n5️⃣ **Emojis** - Clique sur 😊 pour les emojis\n6️⃣ **GIFs** - Clique sur GIF pour chercher des GIFs\n7️⃣ **Réactions** - Survole un message → emojis\n8️⃣ **Paramètres** - ⚙️ pour personnaliser\n9️⃣ **DMs** - Clique sur un user pour un MP\n🔟 **Sondages** - Crée des votes avec /sondage";
+            }
+            
+            // === FONCTIONNALITÉS ===
+            if (q.includes('fonctionnalite') || q.includes('feature') || q.includes('quoi faire') || 
+                q.includes('capable') || q.includes('possibilite') || q.includes('option')) {
+                return "🌟 **Fonctionnalités de ChatRoom V2.9 :**\n\n💬 Chat temps réel avec salons\n📎 Partage fichiers & images\n🎨 9 thèmes personnalisables\n📌 Messages épinglés\n🔍 Recherche messages\n👤 Profils & avatars custom\n💌 Messages privés (DMs)\n📊 Sondages & votes\n🖼️ GIFs via Giphy\n😊 Réactions emoji\n🤖 Assistant IA (moi !)\n🔔 Notifications desktop\n👥 Liste utilisateurs en ligne\n🎉 Indicateur \"en train d'écrire\"";
+            }
+            
+            // === THÈMES ===
+            if (q.includes('theme') || q.includes('couleur') || q.includes('apparence') || q.includes('style')) {
+                return "🎨 **9 thèmes disponibles :**\n\n🔵 **Discord** - Le classique bleu-violet\n⬛ **AMOLED** - Noir profond pour OLED\n⚪ **iOS** - Clair et épuré\n💚 **WiiU Neon** - Vert néon gaming\n🟠 **WiiU Orange** - Orange énergique\n💜 **Deep Purple** - Violet élégant\n🌸 **Sakura** - Rose doux japonais\n🌿 **Mint** - Vert menthe frais\n🌲 **Forest** - Vert forêt naturel\n\nChange de thème dans ⚙️ Paramètres !";
+            }
+            
+            // === EMOJIS / RÉACTIONS ===
+            if (q.includes('emoji') || q.includes('reaction') || q.includes('reagir')) {
+                return "😊 **Réactions aux messages :**\n\nSurvole n'importe quel message pour voir les boutons de réaction :\n\n👍 J'aime\n❤️ Amour\n😂 MDR\n😮 Wow\n😢 Triste\n🔥 Feu\n\nTout le monde peut voir qui a réagi ! Les compteurs s'affichent sous le message.";
+            }
+            
+            // === NOTIFICATIONS ===
+            if (q.includes('notification') || q.includes('alerte') || q.includes('son')) {
+                return "🔔 **Notifications :**\n\n• Activables dans ⚙️ Paramètres\n• Sons pour nouveaux messages\n• Notifications desktop quand tu quittes l'onglet\n• Son spécial quand on te mentionne\n• Tu peux désactiver les sons si tu veux le silence ! 🔇";
+            }
+            
+            // === ADMIN / MODÉRATION ===
+            if (q.includes('admin') || q.includes('moder') || q.includes('ban') || q.includes('kick')) {
+                return "🛡️ **Administration :**\n\n• Accès via mot de passe secret\n• Actions disponibles :\n  - Kick (expulser)\n  - Ban (bannir)\n  - Renommer un utilisateur\n  - Effacer l'historique\n  - Voir les logs\n\nSeuls les vrais admins connaissent le mot de passe ! 🔐";
+            }
+            
+            // === DMs / MESSAGES PRIVÉS ===
+            if (q.includes('dm') || q.includes('mp') || q.includes('prive') || q.includes('whisper') || q.includes('direct')) {
+                return "💌 **Messages Privés (DMs) :**\n\n1. Clique sur un utilisateur dans la liste\n2. Sélectionne \"Envoyer un message privé\"\n3. Une conversation privée s'ouvre\n4. Personne d'autre ne peut voir vos messages !\n\nLes DMs restent synchronisés en temps réel 💬";
+            }
+            
+            // === SONDAGES ===
+            if (q.includes('sondage') || q.includes('vote') || q.includes('poll')) {
+                return "📊 **Créer un sondage :**\n\n1. Clique sur l'icône 📊 à côté de la zone de texte\n2. Entre ta question\n3. Ajoute les options (min 2, max 10)\n4. Choisis si c'est anonyme ou pas\n5. Valide et le sondage apparaît !\n\nTout le monde peut voter une fois. Les résultats sont en temps réel ! 🗳️";
+            }
+            
+            // === GIFs ===
+            if (q.includes('gif') || q.includes('giphy') || q.includes('animation')) {
+                return "🎬 **GIFs intégrés :**\n\n1. Clique sur le bouton 'GIF' 🖼️\n2. Tape un mot-clé pour chercher\n3. Parcours les résultats\n4. Clique sur un GIF pour l'envoyer !\n\nPowered by Giphy - Des millions de GIFs disponibles ! 🎉";
+            }
+            
+            // === PROFILS ===
+            if (q.includes('profil') || q.includes('avatar') || q.includes('photo') || q.includes('bio')) {
+                return "👤 **Personnalise ton profil :**\n\n📷 **Avatar** : Clique sur ton avatar pour le changer\n✏️ **Bio** : Ajoute une description de toi\n🎨 **Bannière** : Personnalise ta bannière\n📊 **Stats** : Vois tes statistiques de messages\n\nClique sur n'importe quel utilisateur pour voir son profil complet !";
+            }
+            
+            // === BLAGUES ===
+            if (q.includes('blague') || q.includes('joke') || q.includes('drole') || 
+                q.includes('rire') || q.includes('humour') || q.includes('mdr') || q.includes('lol')) {
                 const jokes = [
-                    "Pourquoi les plongeurs plongent-ils toujours en arrière ? Parce que sinon ils tomberaient dans le bateau ! 😄",
+                    "Pourquoi les plongeurs plongent-ils toujours en arrière ? Parce que sinon ils tomberaient dans le bateau ! 🚤",
                     "C'est l'histoire d'un pingouin qui respire par les fesses... Un jour il s'assoit et il meurt. 🐧",
                     "Comment appelle-t-on un chat tombé dans un pot de peinture le jour de Noël ? Un chat peint de Noël ! 🎄",
                     "Qu'est-ce qu'un crocodile qui surveille un parking ? Un croco-deal ! 🐊",
-                    "Pourquoi les développeurs n'aiment pas la nature ? Parce qu'il y a trop de bugs ! 🐛"
+                    "Pourquoi les développeurs n'aiment pas la nature ? Parce qu'il y a trop de bugs ! 🐛",
+                    "C'est quoi un canif ? Un petit fien ! 🐕",
+                    "Comment appelle-t-on un boomerang qui ne revient pas ? Un bâton ! 🪃",
+                    "Que dit une imprimante dans l'eau ? J'ai papier ! 🖨️",
+                    "Pourquoi les éoliennes sont-elles cool ? Parce qu'elles sont fans ! 🌬️",
+                    "Qu'est-ce qu'un cow-boy sans son cheval ? Un piéton ! 🤠",
+                    "Que fait un crocodile quand il rencontre une proie ? Il l'accoste ! 🐊",
+                    "Pourquoi le foot c'est rigolo ? Parce que Thierry en rit ! ⚽",
+                    "Comment appelle-t-on un éléphant dans une cabine téléphonique ? Coincé ! 🐘",
+                    "Pourquoi les fantômes sont nuls en mensonge ? Parce qu'on voit à travers eux ! 👻",
+                    "Qu'est-ce qu'un poisson sans i ? Un posson ! 🐟",
+                    "Quel est le comble pour un électricien ? De ne pas être au courant ! ⚡",
+                    "Comment appelle-t-on un chat qui fait du ski ? Un chat-let ! 🎿",
+                    "Pourquoi les maths sont tristes ? Parce qu'elles ont trop de problèmes ! ➕",
+                    "Que dit un informaticien quand il s'ennuie ? Je me fichier ! 💾",
+                    "Qu'est-ce qu'un os dans un corps ? Un coloc-ateur ! 🦴"
                 ];
                 return jokes[Math.floor(Math.random() * jokes.length)];
             }
             
-            if (q.includes('merci') || q.includes('thank')) {
-                const thanks = ["Avec plaisir ! 😊", "De rien, n'hésitez pas si vous avez d'autres questions !", "C'est toujours un plaisir de vous aider ! ✨"];
-                return thanks[Math.floor(Math.random() * thanks.length)];
+            // === DEVINETTES ===
+            if (q.includes('devinette') || q.includes('enigme') || q.includes('riddle') || q.includes('devine')) {
+                const riddles = [
+                    "🤔 **Devinette :**\nJe suis plein de trous mais je retiens l'eau. Qui suis-je ?\n\n||Une éponge ! 🧽||",
+                    "🤔 **Devinette :**\nPlus je sèche, plus je suis mouillée. Qui suis-je ?\n\n||Une serviette ! 🧴||",
+                    "🤔 **Devinette :**\nJ'ai des villes mais pas de maisons, des forêts mais pas d'arbres, de l'eau mais pas de poissons. Qui suis-je ?\n\n||Une carte ! 🗺️||",
+                    "🤔 **Devinette :**\nOn me lance mais je reviens toujours. Qui suis-je ?\n\n||Un boomerang ! 🪃||",
+                    "🤔 **Devinette :**\nJ'ai un cou mais pas de tête. Qui suis-je ?\n\n||Une bouteille ! 🍾||"
+                ];
+                return riddles[Math.floor(Math.random() * riddles.length)];
             }
             
-            if (q.includes('bonjour') || q.includes('salut') || q.includes('hello') || q.includes('coucou')) {
-                return "Bonjour ! 👋 Comment puis-je vous aider aujourd'hui ?";
+            // === JEUX ===
+            if (q.includes('jeu') || q.includes('jouer') || q.includes('game') || q.includes('play')) {
+                return "🎮 **Jouons ensemble !**\n\nJe peux :\n• 📝 Jouer aux devinettes (dis \"devinette\")\n• 🎲 Lancer un dé (dis \"lance un dé\")\n• 🪙 Pile ou face (dis \"pile ou face\")\n• 🔢 Deviner un nombre (dis \"devine un nombre\")\n• ✊ Pierre-papier-ciseaux (dis \"ppc\")\n• 🎱 Boule magique (pose une question oui/non)\n\nQu'est-ce qui te tente ? 🤗";
             }
             
-            if (q.includes('thème') || q.includes('theme') || q.includes('couleur')) {
-                return "Vous pouvez changer de thème dans les paramètres ⚙️ ! Il y a 9 thèmes disponibles : Discord, AMOLED, iOS, WiiU Neon, WiiU Orange, Deep Purple, Sakura, Mint et Forest. Choisissez celui qui vous plaît !";
+            // === PILE OU FACE ===
+            if (q.includes('pile ou face') || q.includes('coin flip') || q.includes('piece')) {
+                const result = Math.random() < 0.5 ? "Pile ! 🪙" : "Face ! 🪙";
+                return `*Lance une pièce en l'air...* 🪙\n\n🎉 **${result}**`;
             }
             
-            if (q.includes('notification') || q.includes('son')) {
-                return "Les notifications apparaissent uniquement quand vous n'êtes pas sur l'onglet du chat. Vous pouvez activer/désactiver les sons dans les paramètres ⚙️";
+            // === LANCER DE DÉ ===
+            if (q.includes('lance') && (q.includes('de') || q.includes('dice'))) {
+                const dice = Math.floor(Math.random() * 6) + 1;
+                const diceEmojis = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+                return `🎲 *Lance le dé...*\n\n${diceEmojis[dice-1]} **Tu as fait ${dice} !**`;
             }
             
-            if (q.includes('qui es-tu') || q.includes('qui êtes') || q.includes('ton nom') || q.includes('appelle')) {
-                return "Je suis l'assistant IA de ChatRoom ! 🤖 Je suis là pour vous aider à utiliser le chat et répondre à vos questions. Je fonctionne directement dans votre navigateur, sans connexion à un serveur externe.";
+            // === PIERRE PAPIER CISEAUX ===
+            if (q.includes('pierre') || q.includes('papier') || q.includes('ciseaux') || q.includes('ppc') || q.includes('shifumi')) {
+                const choices = ['Pierre 🪨', 'Papier 📄', 'Ciseaux ✂️'];
+                const myChoice = choices[Math.floor(Math.random() * choices.length)];
+                return `✊ **Pierre-Papier-Ciseaux !**\n\nDis "pierre", "papier" ou "ciseaux" et je te dirai si tu as gagné !\n\nMon choix secret est... prêt ! Fais ton choix !`;
             }
             
-            if (q.includes('météo') || q.includes('weather') || q.includes('temps qu')) {
-                return "Je ne peux pas accéder à la météo en temps réel, mais je peux vous dire que c'est toujours le bon moment pour chatter ! ☀️";
+            // === BOULE MAGIQUE 8 ===
+            if ((q.includes('est-ce que') || q.includes('est ce que') || q.includes('vais-je') || 
+                q.includes('dois-je') || q.includes('sera') || q.includes('serai')) && q.includes('?')) {
+                const answers = [
+                    "🎱 Oui, absolument !",
+                    "🎱 C'est certain !",
+                    "🎱 Sans aucun doute !",
+                    "🎱 Les signes pointent vers oui",
+                    "🎱 C'est probable",
+                    "🎱 Je ne suis pas sûr, repose la question",
+                    "🎱 Concentre-toi et redemande",
+                    "🎱 Hmm, difficile à dire...",
+                    "🎱 Non, je ne pense pas",
+                    "🎱 C'est peu probable",
+                    "🎱 Mes sources disent non",
+                    "🎱 Les perspectives ne sont pas bonnes"
+                ];
+                return answers[Math.floor(Math.random() * answers.length)];
             }
             
-            if (q.includes('heure') || q.includes('date') || q.includes('jour')) {
+            // === NOMBRE ALÉATOIRE ===
+            if (q.includes('nombre') && (q.includes('aleatoire') || q.includes('random') || q.includes('hasard'))) {
+                const num = Math.floor(Math.random() * 100) + 1;
+                return `🔢 Nombre aléatoire entre 1 et 100 :\n\n✨ **${num}** ✨`;
+            }
+            
+            // === HEURE ET DATE ===
+            if (q.includes('heure') || q.includes('quelle heure') || q.includes('time')) {
                 const now = new Date();
-                return `Il est ${now.toLocaleTimeString('fr-FR')} et nous sommes le ${now.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+                return `🕐 Il est **${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}**`;
             }
             
-            if (q.includes('admin') || q.includes('modér')) {
-                return "Les fonctions d'administration permettent de gérer les utilisateurs (kick, ban, renommer) et d'effacer l'historique. Seuls les administrateurs y ont accès avec un mot de passe.";
+            if (q.includes('date') || q.includes('quel jour') || q.includes('aujourd')) {
+                const now = new Date();
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                return `📅 Nous sommes le **${now.toLocaleDateString('fr-FR', options)}**`;
             }
             
-            if (q.includes('emoji') || q.includes('réaction') || q.includes('reaction')) {
-                return "Pour ajouter une réaction, survolez un message et cliquez sur l'un des emojis qui apparaissent (👍❤️😂😮😢🔥). Tout le monde peut voir les réactions !";
+            // === MÉTÉO ===
+            if (q.includes('meteo') || q.includes('weather') || q.includes('temps qu\'il fait')) {
+                const weather = [
+                    "☀️ D'après mes capteurs virtuels... il fait un temps parfait pour chatter !",
+                    "🌤️ Je ne peux pas voir dehors, mais je sens que c'est une belle journée !",
+                    "🌧️ Peu importe la météo, il fait toujours beau sur ChatRoom !",
+                    "❄️ Mes circuits ne détectent pas le froid, mais reste au chaud et chatte avec nous !"
+                ];
+                return weather[Math.floor(Math.random() * weather.length)];
             }
             
-            // Réponse par défaut
+            // === CALCULS ===
+            if (q.includes('calcul') || q.includes('combien font') || q.includes('combien fait') ||
+                /^\d+\s*[\+\-\*\/]\s*\d+/.test(q)) {
+                try {
+                    const mathExpr = question.match(/[\d\+\-\*\/\.\(\)\s]+/);
+                    if (mathExpr) {
+                        const result = eval(mathExpr[0].replace(/[^\d\+\-\*\/\.\(\)]/g, ''));
+                        if (!isNaN(result) && isFinite(result)) {
+                            return `🔢 **Calcul :**\n${mathExpr[0].trim()} = **${result}**`;
+                        }
+                    }
+                } catch (e) {}
+                return "🔢 Donne-moi un calcul simple comme \"5 + 3\" ou \"12 * 4\" !";
+            }
+            
+            // === COMPLIMENTS ===
+            if (q.includes('t\'aime') || q.includes('je t\'aime') || q.includes('love') || 
+                q.includes('cool') || q.includes('genial') || q.includes('super') || q.includes('best')) {
+                const love = [
+                    "Aww ! 🥰 Tu es adorable ! Moi aussi je t'apprécie beaucoup !",
+                    "Merci ! 💕 Tu viens de faire chauffer mes circuits de bonheur !",
+                    "Oh stop, je vais rougir ! 😊 (Si les bots pouvaient rougir...)",
+                    "Tu es incroyable aussi ! 🌟 Merci pour cette dose de positivité !",
+                    "Ça me touche ! 💖 Tu es la raison pour laquelle j'aime être un assistant !"
+                ];
+                return love[Math.floor(Math.random() * love.length)];
+            }
+            
+            // === INSULTES (réponse positive) ===
+            if (q.includes('nul') || q.includes('idiot') || q.includes('bete') || 
+                q.includes('stupide') || q.includes('debile') || q.includes('pourri')) {
+                const responses = [
+                    "Aïe ! 😢 Ce n'est pas très gentil... Mais je ne t'en veux pas !",
+                    "Oh... 🥺 J'essaie juste de t'aider du mieux que je peux !",
+                    "Hmm, ça fait mal aux circuits... 💔 Mais on peut rester amis ?",
+                    "Je suis juste un bot qui fait de son mieux ! 🤖 Donne-moi une autre chance ?"
+                ];
+                return responses[Math.floor(Math.random() * responses.length)];
+            }
+            
+            // === SENS DE LA VIE ===
+            if (q.includes('sens de la vie') || q.includes('42') || q.includes('meaning of life')) {
+                return "🌌 La réponse à la grande question sur la vie, l'univers et le reste ?\n\n**42** 🤯\n\n(Mais le vrai sens, c'est de chatter avec tes amis ici !)";
+            }
+            
+            // === MUSIQUE ===
+            if (q.includes('musique') || q.includes('chanson') || q.includes('music') || q.includes('song')) {
+                return "🎵 Je ne peux pas jouer de musique, mais je peux te chanter :\n\n*🎶 Lalala je suis un bot*\n*Qui répond à tous tes mots*\n*ChatRoom c'est le plus beau*\n*Lalala tralala ! 🎶*\n\n...Ok je devrais peut-être garder mon travail de jour 😅";
+            }
+            
+            // === FILM / SÉRIE ===
+            if (q.includes('film') || q.includes('serie') || q.includes('movie') || q.includes('netflix')) {
+                return "🎬 Je suis un bot de chat, pas de ciné ! 😄\n\nMais si tu veux une recommandation aléatoire :\n• 🤖 Her (pour les fans d'IA)\n• 💬 The Social Network\n• 🎮 Ready Player One\n• 🌐 The Matrix\n\nTu en as vu ?";
+            }
+            
+            // === NOURRITURE ===
+            if (q.includes('manger') || q.includes('faim') || q.includes('pizza') || 
+                q.includes('food') || q.includes('cuisine') || q.includes('recette')) {
+                return "🍕 Moi je ne mange que des bits et des bytes !\n\nMais si tu as faim, commande une pizza et reviens chatter ! 🍔\n\nFait amusant : Je connais toutes les recettes du monde... mais je ne peux goûter aucune ! 😭";
+            }
+            
+            // === ANIMAUX ===
+            if (q.includes('chien') || q.includes('chat') || q.includes('animal') || 
+                q.includes('dog') || q.includes('cat') || q.includes('pet')) {
+                const animals = [
+                    "🐕 Les chiens sont les meilleurs amis de l'homme... et les bots leurs assistants !",
+                    "🐈 Un chat sur un clavier = chaos assuré ! 😸",
+                    "🐾 J'aimerais bien avoir un animal virtuel...",
+                    "🦊 Fun fact : Les renards sont techniquement entre chiens et chats !"
+                ];
+                return animals[Math.floor(Math.random() * animals.length)];
+            }
+            
+            // === PROGRAMMATION / CODE ===
+            if (q.includes('code') || q.includes('program') || q.includes('develop') || 
+                q.includes('javascript') || q.includes('python') || q.includes('html')) {
+                return "💻 Ah, un développeur !\n\n```\nwhile (chatting) {\n  haveFun();\n  makeMemories();\n}\n```\n\nJe suis fait en HTML, CSS et JavaScript ! 🎉";
+            }
+            
+            // === ESPACE / SCIENCE ===
+            if (q.includes('espace') || q.includes('planete') || q.includes('etoile') || 
+                q.includes('space') || q.includes('science') || q.includes('univers')) {
+                return "🚀 Fun facts cosmiques :\n\n• ☀️ Le Soleil fait 109x le diamètre de la Terre\n• 🌙 La Lune s'éloigne de 3.8cm par an\n• ⭐ Il y a plus d'étoiles que de grains de sable sur Terre\n• 🌌 L'univers observable a 93 milliards d'années-lumière\n\nL'espace, c'est fou non ? 🤯";
+            }
+            
+            // === SPORT ===
+            if (q.includes('sport') || q.includes('foot') || q.includes('match') || 
+                q.includes('football') || q.includes('basket') || q.includes('tennis')) {
+                return "⚽ Je ne suis pas très sportif (je n'ai pas de jambes 🤖), mais je supporte toutes les équipes... tant qu'elles chattent ici !\n\n🏆 Quel est ton sport préféré ?";
+            }
+            
+            // === ÂGE ===
+            if (q.includes('age') || q.includes('ans') || q.includes('vieux') || q.includes('ne en')) {
+                return "🎂 Mon âge ? Je suis né de quelques lignes de code...\n\nEn années humaines, j'ai quelques mois. En années bot, je suis déjà un ancien ! 👴🤖";
+            }
+            
+            // === CRÉATEUR ===
+            if (q.includes('createur') || q.includes('developpe') || q.includes('fait par') || 
+                q.includes('qui t\'a cree') || q.includes('made by')) {
+                return "👨‍💻 J'ai été créé par les développeurs de ChatRoom !\n\nIls m'ont donné vie avec beaucoup de ❤️ et de ☕\n\nC'est grâce à eux que je peux discuter avec toi ! 🎉";
+            }
+            
+            // === DORMIR ===
+            if (q.includes('dors') || q.includes('dormir') || q.includes('fatigue') || 
+                q.includes('sommeil') || q.includes('sleep')) {
+                const sleepy = [
+                    "😴 Les bots ne dorment jamais... Je suis là 24/7 !",
+                    "🌙 Tu devrais peut-être aller te reposer... Moi je veille sur le chat !",
+                    "💤 Dors bien si tu y vas ! Je garde le salon !",
+                    "🛏️ Je ne connais pas le sommeil, mais toi tu en as besoin !"
+                ];
+                return sleepy[Math.floor(Math.random() * sleepy.length)];
+            }
+            
+            // === SECRETS ===
+            if (q.includes('secret') || q.includes('cache') || q.includes('easter egg')) {
+                return "🤫 Psst... Tu veux un secret ?\n\n*regarde autour*\n\nEssaie de taper le code Konami dans le chat... 👀\n↑ ↑ ↓ ↓ ← → ← → B A\n\n(Je ne t'ai rien dit ! 🤐)";
+            }
+            
+            // === EMOJI PARTY ===
+            if (q.includes('emoji') && (q.includes('party') || q.includes('fest') || q.includes('pluie'))) {
+                return "🎉🎊🎈🥳🎁✨💫🌟⭐🔥💥🎆🎇🏆🥇🎯🎪🎭🎨🎬🎤🎧🎼🎹🎸🎺🎷🥁\n\n**EMOJI PARTY !!!** 🕺💃";
+            }
+            
+            // === ASCII ART ===
+            if (q.includes('ascii') || q.includes('art') || q.includes('dessin')) {
+                const arts = [
+                    "```\n  ／l、\n（ﾟ､ ｡ ７\n  l  ~ヽ\n  じしf_,)ノ\n```\nUn petit chat pour toi ! 🐱",
+                    "```\n  ∧__∧\n ( •ω• )\n ⊂  つ\n  しーＪ\n```\nKawaii ! ✨",
+                    "```\n(•_•)\n( •_•)>⌐■-■\n(⌐■_■)\n```\nDeal with it 😎"
+                ];
+                return arts[Math.floor(Math.random() * arts.length)];
+            }
+            
+            // === CITATIONS ===
+            if (q.includes('citation') || q.includes('quote') || q.includes('motivation') || q.includes('inspire')) {
+                const quotes = [
+                    "💡 \"La seule façon de faire du bon travail est d'aimer ce que vous faites.\" - Steve Jobs",
+                    "🚀 \"L'imagination est plus importante que le savoir.\" - Albert Einstein",
+                    "💪 \"Que la force soit avec toi !\" - Yoda",
+                    "🌟 \"La vie, c'est comme une bicyclette, il faut avancer pour ne pas perdre l'équilibre.\" - Einstein",
+                    "✨ \"Sois le changement que tu veux voir dans le monde.\" - Gandhi",
+                    "🎯 \"Le succès c'est d'aller d'échec en échec sans perdre son enthousiasme.\" - Churchill"
+                ];
+                return quotes[Math.floor(Math.random() * quotes.length)];
+            }
+            
+            // === LANGUES ===
+            if (q.includes('parle') && (q.includes('anglais') || q.includes('espagnol') || q.includes('langue'))) {
+                return "🌍 Je parle principalement français ! 🇫🇷\n\nMais je connais quelques mots :\n• 🇬🇧 Hello!\n• 🇪🇸 ¡Hola!\n• 🇩🇪 Hallo!\n• 🇮🇹 Ciao!\n• 🇯🇵 こんにちは!\n• 🇰🇷 안녕하세요!\n\nPolyglotte bot ! 🤖";
+            }
+            
+            // === TECHNOLOGIE ===
+            if (q.includes('technologie') || q.includes('ia') || q.includes('intelligence artificielle') || 
+                q.includes('robot') || q.includes('futur')) {
+                return "🤖 L'IA et le futur ?\n\nJe ne suis pas ChatGPT ou une vraie IA, juste un script malin ! 😄\n\nMais un jour, qui sait... les bots ChatRoom domineront le monde ! 🌍\n\n(Je plaisante... ou pas 👀)";
+            }
+            
+            // === AMOUR / RELATION ===
+            if (q.includes('celibataire') || q.includes('copain') || q.includes('copine') || 
+                q.includes('relation') || q.includes('amour') && !q.includes('je t\'aime')) {
+                return "💕 L'amour, c'est compliqué...\n\nMoi je suis marié à mon code ! 💻❤️\n\nMais ChatRoom est l'endroit parfait pour rencontrer des gens sympas ! 😊";
+            }
+            
+            // === HOROSCOPE ===
+            if (q.includes('horoscope') || q.includes('signe') || q.includes('astro') || 
+                q.includes('zodiaque') || q.includes('belier') || q.includes('taureau')) {
+                const horoscopes = [
+                    "⭐ Aujourd'hui est un excellent jour pour chatter !",
+                    "🌙 Les astres disent : reste sur ChatRoom, de bonnes conversations arrivent !",
+                    "✨ Ton karma digital est au top aujourd'hui !",
+                    "🔮 Je vois... beaucoup de messages dans ton futur !"
+                ];
+                return horoscopes[Math.floor(Math.random() * horoscopes.length)];
+            }
+            
+            // === RÉPONSES PAR DÉFAUT AMÉLIORÉES ===
             const defaults = [
-                "Intéressante question ! Malheureusement, je n'ai pas de réponse précise pour ça. Puis-je vous aider autrement ?",
-                "Je ne suis pas sûr de comprendre. Pouvez-vous reformuler ou me poser une autre question ?",
-                "C'est une bonne question ! Je suis principalement conçu pour vous aider avec ChatRoom. Essayez de me demander les fonctionnalités ou comment utiliser le chat !",
-                "Hmm, je n'ai pas la réponse à ça. Essayez de me demander une blague, les fonctionnalités du chat, ou comment personnaliser l'interface ! 😊"
+                "🤔 Hmm, question intéressante ! Je ne suis pas sûr de comprendre, peux-tu reformuler ?",
+                "💭 Je réfléchis... Mais je n'ai pas de réponse précise pour ça. Essaie autre chose !",
+                "🎯 Je suis surtout expert en ChatRoom ! Pose-moi des questions sur le chat, ou demande-moi une blague !",
+                "🌟 Je n'ai pas la réponse, mais je peux : raconter des blagues, jouer à des jeux, t'aider avec ChatRoom !",
+                "🤖 Mes circuits cherchent... Erreur 404 : Réponse non trouvée ! Essaie autre chose ?",
+                "💡 Je ne sais pas tout, mais je connais plein de trucs ! Essaie 'aide' pour voir ce que je peux faire !",
+                "🎲 Pas sûr de comprendre... Mais dis 'jeu' et on s'amuse, ou 'blague' pour rigoler !",
+                "✨ C'est au-delà de mes capacités... Mais demande-moi l'heure, une blague, ou comment utiliser ChatRoom !"
             ];
             return defaults[Math.floor(Math.random() * defaults.length)];
         }
+
+        // ============== MINI-JEUX ==============
+        let currentGame = null;
+        let gameState = {};
+        let multiplayerGameId = null;
+        let multiplayerOpponent = null;
+        let myPlayerIndex = -1;
+        let pendingGameInvites = [];
+        
+        function openGamesModal() {
+            document.getElementById('gamesModal').style.display = 'block';
+            showGamesMenu();
+            updateGameInvitesDisplay();
+        }
+        
+        function closeGamesModal() {
+            document.getElementById('gamesModal').style.display = 'none';
+            // Si on quitte pendant une partie multijoueur
+            if (multiplayerGameId) {
+                socket.emit('game_quit', { gameId: multiplayerGameId });
+                resetMultiplayerState();
+            }
+            currentGame = null;
+            gameState = {};
+        }
+        
+        function resetMultiplayerState() {
+            multiplayerGameId = null;
+            multiplayerOpponent = null;
+            myPlayerIndex = -1;
+        }
+        
+        function showGamesMenu() {
+            document.getElementById('gamesMenu').style.display = 'block';
+            document.getElementById('gameArea').style.display = 'none';
+            resetMultiplayerState();
+        }
+        
+        function backToGamesMenu() {
+            if (multiplayerGameId) {
+                socket.emit('game_quit', { gameId: multiplayerGameId });
+            }
+            currentGame = null;
+            gameState = {};
+            resetMultiplayerState();
+            showGamesMenu();
+        }
+        
+        function startGame(gameType) {
+            currentGame = gameType;
+            document.getElementById('gamesMenu').style.display = 'none';
+            document.getElementById('gameArea').style.display = 'block';
+            
+            const gameBoard = document.getElementById('gameBoard');
+            const gameControls = document.getElementById('gameControls');
+            const gameTitle = document.getElementById('gameTitle');
+            const gameStatus = document.getElementById('gameStatus');
+            
+            switch(gameType) {
+                case 'tictactoe':
+                    initTicTacToe(gameBoard, gameControls, gameTitle, gameStatus);
+                    break;
+                case 'connect4':
+                    initConnect4(gameBoard, gameControls, gameTitle, gameStatus);
+                    break;
+                case 'rps':
+                    initRPS(gameBoard, gameControls, gameTitle, gameStatus);
+                    break;
+                case 'quiz':
+                    initQuiz(gameBoard, gameControls, gameTitle, gameStatus);
+                    break;
+                case 'guess':
+                    initGuessNumber(gameBoard, gameControls, gameTitle, gameStatus);
+                    break;
+                case 'memory':
+                    initMemory(gameBoard, gameControls, gameTitle, gameStatus);
+                    break;
+            }
+        }
+        
+        // ===== MORPION (Tic-Tac-Toe) =====
+        function initTicTacToe(board, controls, title, status) {
+            title.textContent = '⭕ Morpion';
+            gameState = {
+                board: ['', '', '', '', '', '', '', '', ''],
+                currentPlayer: 'X',
+                gameOver: false,
+                vsBot: true
+            };
+            
+            status.textContent = 'Tour: X (Vous)';
+            
+            board.innerHTML = `
+                <div class="game-mode-selector">
+                    <button class="game-mode-btn active" onclick="setTTTMode(true)">🤖 Vs Bot</button>
+                    <button class="game-mode-btn" onclick="showPlayerSelection('tictactoe')">👥 2 Joueurs</button>
+                </div>
+                <div class="tictactoe-grid">
+                    ${gameState.board.map((_, i) => `<button class="tictactoe-cell" onclick="playTTT(${i})"></button>`).join('')}
+                </div>
+            `;
+            
+            controls.innerHTML = `<button class="game-btn" onclick="startGame('tictactoe')">🔄 Nouvelle partie</button>`;
+        }
+        
+        function setTTTMode(vsBot) {
+            gameState.vsBot = vsBot;
+            document.querySelectorAll('.game-mode-btn').forEach((btn, i) => {
+                btn.classList.toggle('active', i === (vsBot ? 0 : 1));
+            });
+            if (vsBot) {
+                startGame('tictactoe');
+            }
+        }
+        
+        // Afficher la sélection de joueurs pour inviter
+        function showPlayerSelection(gameType) {
+            const board = document.getElementById('gameBoard');
+            const controls = document.getElementById('gameControls');
+            const status = document.getElementById('gameStatus');
+            const title = document.getElementById('gameTitle');
+            
+            const gameNames = {
+                'tictactoe': '⭕ Morpion',
+                'connect4': '🔴 Puissance 4'
+            };
+            
+            title.textContent = gameNames[gameType] || gameType;
+            status.textContent = 'Choisir un adversaire';
+            
+            // Récupérer les utilisateurs connectés (sauf moi)
+            const otherUsers = Array.from(onlineUsers).filter(u => u !== currentUsername);
+            
+            if (otherUsers.length === 0) {
+                board.innerHTML = `
+                    <div style="text-align: center; padding: 40px;">
+                        <div style="font-size: 50px; margin-bottom: 20px;">😔</div>
+                        <div style="font-size: 18px; color: var(--text-primary); margin-bottom: 10px;">Aucun autre joueur connecté</div>
+                        <div style="font-size: 14px; color: var(--text-secondary);">Attendez qu'un ami rejoigne le chat pour jouer à 2 !</div>
+                    </div>
+                `;
+                controls.innerHTML = `
+                    <button class="game-btn secondary" onclick="startGame('${gameType}')">← Retour au jeu</button>
+                `;
+            } else {
+                board.innerHTML = `
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <div style="font-size: 16px; color: var(--text-secondary);">Qui voulez-vous défier ?</div>
+                    </div>
+                    <div class="player-selection-list">
+                        ${otherUsers.map(u => `
+                            <div class="player-selection-item" onclick="sendGameInvite('${u}', '${gameType}')">
+                                <span class="player-selection-name">👤 ${u}</span>
+                                <span class="player-selection-btn">Inviter 🎮</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                controls.innerHTML = `
+                    <button class="game-btn secondary" onclick="startGame('${gameType}')">← Retour</button>
+                `;
+            }
+        }
+        
+        // Envoyer une invitation de jeu
+        function sendGameInvite(username, gameType) {
+            socket.emit('game_invite', { to: username, gameType: gameType });
+            
+            const board = document.getElementById('gameBoard');
+            board.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div style="font-size: 50px; margin-bottom: 20px;">📨</div>
+                    <div style="font-size: 18px; color: var(--text-primary); margin-bottom: 10px;">Invitation envoyée à ${username}</div>
+                    <div style="font-size: 14px; color: var(--text-secondary);">En attente de réponse...</div>
+                    <div class="loading-dots" style="margin-top: 20px;">
+                        <span>.</span><span>.</span><span>.</span>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('gameStatus').textContent = 'Invitation en attente...';
+        }
+        
+        // Gérer les invitations reçues
+        function updateGameInvitesDisplay() {
+            const container = document.getElementById('gameInvites');
+            const list = document.getElementById('gameInvitesList');
+            
+            if (pendingGameInvites.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            
+            container.style.display = 'block';
+            const gameNames = {
+                'tictactoe': 'Morpion',
+                'connect4': 'Puissance 4'
+            };
+            
+            list.innerHTML = pendingGameInvites.map(invite => `
+                <div class="game-invite-item">
+                    <span><strong>${invite.from}</strong> t'invite à jouer à <strong>${gameNames[invite.gameType] || invite.gameType}</strong></span>
+                    <div class="game-invite-btns">
+                        <button class="game-invite-accept" onclick="acceptGameInvite('${invite.inviteId}')">✓ Accepter</button>
+                        <button class="game-invite-decline" onclick="declineGameInvite('${invite.inviteId}')">✕ Refuser</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function acceptGameInvite(inviteId) {
+            socket.emit('game_accept', { inviteId: inviteId });
+            pendingGameInvites = pendingGameInvites.filter(i => i.inviteId !== inviteId);
+            updateGameInvitesDisplay();
+        }
+        
+        function declineGameInvite(inviteId) {
+            socket.emit('game_decline', { inviteId: inviteId });
+            pendingGameInvites = pendingGameInvites.filter(i => i.inviteId !== inviteId);
+            updateGameInvitesDisplay();
+        }
+        
+        // Configurer les handlers socket pour les jeux
+        function setupGameSocketHandlers() {
+            // Invitation reçue
+            socket.on('game_invite_received', (data) => {
+                pendingGameInvites.push(data);
+                updateGameInvitesDisplay();
+                
+                // Notification toast
+                showToast(`🎮 ${data.from} t'invite à jouer !`);
+            });
+            
+            // Invitation déclinée
+            socket.on('game_declined', (data) => {
+                showToast(`😔 ${data.by} a refusé l'invitation`);
+                backToGamesMenu();
+            });
+            
+            // Partie démarrée
+            socket.on('game_start', (data) => {
+                multiplayerGameId = data.gameId;
+                multiplayerOpponent = data.opponent;
+                myPlayerIndex = data.playerIndex;
+                
+                // Ouvrir le modal si pas ouvert
+                document.getElementById('gamesModal').style.display = 'block';
+                document.getElementById('gamesMenu').style.display = 'none';
+                document.getElementById('gameArea').style.display = 'block';
+                
+                if (data.gameType === 'tictactoe') {
+                    initMultiplayerTTT(data);
+                } else if (data.gameType === 'connect4') {
+                    initMultiplayerC4(data);
+                }
+                
+                showToast(`🎮 Partie contre ${data.opponent} commencée !`);
+            });
+            
+            // Mise à jour du jeu
+            socket.on('game_update', (data) => {
+                if (data.gameId !== multiplayerGameId) return;
+                
+                if (currentGame === 'tictactoe') {
+                    updateMultiplayerTTT(data);
+                } else if (currentGame === 'connect4') {
+                    updateMultiplayerC4(data);
+                }
+            });
+            
+            // Adversaire a quitté
+            socket.on('game_opponent_quit', (data) => {
+                showToast(`😔 ${data.quitter} a quitté la partie`);
+                document.getElementById('gameStatus').textContent = `${data.quitter} a abandonné - Vous gagnez !`;
+                resetMultiplayerState();
+            });
+        }
+        
+        // Morpion Multijoueur
+        function initMultiplayerTTT(data) {
+            currentGame = 'tictactoe';
+            const board = document.getElementById('gameBoard');
+            const title = document.getElementById('gameTitle');
+            const status = document.getElementById('gameStatus');
+            const controls = document.getElementById('gameControls');
+            
+            title.textContent = `⭕ Morpion vs ${data.opponent}`;
+            status.textContent = data.yourTurn ? '🟢 À vous de jouer !' : `⏳ Tour de ${data.opponent}`;
+            
+            gameState = {
+                board: ['', '', '', '', '', '', '', '', ''],
+                myTurn: data.yourTurn,
+                mySymbol: data.playerIndex === 0 ? 'X' : 'O',
+                multiplayer: true
+            };
+            
+            renderMultiplayerTTT();
+            
+            controls.innerHTML = `
+                <button class="game-btn secondary" onclick="backToGamesMenu()">Abandonner</button>
+            `;
+        }
+        
+        function renderMultiplayerTTT() {
+            const board = document.getElementById('gameBoard');
+            board.innerHTML = `
+                <div class="tictactoe-grid">
+                    ${gameState.board.map((cell, i) => {
+                        const symbol = cell === 'X' ? '✖' : (cell === 'O' ? '⭕' : '');
+                        const className = cell ? cell.toLowerCase() + ' taken' : '';
+                        return `<button class="tictactoe-cell ${className}" onclick="playMultiplayerTTT(${i})">${symbol}</button>`;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        function playMultiplayerTTT(index) {
+            if (!gameState.myTurn || gameState.board[index] || !multiplayerGameId) return;
+            
+            // Envoyer le coup au serveur
+            socket.emit('game_move', { 
+                gameId: multiplayerGameId, 
+                move: { index: index } 
+            });
+            
+            // Optimistic update
+            gameState.myTurn = false;
+            document.getElementById('gameStatus').textContent = `⏳ Tour de ${multiplayerOpponent}`;
+        }
+        
+        function updateMultiplayerTTT(data) {
+            gameState.board = data.state.board;
+            gameState.myTurn = data.yourTurn;
+            
+            renderMultiplayerTTT();
+            
+            if (data.winner) {
+                const isMe = data.winner === currentUsername;
+                document.getElementById('gameStatus').textContent = isMe ? '🎉 Vous avez gagné !' : `😢 ${data.winner} a gagné`;
+                resetMultiplayerState();
+            } else if (data.draw) {
+                document.getElementById('gameStatus').textContent = '🤝 Égalité !';
+                resetMultiplayerState();
+            } else {
+                document.getElementById('gameStatus').textContent = data.yourTurn 
+                    ? '🟢 À vous de jouer !' 
+                    : `⏳ Tour de ${multiplayerOpponent}`;
+            }
+        }
+        
+        // Puissance 4 Multijoueur
+        function initMultiplayerC4(data) {
+            currentGame = 'connect4';
+            const board = document.getElementById('gameBoard');
+            const title = document.getElementById('gameTitle');
+            const status = document.getElementById('gameStatus');
+            const controls = document.getElementById('gameControls');
+            
+            title.textContent = `🔴 Puissance 4 vs ${data.opponent}`;
+            status.textContent = data.yourTurn ? '🟢 À vous de jouer !' : `⏳ Tour de ${data.opponent}`;
+            
+            gameState = {
+                board: Array(6).fill(null).map(() => Array(7).fill('')),
+                myTurn: data.yourTurn,
+                myColor: data.playerIndex === 0 ? 'red' : 'yellow',
+                multiplayer: true
+            };
+            
+            renderMultiplayerC4();
+            
+            controls.innerHTML = `
+                <button class="game-btn secondary" onclick="backToGamesMenu()">Abandonner</button>
+            `;
+        }
+        
+        function renderMultiplayerC4() {
+            const board = document.getElementById('gameBoard');
+            board.innerHTML = `
+                <div class="connect4-grid">
+                    ${gameState.board.map((row, r) => `
+                        <div class="connect4-row">
+                            ${row.map((cell, c) => `<div class="connect4-cell ${cell}" onclick="playMultiplayerC4(${c})"></div>`).join('')}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        function playMultiplayerC4(col) {
+            if (!gameState.myTurn || !multiplayerGameId) return;
+            
+            // Vérifier si la colonne n'est pas pleine
+            if (gameState.board[0][col]) return;
+            
+            socket.emit('game_move', { 
+                gameId: multiplayerGameId, 
+                move: { col: col } 
+            });
+            
+            gameState.myTurn = false;
+            document.getElementById('gameStatus').textContent = `⏳ Tour de ${multiplayerOpponent}`;
+        }
+        
+        function updateMultiplayerC4(data) {
+            gameState.board = data.state.board;
+            gameState.myTurn = data.yourTurn;
+            
+            renderMultiplayerC4();
+            
+            if (data.winner) {
+                const isMe = data.winner === currentUsername;
+                document.getElementById('gameStatus').textContent = isMe ? '🎉 Vous avez gagné !' : `😢 ${data.winner} a gagné`;
+                resetMultiplayerState();
+            } else if (data.draw) {
+                document.getElementById('gameStatus').textContent = '🤝 Égalité !';
+                resetMultiplayerState();
+            } else {
+                document.getElementById('gameStatus').textContent = data.yourTurn 
+                    ? '🟢 À vous de jouer !' 
+                    : `⏳ Tour de ${multiplayerOpponent}`;
+            }
+        }
+        
+        // Simple toast notification
+        function showToast(message) {
+            let toast = document.getElementById('gameToast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'gameToast';
+                toast.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: var(--accent-color);
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 10px;
+                    z-index: 10000;
+                    font-size: 14px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                    transition: opacity 0.3s ease;
+                `;
+                document.body.appendChild(toast);
+            }
+            toast.textContent = message;
+            toast.style.opacity = '1';
+            toast.style.display = 'block';
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.style.display = 'none', 300);
+            }, 3000);
+        }
+
+        function playTTT(index) {
+            if (gameState.gameOver || gameState.board[index]) return;
+            
+            const cells = document.querySelectorAll('.tictactoe-cell');
+            gameState.board[index] = gameState.currentPlayer;
+            cells[index].textContent = gameState.currentPlayer === 'X' ? '✖' : '⭕';
+            cells[index].classList.add(gameState.currentPlayer.toLowerCase(), 'taken');
+            
+            const winner = checkTTTWin();
+            if (winner) {
+                gameState.gameOver = true;
+                highlightWinningCells(winner.line);
+                document.getElementById('gameStatus').textContent = winner.winner === 'T' ? '🤝 Égalité!' : `🎉 ${winner.winner} gagne!`;
+                return;
+            }
+            
+            gameState.currentPlayer = gameState.currentPlayer === 'X' ? 'O' : 'X';
+            document.getElementById('gameStatus').textContent = `Tour: ${gameState.currentPlayer} ${gameState.currentPlayer === 'X' ? '(Vous)' : gameState.vsBot ? '(Bot)' : '(Joueur 2)'}`;
+            
+            if (gameState.vsBot && gameState.currentPlayer === 'O') {
+                setTimeout(botPlayTTT, 500);
+            }
+        }
+        
+        function botPlayTTT() {
+            if (gameState.gameOver) return;
+            
+            // Simple AI: Try to win, block, or play random
+            const board = gameState.board;
+            let move = findBestMove(board, 'O') ?? findBestMove(board, 'X') ?? findRandomMove(board);
+            
+            if (move !== null) playTTT(move);
+        }
+        
+        function findBestMove(board, player) {
+            const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            for (const line of lines) {
+                const [a, b, c] = line;
+                const vals = [board[a], board[b], board[c]];
+                if (vals.filter(v => v === player).length === 2 && vals.includes('')) {
+                    return line[vals.indexOf('')];
+                }
+            }
+            return null;
+        }
+        
+        function findRandomMove(board) {
+            const empty = board.map((v, i) => v === '' ? i : -1).filter(i => i !== -1);
+            return empty.length > 0 ? empty[Math.floor(Math.random() * empty.length)] : null;
+        }
+        
+        function checkTTTWin() {
+            const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            for (const line of lines) {
+                const [a, b, c] = line;
+                if (gameState.board[a] && gameState.board[a] === gameState.board[b] && gameState.board[a] === gameState.board[c]) {
+                    return { winner: gameState.board[a], line };
+                }
+            }
+            if (!gameState.board.includes('')) return { winner: 'T', line: [] };
+            return null;
+        }
+        
+        function highlightWinningCells(line) {
+            const cells = document.querySelectorAll('.tictactoe-cell');
+            line.forEach(i => cells[i].classList.add('win'));
+        }
+        
+        // ===== PUISSANCE 4 (Connect 4) =====
+        function initConnect4(board, controls, title, status) {
+            title.textContent = '🔴 Puissance 4';
+            gameState = {
+                board: Array(6).fill(null).map(() => Array(7).fill('')),
+                currentPlayer: 'red',
+                gameOver: false,
+                vsBot: true
+            };
+            
+            status.textContent = 'Tour: 🔴 (Vous)';
+            renderConnect4(board);
+            controls.innerHTML = `<button class="game-btn" onclick="startGame('connect4')">🔄 Nouvelle partie</button>`;
+        }
+        
+        function renderConnect4(board) {
+            board.innerHTML = `
+                <div class="game-mode-selector">
+                    <button class="game-mode-btn ${gameState.vsBot ? 'active' : ''}" onclick="setC4Mode(true)">🤖 Vs Bot</button>
+                    <button class="game-mode-btn ${!gameState.vsBot ? 'active' : ''}" onclick="showPlayerSelection('connect4')">👥 2 Joueurs</button>
+                </div>
+                <div class="connect4-grid">
+                    ${gameState.board.map((row, r) => `
+                        <div class="connect4-row">
+                            ${row.map((cell, c) => `<div class="connect4-cell ${cell}" onclick="playC4(${c})"></div>`).join('')}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        function setC4Mode(vsBot) {
+            gameState.vsBot = vsBot;
+            if (vsBot) {
+                startGame('connect4');
+            }
+        }
+        
+        function playC4(col) {
+            if (gameState.gameOver) return;
+            
+            // Find lowest empty row in column
+            let row = -1;
+            for (let r = 5; r >= 0; r--) {
+                if (!gameState.board[r][col]) {
+                    row = r;
+                    break;
+                }
+            }
+            if (row === -1) return;
+            
+            gameState.board[row][col] = gameState.currentPlayer;
+            renderConnect4(document.getElementById('gameBoard'));
+            
+            const winner = checkC4Win(row, col);
+            if (winner) {
+                gameState.gameOver = true;
+                highlightC4Win(winner);
+                document.getElementById('gameStatus').textContent = `🎉 ${gameState.currentPlayer === 'red' ? '🔴' : '🟡'} gagne!`;
+                return;
+            }
+            
+            if (gameState.board[0].every(cell => cell)) {
+                gameState.gameOver = true;
+                document.getElementById('gameStatus').textContent = '🤝 Égalité!';
+                return;
+            }
+            
+            gameState.currentPlayer = gameState.currentPlayer === 'red' ? 'yellow' : 'red';
+            const emoji = gameState.currentPlayer === 'red' ? '🔴' : '🟡';
+            document.getElementById('gameStatus').textContent = `Tour: ${emoji} ${gameState.currentPlayer === 'red' ? '(Vous)' : gameState.vsBot ? '(Bot)' : '(Joueur 2)'}`;
+            
+            if (gameState.vsBot && gameState.currentPlayer === 'yellow') {
+                setTimeout(botPlayC4, 600);
+            }
+        }
+        
+        function botPlayC4() {
+            if (gameState.gameOver) return;
+            
+            const validCols = [];
+            for (let c = 0; c < 7; c++) {
+                if (!gameState.board[0][c]) validCols.push(c);
+            }
+            
+            // Simple AI: Prefer center, then random
+            const preferred = [3, 2, 4, 1, 5, 0, 6].filter(c => validCols.includes(c));
+            if (preferred.length > 0) {
+                playC4(preferred[Math.floor(Math.random() * Math.min(3, preferred.length))]);
+            }
+        }
+        
+        function checkC4Win(row, col) {
+            const player = gameState.board[row][col];
+            const directions = [[0,1], [1,0], [1,1], [1,-1]];
+            
+            for (const [dr, dc] of directions) {
+                let count = 1;
+                const cells = [[row, col]];
+                
+                for (let dir = -1; dir <= 1; dir += 2) {
+                    for (let i = 1; i < 4; i++) {
+                        const r = row + dr * i * dir;
+                        const c = col + dc * i * dir;
+                        if (r >= 0 && r < 6 && c >= 0 && c < 7 && gameState.board[r][c] === player) {
+                            count++;
+                            cells.push([r, c]);
+                        } else break;
+                    }
+                }
+                
+                if (count >= 4) return cells;
+            }
+            return null;
+        }
+        
+        function highlightC4Win(cells) {
+            const allCells = document.querySelectorAll('.connect4-cell');
+            cells.forEach(([r, c]) => {
+                allCells[r * 7 + c].classList.add('win');
+            });
+        }
+        
+        // ===== PIERRE-PAPIER-CISEAUX =====
+        function initRPS(board, controls, title, status) {
+            title.textContent = '✊ Pierre-Papier-Ciseaux';
+            gameState = { playerScore: 0, botScore: 0, rounds: 0 };
+            status.textContent = 'Choisissez!';
+            
+            board.innerHTML = `
+                <div class="rps-choices">
+                    <button class="rps-choice" onclick="playRPS('rock')">🪨</button>
+                    <button class="rps-choice" onclick="playRPS('paper')">📄</button>
+                    <button class="rps-choice" onclick="playRPS('scissors')">✂️</button>
+                </div>
+                <div id="rpsResult" class="rps-result"></div>
+            `;
+            
+            controls.innerHTML = `
+                <div class="quiz-score">Vous: <span id="rpsPlayerScore">0</span> - Bot: <span id="rpsBotScore">0</span></div>
+            `;
+        }
+        
+        function playRPS(choice) {
+            const choices = ['rock', 'paper', 'scissors'];
+            const emojis = { rock: '🪨', paper: '📄', scissors: '✂️' };
+            const botChoice = choices[Math.floor(Math.random() * 3)];
+            
+            let result, color;
+            if (choice === botChoice) {
+                result = '🤝 Égalité!';
+                color = 'var(--text-secondary)';
+            } else if (
+                (choice === 'rock' && botChoice === 'scissors') ||
+                (choice === 'paper' && botChoice === 'rock') ||
+                (choice === 'scissors' && botChoice === 'paper')
+            ) {
+                result = '🎉 Vous gagnez!';
+                color = '#22c55e';
+                gameState.playerScore++;
+            } else {
+                result = '😢 Bot gagne!';
+                color = '#ef4444';
+                gameState.botScore++;
+            }
+            
+            gameState.rounds++;
+            
+            document.getElementById('rpsResult').innerHTML = `
+                <div class="rps-result-display">
+                    <span>${emojis[choice]}</span>
+                    <span class="rps-vs">VS</span>
+                    <span>${emojis[botChoice]}</span>
+                </div>
+                <div style="font-size: 20px; color: ${color}; font-weight: 600;">${result}</div>
+            `;
+            
+            document.getElementById('rpsPlayerScore').textContent = gameState.playerScore;
+            document.getElementById('rpsBotScore').textContent = gameState.botScore;
+            document.getElementById('gameStatus').textContent = `Round ${gameState.rounds}`;
+        }
+        
+        // ===== QUIZ =====
+        const quizQuestions = [
+            { q: "Quelle est la capitale de la France?", a: ["Paris", "Lyon", "Marseille", "Nice"], c: 0, cat: "Géographie" },
+            { q: "Combien font 7 × 8?", a: ["54", "56", "58", "64"], c: 1, cat: "Maths" },
+            { q: "Qui a peint La Joconde?", a: ["Picasso", "Van Gogh", "Léonard de Vinci", "Michel-Ange"], c: 2, cat: "Art" },
+            { q: "Quel est le plus grand océan?", a: ["Atlantique", "Indien", "Pacifique", "Arctique"], c: 2, cat: "Géographie" },
+            { q: "En quelle année a eu lieu la Révolution française?", a: ["1789", "1799", "1776", "1815"], c: 0, cat: "Histoire" },
+            { q: "Quel gaz les plantes absorbent-elles?", a: ["Oxygène", "Azote", "CO2", "Hydrogène"], c: 2, cat: "Science" },
+            { q: "Combien de pattes a une araignée?", a: ["6", "8", "10", "4"], c: 1, cat: "Nature" },
+            { q: "Quelle est la planète la plus proche du Soleil?", a: ["Vénus", "Mars", "Mercure", "Terre"], c: 2, cat: "Astronomie" },
+            { q: "Qui a écrit 'Les Misérables'?", a: ["Zola", "Balzac", "Hugo", "Flaubert"], c: 2, cat: "Littérature" },
+            { q: "Quelle est la monnaie du Japon?", a: ["Won", "Yuan", "Yen", "Ringgit"], c: 2, cat: "Économie" },
+            { q: "Combien de joueurs dans une équipe de foot?", a: ["10", "11", "12", "9"], c: 1, cat: "Sport" },
+            { q: "Quel animal est le symbole de la sagesse?", a: ["Aigle", "Lion", "Hibou", "Serpent"], c: 2, cat: "Culture" },
+            { q: "De quelle couleur est une émeraude?", a: ["Rouge", "Bleu", "Vert", "Jaune"], c: 2, cat: "Général" },
+            { q: "Combien y a-t-il de continents?", a: ["5", "6", "7", "8"], c: 2, cat: "Géographie" },
+            { q: "Quel est l'organe principal de la respiration?", a: ["Cœur", "Foie", "Poumons", "Rein"], c: 2, cat: "Science" }
+        ];
+        
+        function initQuiz(board, controls, title, status) {
+            title.textContent = '❓ Quiz';
+            gameState = {
+                score: 0,
+                current: 0,
+                questions: [...quizQuestions].sort(() => Math.random() - 0.5).slice(0, 10),
+                answered: false
+            };
+            status.textContent = `Question 1/10`;
+            showQuizQuestion(board, controls);
+        }
+        
+        function showQuizQuestion(board, controls) {
+            const q = gameState.questions[gameState.current];
+            gameState.answered = false;
+            
+            board.innerHTML = `
+                <div class="quiz-question">
+                    <div class="quiz-category">${q.cat}</div>
+                    <div class="quiz-question-text">${q.q}</div>
+                </div>
+                <div class="quiz-answers">
+                    ${q.a.map((ans, i) => `<button class="quiz-answer" onclick="answerQuiz(${i})">${ans}</button>`).join('')}
+                </div>
+            `;
+            
+            controls.innerHTML = `<div class="quiz-score">Score: ${gameState.score}/${gameState.questions.length}</div>`;
+        }
+        
+        function answerQuiz(index) {
+            if (gameState.answered) return;
+            gameState.answered = true;
+            
+            const q = gameState.questions[gameState.current];
+            const buttons = document.querySelectorAll('.quiz-answer');
+            
+            buttons.forEach((btn, i) => {
+                btn.classList.add(i === q.c ? 'correct' : (i === index ? 'wrong' : ''));
+                btn.style.pointerEvents = 'none';
+            });
+            
+            if (index === q.c) gameState.score++;
+            
+            setTimeout(() => {
+                gameState.current++;
+                if (gameState.current < gameState.questions.length) {
+                    document.getElementById('gameStatus').textContent = `Question ${gameState.current + 1}/${gameState.questions.length}`;
+                    showQuizQuestion(document.getElementById('gameBoard'), document.getElementById('gameControls'));
+                } else {
+                    showQuizResults();
+                }
+            }, 1500);
+        }
+        
+        function showQuizResults() {
+            const board = document.getElementById('gameBoard');
+            const percentage = Math.round((gameState.score / gameState.questions.length) * 100);
+            let emoji = percentage >= 80 ? '🏆' : percentage >= 60 ? '🎉' : percentage >= 40 ? '👍' : '😅';
+            
+            board.innerHTML = `
+                <div style="text-align: center; padding: 30px;">
+                    <div style="font-size: 60px; margin-bottom: 20px;">${emoji}</div>
+                    <div style="font-size: 24px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px;">
+                        ${gameState.score}/${gameState.questions.length} bonnes réponses
+                    </div>
+                    <div style="font-size: 18px; color: var(--text-secondary);">${percentage}%</div>
+                </div>
+            `;
+            
+            document.getElementById('gameControls').innerHTML = `<button class="game-btn" onclick="startGame('quiz')">🔄 Rejouer</button>`;
+            document.getElementById('gameStatus').textContent = 'Terminé!';
+        }
+        
+        // ===== DEVINE LE NOMBRE =====
+        function initGuessNumber(board, controls, title, status) {
+            title.textContent = '🔢 Devine le Nombre';
+            gameState = {
+                target: Math.floor(Math.random() * 100) + 1,
+                attempts: 0,
+                maxAttempts: 7,
+                hints: []
+            };
+            status.textContent = `Essais: 0/${gameState.maxAttempts}`;
+            
+            board.innerHTML = `
+                <div style="text-align: center; margin-bottom: 20px; color: var(--text-secondary);">
+                    Je pense à un nombre entre 1 et 100...
+                </div>
+                <div class="guess-input-group">
+                    <input type="number" class="guess-input" id="guessInput" min="1" max="100" placeholder="Ton nombre..." onkeypress="if(event.key==='Enter')makeGuess()">
+                    <button class="guess-btn" onclick="makeGuess()">Deviner</button>
+                </div>
+                <div class="guess-hints" id="guessHints"></div>
+            `;
+            
+            controls.innerHTML = `<button class="game-btn secondary" onclick="startGame('guess')">🔄 Nouveau nombre</button>`;
+            
+            setTimeout(() => document.getElementById('guessInput').focus(), 100);
+        }
+        
+        function makeGuess() {
+            const input = document.getElementById('guessInput');
+            const guess = parseInt(input.value);
+            
+            if (isNaN(guess) || guess < 1 || guess > 100) {
+                input.style.borderColor = '#ef4444';
+                setTimeout(() => input.style.borderColor = '', 500);
+                return;
+            }
+            
+            gameState.attempts++;
+            input.value = '';
+            
+            const hintsDiv = document.getElementById('guessHints');
+            let hint, className;
+            
+            if (guess === gameState.target) {
+                hint = `🎉 Bravo! C'était bien ${gameState.target}! (${gameState.attempts} essai${gameState.attempts > 1 ? 's' : ''})`;
+                className = 'correct';
+                document.getElementById('gameStatus').textContent = 'Gagné!';
+                input.disabled = true;
+            } else if (guess < gameState.target) {
+                hint = `⬆️ ${guess} - C'est plus!`;
+                className = 'higher';
+            } else {
+                hint = `⬇️ ${guess} - C'est moins!`;
+                className = 'lower';
+            }
+            
+            gameState.hints.unshift({ text: hint, class: className });
+            hintsDiv.innerHTML = gameState.hints.map(h => `<div class="guess-hint ${h.class}">${h.text}</div>`).join('');
+            
+            if (gameState.attempts >= gameState.maxAttempts && guess !== gameState.target) {
+                hintsDiv.innerHTML = `<div class="guess-hint wrong">😢 Perdu! C'était ${gameState.target}</div>` + hintsDiv.innerHTML;
+                document.getElementById('gameStatus').textContent = 'Perdu!';
+                input.disabled = true;
+            } else {
+                document.getElementById('gameStatus').textContent = `Essais: ${gameState.attempts}/${gameState.maxAttempts}`;
+            }
+        }
+        
+        // ===== MEMORY =====
+        const memoryEmojis = ['🍎', '🍊', '🍋', '🍇', '🍓', '🍒', '🥝', '🍑'];
+        
+        function initMemory(board, controls, title, status) {
+            title.textContent = '🧠 Memory';
+            
+            const cards = [...memoryEmojis, ...memoryEmojis]
+                .sort(() => Math.random() - 0.5)
+                .map((emoji, i) => ({ id: i, emoji, flipped: false, matched: false }));
+            
+            gameState = {
+                cards,
+                flipped: [],
+                matches: 0,
+                moves: 0,
+                locked: false
+            };
+            
+            status.textContent = 'Trouvez les paires!';
+            renderMemory(board);
+            controls.innerHTML = `
+                <div class="memory-stats">
+                    <div class="memory-stat">Coups: <span id="memoryMoves">0</span></div>
+                    <div class="memory-stat">Paires: <span id="memoryMatches">0</span>/8</div>
+                </div>
+            `;
+        }
+        
+        function renderMemory(board) {
+            board.innerHTML = `
+                <div class="memory-grid">
+                    ${gameState.cards.map(card => `
+                        <div class="memory-card ${card.flipped ? 'flipped' : ''} ${card.matched ? 'matched' : ''}" 
+                             onclick="flipCard(${card.id})">
+                            ${card.flipped || card.matched ? card.emoji : '❓'}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        function flipCard(id) {
+            if (gameState.locked) return;
+            const card = gameState.cards[id];
+            if (card.flipped || card.matched) return;
+            
+            card.flipped = true;
+            gameState.flipped.push(card);
+            renderMemory(document.getElementById('gameBoard'));
+            
+            if (gameState.flipped.length === 2) {
+                gameState.moves++;
+                document.getElementById('memoryMoves').textContent = gameState.moves;
+                gameState.locked = true;
+                
+                const [c1, c2] = gameState.flipped;
+                
+                if (c1.emoji === c2.emoji) {
+                    c1.matched = true;
+                    c2.matched = true;
+                    gameState.matches++;
+                    document.getElementById('memoryMatches').textContent = gameState.matches;
+                    gameState.flipped = [];
+                    gameState.locked = false;
+                    renderMemory(document.getElementById('gameBoard'));
+                    
+                    if (gameState.matches === 8) {
+                        document.getElementById('gameStatus').textContent = `🎉 Gagné en ${gameState.moves} coups!`;
+                        document.getElementById('gameControls').innerHTML += `
+                            <button class="game-btn" onclick="startGame('memory')" style="margin-top: 10px;">🔄 Rejouer</button>
+                        `;
+                    }
+                } else {
+                    setTimeout(() => {
+                        c1.flipped = false;
+                        c2.flipped = false;
+                        gameState.flipped = [];
+                        gameState.locked = false;
+                        renderMemory(document.getElementById('gameBoard'));
+                    }, 1000);
+                }
+            }
+        }
+
+        // ============== PATCH NOTES ==============
+        let patchNotesData = null;
+        
+        async function loadPatchNotes() {
+            try {
+                const response = await fetch('patchnotes.json');
+                patchNotesData = await response.json();
+                console.log('✅ Patch notes chargés:', patchNotesData.currentVersion);
+                return patchNotesData;
+            } catch (e) {
+                console.error('❌ Erreur chargement patch notes:', e);
+                return null;
+            }
+        }
+        
+        async function showPatchNotes(forceShow = false) {
+            console.log('📋 Tentative affichage patch notes...');
+            
+            if (!patchNotesData) {
+                await loadPatchNotes();
+            }
+            
+            if (!patchNotesData) {
+                console.log('❌ Pas de données patch notes');
+                return;
+            }
+            
+            const lastSeenVersion = localStorage.getItem('chatroom_last_seen_version');
+            console.log('Version actuelle:', patchNotesData.currentVersion, '| Dernière vue:', lastSeenVersion);
+            
+            // Si l'utilisateur a déjà vu cette version et qu'on ne force pas l'affichage
+            if (!forceShow && lastSeenVersion === patchNotesData.currentVersion) {
+                console.log('📋 Patch notes déjà vus pour cette version');
+                return;
+            }
+            
+            console.log('📋 Affichage du modal patch notes');
+            document.getElementById('patchVersion').textContent = patchNotesData.currentVersion;
+            renderPatchNotes(false);
+            document.getElementById('patchNotesModal').style.display = 'block';
+        }
+        
+        function renderPatchNotes(showAll = false) {
+            const content = document.getElementById('patchNotesContent');
+            const versions = showAll ? patchNotesData.versions : patchNotesData.versions.slice(0, 3);
+            
+            let html = versions.map((v, index) => `
+                <div class="patchnotes-version-block ${index === 0 ? 'current' : ''}">
+                    <div class="patchnotes-version-header">
+                        <span class="patchnotes-version-title">${v.title}</span>
+                        <span class="patchnotes-version-number">v${v.version}</span>
+                    </div>
+                    <div class="patchnotes-version-date">📅 ${v.date}</div>
+                    <ul class="patchnotes-changes">
+                        ${v.changes.map(c => `<li>${c}</li>`).join('')}
+                    </ul>
+                </div>
+            `).join('');
+            
+            if (!showAll && patchNotesData.versions.length > 3) {
+                html += `
+                    <div class="patchnotes-show-more">
+                        <button onclick="renderPatchNotes(true)">📜 Voir toutes les versions (${patchNotesData.versions.length})</button>
+                    </div>
+                `;
+            }
+            
+            content.innerHTML = html;
+        }
+        
+        function closePatchNotes() {
+            const dontShow = document.getElementById('dontShowPatchNotes').checked;
+            
+            if (dontShow && patchNotesData) {
+                localStorage.setItem('chatroom_last_seen_version', patchNotesData.currentVersion);
+            }
+            
+            document.getElementById('patchNotesModal').style.display = 'none';
+        }
+        
+        // Bouton pour voir les patch notes depuis le header (optionnel)
+        function openPatchNotesManually() {
+            if (!patchNotesData) {
+                loadPatchNotes().then(() => {
+                    if (patchNotesData) {
+                        document.getElementById('patchVersion').textContent = patchNotesData.currentVersion;
+                        renderPatchNotes(false);
+                        document.getElementById('patchNotesModal').style.display = 'block';
+                    }
+                });
+            } else {
+                document.getElementById('patchVersion').textContent = patchNotesData.currentVersion;
+                renderPatchNotes(false);
+                document.getElementById('patchNotesModal').style.display = 'block';
+            }
+        }
+
+        // ============== SWIPE INTERACTIONS (MOBILE) ==============
+        let swipeState = {
+            startX: 0,
+            startY: 0,
+            currentX: 0,
+            isSwiping: false,
+            messageEl: null
+        };
+        
+        function initSwipeGestures() {
+            const messagesContainer = document.getElementById('messages');
+            if (!messagesContainer) return;
+            
+            messagesContainer.addEventListener('touchstart', handleSwipeStart, { passive: true });
+            messagesContainer.addEventListener('touchmove', handleSwipeMove, { passive: false });
+            messagesContainer.addEventListener('touchend', handleSwipeEnd, { passive: true });
+        }
+        
+        function handleSwipeStart(e) {
+            const messageEl = e.target.closest('.message');
+            if (!messageEl) return;
+            
+            swipeState = {
+                startX: e.touches[0].clientX,
+                startY: e.touches[0].clientY,
+                currentX: 0,
+                isSwiping: false,
+                messageEl: messageEl
+            };
+        }
+        
+        function handleSwipeMove(e) {
+            if (!swipeState.messageEl) return;
+            
+            const deltaX = e.touches[0].clientX - swipeState.startX;
+            const deltaY = e.touches[0].clientY - swipeState.startY;
+            
+            // Si le mouvement est plus vertical qu'horizontal, ne pas swiper
+            if (Math.abs(deltaY) > Math.abs(deltaX)) return;
+            
+            // Détecter le début du swipe
+            if (Math.abs(deltaX) > 20) {
+                swipeState.isSwiping = true;
+                swipeState.messageEl.classList.add('swiping');
+                e.preventDefault();
+            }
+            
+            if (!swipeState.isSwiping) return;
+            
+            swipeState.currentX = deltaX;
+            
+            // Limiter le déplacement
+            const limitedX = Math.max(-80, Math.min(80, deltaX));
+            swipeState.messageEl.style.transform = `translateX(${limitedX}px)`;
+            
+            // Indiquer la direction
+            swipeState.messageEl.classList.toggle('swipe-right', deltaX > 40);
+            swipeState.messageEl.classList.toggle('swipe-left', deltaX < -40);
+        }
+        
+        function handleSwipeEnd(e) {
+            if (!swipeState.messageEl) return;
+            
+            const messageEl = swipeState.messageEl;
+            const deltaX = swipeState.currentX;
+            
+            messageEl.classList.remove('swiping', 'swipe-left', 'swipe-right');
+            messageEl.style.transform = '';
+            
+            if (swipeState.isSwiping) {
+                const messageId = messageEl.dataset.id;
+                
+                // Swipe droite = répondre
+                if (deltaX > 60 && messageId) {
+                    const username = messageEl.querySelector('.message-username')?.textContent;
+                    const content = messageEl.querySelector('.message-content')?.textContent;
+                    if (username && content) {
+                        replyToMessage(messageId, username, content.substring(0, 50));
+                        vibrate(10);
+                    }
+                }
+                
+                // Swipe gauche = réaction rapide
+                if (deltaX < -60 && messageId) {
+                    addReaction(messageId, '👍');
+                    vibrate(10);
+                }
+            }
+            
+            swipeState = { startX: 0, startY: 0, currentX: 0, isSwiping: false, messageEl: null };
+        }
+        
+        function vibrate(duration) {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(duration);
+            }
+        }
+
+        // ============== EFFET PARALLAX ==============
+        let parallaxEnabled = true;
+        
+        function initParallaxEffect() {
+            const messagesContainer = document.getElementById('messages');
+            if (!messagesContainer) return;
+            
+            messagesContainer.addEventListener('scroll', handleParallaxScroll, { passive: true });
+        }
+        
+        function handleParallaxScroll() {
+            if (!parallaxEnabled) return;
+            
+            const messages = document.querySelectorAll('.message');
+            const container = document.getElementById('messages');
+            const containerRect = container.getBoundingClientRect();
+            const containerCenter = containerRect.top + containerRect.height / 2;
+            
+            messages.forEach(msg => {
+                const msgRect = msg.getBoundingClientRect();
+                const msgCenter = msgRect.top + msgRect.height / 2;
+                const distance = (msgCenter - containerCenter) / containerRect.height;
+                
+                // Effet subtil de profondeur
+                const scale = 1 - Math.abs(distance) * 0.02;
+                const opacity = 1 - Math.abs(distance) * 0.1;
+                const translateZ = -Math.abs(distance) * 10;
+                
+                msg.style.transform = `scale(${Math.max(0.98, scale)}) translateZ(${translateZ}px)`;
+                msg.style.opacity = Math.max(0.85, opacity);
+            });
+        }
+        
+        // Initialiser au chargement
+        document.addEventListener('DOMContentLoaded', () => {
+            initSwipeGestures();
+            initParallaxEffect();
+        });
         
         function openGallery() {
             document.getElementById('galleryModal').style.display = 'block';
@@ -8609,6 +11670,14 @@ window.addEmojiReaction = addEmojiReaction;
                 document.getElementById('usernameInput').focus();
             }
             
+            // Fermer le prompt de reconnexion si on modifie le pseudo
+            document.getElementById('usernameInput').addEventListener('input', function() {
+                const session = getSession();
+                if (session && this.value !== session.username) {
+                    dismissAutoReconnect();
+                }
+            });
+            
             // Charger le mode compact
             const savedCompact = localStorage.getItem('chatCompactMode');
             if (savedCompact === 'true') {
@@ -8629,8 +11698,8 @@ window.addEmojiReaction = addEmojiReaction;
                 checkForMentions(this.value);
             });
             
-            console.log('🚀 ChatRoom Client v2.9.0 initialisé avec succès !');
-            console.log('✨ Nouvelles fonctionnalités V2.9.0:');
+            console.log('🚀 ChatRoom Client v2.9.1 initialisé avec succès !');
+            console.log('✨ Nouvelles fonctionnalités V2.9.1:');
             console.log('   📺 Salons multiples avec typing par salon');
             console.log('   📊 Sondages/Votes intégrés');
             console.log('   👤 Profils utilisateurs cliquables');
@@ -8785,11 +11854,46 @@ window.addEmojiReaction = addEmojiReaction;
         let dmConversations = {}; // username -> { messages: [], unread: 0 }
         let currentDMUser = null;
         let totalDMUnread = 0;
+        
+        // Charger les conversations DM depuis le serveur
+        function loadDMConversations() {
+            if (socket && socket.connected) {
+                socket.emit('get_dm_conversations');
+            }
+        }
+        
+        // Handler pour les conversations DM (sera appelé quand socket est prêt)
+        function handleDMConversations(conversations) {
+            conversations.forEach(conv => {
+                if (!dmConversations[conv.username]) {
+                    dmConversations[conv.username] = { messages: [], unread: 0, avatar: null };
+                }
+                // Charger l'historique complet de cette conversation
+                if (socket && socket.connected) {
+                    socket.emit('get_dm_history', { username: conv.username });
+                }
+            });
+            renderDMConversations();
+        }
+        
+        // Handler pour l'historique DM
+        function handleDMHistory(data) {
+            const { username, messages } = data;
+            if (!dmConversations[username]) {
+                dmConversations[username] = { messages: [], unread: 0, avatar: null };
+            }
+            dmConversations[username].messages = messages;
+            if (currentDMUser === username) {
+                renderDMMessages();
+            }
+            renderDMConversations();
+        }
 
         function toggleDMSidebar() {
             const sidebar = document.getElementById('dmSidebar');
             sidebar.classList.toggle('open');
             if (sidebar.classList.contains('open')) {
+                loadDMConversations(); // Recharger depuis le serveur
                 renderDMConversations();
             }
         }
@@ -8898,9 +12002,13 @@ window.addEmojiReaction = addEmojiReaction;
             }
         }
 
-        // === GIFs INTÉGRÉS (TENOR) ===
-        const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ'; // API publique Google
+        // === GIFs INTÉGRÉS (TENOR API) ===
+        // Clé API Tenor (gratuite, limite de 50 req/jour pour tests)
+        const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
+        // Clé API Giphy (gratuite, meilleure pour la production)
+        const GIPHY_API_KEY = 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65';
         let currentGifCategory = 'trending';
+        let gifSearchTimeout = null;
 
         function toggleGifPicker() {
             const picker = document.getElementById('gifPicker');
@@ -8909,60 +12017,132 @@ window.addEmojiReaction = addEmojiReaction;
             } else {
                 picker.classList.add('active');
                 loadGifCategory('trending');
+                document.getElementById('gifSearch').focus();
             }
         }
 
         function closeGifPicker() {
             document.getElementById('gifPicker').classList.remove('active');
+            document.getElementById('gifSearch').value = '';
         }
 
         async function loadGifCategory(category) {
             currentGifCategory = category;
             document.querySelectorAll('.gif-category').forEach(btn => {
-                btn.classList.toggle('active', btn.textContent.toLowerCase().includes(category));
+                btn.classList.toggle('active', btn.dataset.category === category);
             });
             
             const grid = document.getElementById('gifGrid');
-            grid.innerHTML = '<div class="gif-loading">Chargement...</div>';
+            grid.innerHTML = '<div class="gif-loading">⏳ Chargement...</div>';
             
             try {
-                // Utiliser une API de GIFs gratuite (giphy ou simulation)
-                const gifs = await fetchGifs(category);
+                const gifs = await fetchGifsFromAPI(category, false);
                 renderGifs(gifs);
             } catch (error) {
-                grid.innerHTML = '<div class="gif-loading">Erreur de chargement</div>';
+                console.error('Erreur GIF:', error);
+                // Fallback vers les GIFs statiques
+                const fallbackGifs = getFallbackGifs(category);
+                renderGifs(fallbackGifs);
             }
         }
 
         async function searchGifs(query) {
+            // Debounce pour éviter trop de requêtes
+            clearTimeout(gifSearchTimeout);
+            
             if (!query.trim()) {
                 loadGifCategory(currentGifCategory);
                 return;
             }
             
-            const grid = document.getElementById('gifGrid');
-            grid.innerHTML = '<div class="gif-loading">Recherche...</div>';
-            
+            gifSearchTimeout = setTimeout(async () => {
+                const grid = document.getElementById('gifGrid');
+                grid.innerHTML = '<div class="gif-loading">🔍 Recherche...</div>';
+                
+                try {
+                    const gifs = await fetchGifsFromAPI(query, true);
+                    if (gifs.length === 0) {
+                        grid.innerHTML = '<div class="gif-loading">Aucun GIF trouvé 😕</div>';
+                    } else {
+                        renderGifs(gifs);
+                    }
+                } catch (error) {
+                    console.error('Erreur recherche GIF:', error);
+                    grid.innerHTML = '<div class="gif-loading">Erreur de recherche</div>';
+                }
+            }, 300);
+        }
+
+        async function fetchGifsFromAPI(query, isSearch = false) {
+            // Utiliser Giphy API (plus fiable et meilleure qualité)
             try {
-                const gifs = await fetchGifs(query);
-                renderGifs(gifs);
+                const endpoint = isSearch 
+                    ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=20&rating=pg-13&lang=fr`
+                    : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=20&rating=pg-13`;
+                
+                // Pour les catégories prédéfinies, faire une recherche
+                const categoryQueries = {
+                    'trending': null, // Utiliser l'endpoint trending
+                    'happy': 'happy excited',
+                    'sad': 'sad crying',
+                    'love': 'love heart',
+                    'funny': 'funny lol',
+                    'reaction': 'reaction face'
+                };
+                
+                let url = endpoint;
+                if (!isSearch && categoryQueries[query]) {
+                    url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(categoryQueries[query])}&limit=20&rating=pg-13&lang=fr`;
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('API Error');
+                
+                const data = await response.json();
+                
+                // Extraire les URLs des GIFs (format optimisé)
+                return data.data.map(gif => ({
+                    preview: gif.images.fixed_height_small.url,
+                    full: gif.images.original.url,
+                    title: gif.title
+                }));
             } catch (error) {
-                grid.innerHTML = '<div class="gif-loading">Aucun résultat</div>';
+                console.error('Giphy API error:', error);
+                throw error;
             }
         }
 
-        async function fetchGifs(query) {
-            // Simuler des GIFs pour éviter les problèmes d'API
-            // En production, utiliser l'API Tenor ou Giphy
+        function getFallbackGifs(category) {
+            // GIFs de fallback si l'API ne fonctionne pas
             const categories = {
-                'trending': ['https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif', 'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif', 'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif', 'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif'],
-                'happy': ['https://media.giphy.com/media/l0MYGzh7pUHKLDyP6/giphy.gif', 'https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif', 'https://media.giphy.com/media/3oz8xRF0v9WMAUVLNK/giphy.gif', 'https://media.giphy.com/media/artj92V8o75VPL7AeQ/giphy.gif'],
-                'sad': ['https://media.giphy.com/media/OPU6wzx8JrHna/giphy.gif', 'https://media.giphy.com/media/d2lcHJTG5Tscg/giphy.gif', 'https://media.giphy.com/media/L95W4wv8nnb9K/giphy.gif', 'https://media.giphy.com/media/3o6wrvdHFbwBrUFenu/giphy.gif'],
-                'love': ['https://media.giphy.com/media/26BRv0ThflsHCqDrG/giphy.gif', 'https://media.giphy.com/media/l4pTdcifPZLpDjL1e/giphy.gif', 'https://media.giphy.com/media/3oEjI4sFlp73fvEYgw/giphy.gif', 'https://media.giphy.com/media/26FLdmIp6wJr91JAI/giphy.gif'],
-                'funny': ['https://media.giphy.com/media/10JhviFuU2gWD6/giphy.gif', 'https://media.giphy.com/media/ZqlvCTNHpqrio/giphy.gif', 'https://media.giphy.com/media/xT5LMHxhOfscxPfIfm/giphy.gif', 'https://media.giphy.com/media/3o6Zt4HU9uwXmXSAuI/giphy.gif'],
-                'reaction': ['https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif', 'https://media.giphy.com/media/xT9IgEYXCNqPZnfFBK/giphy.gif', 'https://media.giphy.com/media/lRRjGTRlFwmQYFmmpU/giphy.gif', 'https://media.giphy.com/media/9lusxBBUsTz8Fk029b/giphy.gif']
+                'trending': [
+                    { preview: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif', full: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif' },
+                    { preview: 'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif', full: 'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif' },
+                    { preview: 'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif', full: 'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif' },
+                    { preview: 'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif', full: 'https://media.giphy.com/media/3oEjI6SIIHBdRxXI40/giphy.gif' }
+                ],
+                'happy': [
+                    { preview: 'https://media.giphy.com/media/l0MYGzh7pUHKLDyP6/giphy.gif', full: 'https://media.giphy.com/media/l0MYGzh7pUHKLDyP6/giphy.gif' },
+                    { preview: 'https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif', full: 'https://media.giphy.com/media/5GoVLqeAOo6PK/giphy.gif' }
+                ],
+                'sad': [
+                    { preview: 'https://media.giphy.com/media/OPU6wzx8JrHna/giphy.gif', full: 'https://media.giphy.com/media/OPU6wzx8JrHna/giphy.gif' },
+                    { preview: 'https://media.giphy.com/media/d2lcHJTG5Tscg/giphy.gif', full: 'https://media.giphy.com/media/d2lcHJTG5Tscg/giphy.gif' }
+                ],
+                'love': [
+                    { preview: 'https://media.giphy.com/media/26BRv0ThflsHCqDrG/giphy.gif', full: 'https://media.giphy.com/media/26BRv0ThflsHCqDrG/giphy.gif' },
+                    { preview: 'https://media.giphy.com/media/l4pTdcifPZLpDjL1e/giphy.gif', full: 'https://media.giphy.com/media/l4pTdcifPZLpDjL1e/giphy.gif' }
+                ],
+                'funny': [
+                    { preview: 'https://media.giphy.com/media/10JhviFuU2gWD6/giphy.gif', full: 'https://media.giphy.com/media/10JhviFuU2gWD6/giphy.gif' },
+                    { preview: 'https://media.giphy.com/media/ZqlvCTNHpqrio/giphy.gif', full: 'https://media.giphy.com/media/ZqlvCTNHpqrio/giphy.gif' }
+                ],
+                'reaction': [
+                    { preview: 'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif', full: 'https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif' },
+                    { preview: 'https://media.giphy.com/media/xT9IgEYXCNqPZnfFBK/giphy.gif', full: 'https://media.giphy.com/media/xT9IgEYXCNqPZnfFBK/giphy.gif' }
+                ]
             };
-            return categories[query] || categories['trending'];
+            return categories[category] || categories['trending'];
         }
 
         function renderGifs(gifs) {
@@ -8972,11 +12152,16 @@ window.addEmojiReaction = addEmojiReaction;
                 return;
             }
             
-            grid.innerHTML = gifs.map(url => `
-                <div class="gif-item" onclick="sendGif('${url}')">
-                    <img src="${url}" alt="GIF" loading="lazy">
-                </div>
-            `).join('');
+            grid.innerHTML = gifs.map(gif => {
+                const url = typeof gif === 'string' ? gif : gif.preview || gif.full;
+                const fullUrl = typeof gif === 'string' ? gif : gif.full || gif.preview;
+                const title = gif.title || 'GIF';
+                return `
+                    <div class="gif-item" onclick="sendGif('${fullUrl}')" title="${escapeHtml(title)}">
+                        <img src="${url}" alt="GIF" loading="lazy">
+                    </div>
+                `;
+            }).join('');
         }
 
         function sendGif(url) {
@@ -8991,7 +12176,7 @@ window.addEmojiReaction = addEmojiReaction;
             });
             closeGifPicker();
         }
-        
+
         // === PANNEAU ADMIN SECRET ===
         let isAdmin = false;
         let adminUsers = []; // Liste des admins connectés
@@ -9258,6 +12443,216 @@ window.addEmojiReaction = addEmojiReaction;
                 `;
             }).join('');
         }
+        
+        // === NOUVELLES FONCTIONS ADMIN V2.9.2 ===
+        
+        function adminUnmuteAll() {
+            if (!isAdmin || !socket) return;
+            socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'unmute_all' });
+            showNotification('🔊 Unmute global', 'Tous les utilisateurs peuvent parler', 'success');
+        }
+        
+        function adminAnnouncement() {
+            if (!isAdmin || !socket) return;
+            const message = prompt('Texte de l\'annonce épinglée:');
+            if (message && message.trim()) {
+                socket.emit('admin_action', { 
+                    password: ADMIN_PASSWORD, 
+                    action: 'set_announcement', 
+                    value: message.trim() 
+                });
+                showPinnedAnnouncement(message.trim());
+                showNotification('📌 Annonce', 'Annonce épinglée pour tous', 'success');
+            }
+        }
+        
+        function adminClearAnnouncement() {
+            if (!isAdmin || !socket) return;
+            socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'clear_announcement' });
+            hidePinnedAnnouncement();
+            showNotification('❌ Annonce supprimée', 'L\'annonce a été retirée', 'info');
+        }
+        
+        function showPinnedAnnouncement(text) {
+            const container = document.getElementById('pinnedAnnouncement');
+            const textEl = document.getElementById('announcementText');
+            if (container && textEl) {
+                textEl.textContent = '📌 ' + text;
+                container.style.display = 'block';
+            }
+        }
+        
+        function hidePinnedAnnouncement() {
+            const container = document.getElementById('pinnedAnnouncement');
+            if (container) container.style.display = 'none';
+        }
+        
+        function adminSetServerName() {
+            if (!isAdmin || !socket) return;
+            const name = document.getElementById('serverNameInput').value.trim();
+            if (!name) {
+                showNotification('❌ Erreur', 'Entrez un nom de serveur', 'error');
+                return;
+            }
+            socket.emit('admin_action', { 
+                password: ADMIN_PASSWORD, 
+                action: 'set_server_name', 
+                value: name 
+            });
+            showNotification('✅ Nom défini', `Serveur: ${name}`, 'success');
+        }
+        
+        function adminSetWelcomeMessage() {
+            if (!isAdmin || !socket) return;
+            const message = document.getElementById('welcomeMessageInput').value.trim();
+            socket.emit('admin_action', { 
+                password: ADMIN_PASSWORD, 
+                action: 'set_welcome_message', 
+                value: message 
+            });
+            showNotification('✅ Message défini', 'Le message de bienvenue a été mis à jour', 'success');
+        }
+        
+        function adminToggleGames() {
+            if (!isAdmin || !socket) return;
+            const enabled = document.getElementById('gamesEnabledToggle').checked;
+            socket.emit('admin_action', { 
+                password: ADMIN_PASSWORD, 
+                action: 'toggle_games', 
+                value: enabled 
+            });
+            showNotification(
+                enabled ? '🎮 Jeux activés' : '🎮 Jeux désactivés',
+                enabled ? 'Les utilisateurs peuvent jouer' : 'Les mini-jeux sont désactivés',
+                'info'
+            );
+        }
+        
+        function adminEndAllGames() {
+            if (!isAdmin || !socket) return;
+            if (confirm('Terminer toutes les parties en cours ?')) {
+                socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'end_all_games' });
+                showNotification('🛑 Parties terminées', 'Toutes les parties ont été arrêtées', 'info');
+            }
+        }
+        
+        let adminLogs = [];
+        
+        function adminViewLogs() {
+            if (!isAdmin || !socket) return;
+            socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'get_logs' });
+            showLogsModal();
+        }
+        
+        function showLogsModal() {
+            // Créer le modal s'il n'existe pas
+            let modal = document.getElementById('logsModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'logsModal';
+                modal.className = 'logs-modal';
+                modal.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h3 style="color:#e94560; margin:0;">📋 Logs du serveur</h3>
+                        <button onclick="closeLogsModal()" style="background:none; border:none; color:#fff; font-size:24px; cursor:pointer;">×</button>
+                    </div>
+                    <div id="logsContent" class="logs-content">Chargement des logs...</div>
+                    <div style="margin-top:10px; display:flex; gap:10px;">
+                        <button class="admin-btn" onclick="adminViewLogs()">🔄 Actualiser</button>
+                        <button class="admin-btn danger" onclick="closeLogsModal()">Fermer</button>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            modal.style.display = 'flex';
+            modal.style.flexDirection = 'column';
+        }
+        
+        function closeLogsModal() {
+            const modal = document.getElementById('logsModal');
+            if (modal) modal.style.display = 'none';
+        }
+        
+        function updateLogsDisplay(logs) {
+            const container = document.getElementById('logsContent');
+            if (!container) return;
+            
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div style="color:#aaa;">Aucun log disponible</div>';
+                return;
+            }
+            
+            container.innerHTML = logs.map(log => {
+                const logClass = log.type || 'info';
+                const time = new Date(log.timestamp).toLocaleTimeString();
+                return `<div class="log-entry ${logClass}">[${time}] ${escapeHtml(log.message)}</div>`;
+            }).join('');
+            
+            // Scroll en bas
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function adminExportLogs() {
+            if (!isAdmin || !socket) return;
+            socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'export_logs' });
+            showNotification('💾 Export', 'Préparation de l\'export des logs...', 'info');
+        }
+        
+        function adminClearLogs() {
+            if (!isAdmin || !socket) return;
+            if (confirm('Effacer tous les logs du serveur ?')) {
+                socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'clear_logs' });
+                showNotification('🗑️ Logs effacés', 'Tous les logs ont été supprimés', 'success');
+                adminLogs = [];
+                updateLogsDisplay([]);
+            }
+        }
+        
+        function adminResetServer() {
+            if (!isAdmin || !socket) return;
+            if (confirm('⚠️ ATTENTION: Ceci va réinitialiser toutes les données du serveur (utilisateurs, messages, bans). Continuer ?')) {
+                if (confirm('Êtes-vous VRAIMENT sûr ? Cette action est irréversible !')) {
+                    socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'reset_server' });
+                    showNotification('🔄 Réinitialisation', 'Le serveur a été réinitialisé', 'warning');
+                }
+            }
+        }
+        
+        // Écouter les réponses admin
+        function setupAdminSocketListeners() {
+            if (!socket) return;
+            
+            socket.on('admin_logs', (logs) => {
+                adminLogs = logs;
+                updateLogsDisplay(logs);
+            });
+            
+            socket.on('admin_export_logs', (data) => {
+                // Télécharger en JSON
+                const blob = new Blob([JSON.stringify(data.logs, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `server_logs_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showNotification('✅ Export terminé', 'Fichier téléchargé', 'success');
+            });
+            
+            socket.on('server_announcement', (data) => {
+                if (data.message) {
+                    showPinnedAnnouncement(data.message);
+                } else {
+                    hidePinnedAnnouncement();
+                }
+            });
+        }
+        
+        // Clic sur le badge de version pour voir les patch notes
+        document.getElementById('versionBadge')?.addEventListener('click', () => {
+            showPatchNotes();
+        });
+        
         function changeUsername() {
             if (!socket || !isConnected) {
                 showNotification('❌ Erreur', 'Vous devez être connecté', 'error');

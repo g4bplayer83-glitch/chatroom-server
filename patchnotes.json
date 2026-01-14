@@ -1,0 +1,125 @@
+{
+  "currentVersion": "2.9.2",
+  "lastUpdate": "2026-01-14",
+  "versions": [
+    {
+      "version": "2.9.2",
+      "date": "2026-01-14",
+      "title": "� Panel Admin Renforcé & Apps Natives",
+      "changes": [
+        "🔐 Panel Admin considérablement amélioré",
+        "📢 Système d'annonces épinglées pour tous",
+        "🎨 Personnalisation du nom du serveur",
+        "👋 Message de bienvenue personnalisable",
+        "🎮 Contrôle des mini-jeux (activer/désactiver)",
+        "📋 Système de logs serveur complet",
+        "💾 Export des logs en JSON",
+        "🔊 Fonction Unmute tous",
+        "🔄 Réinitialisation complète du serveur",
+        "🏷️ Badge version V2.9.2 en bas à gauche",
+        "💻 Application Windows (.exe) disponible",
+        "📱 Application Android (.apk) disponible"
+      ]
+    },
+    {
+      "version": "2.9.1",
+      "date": "2026-01-14",
+      "title": "🎮 Mini-Jeux Multijoueur",
+      "changes": [
+        "🎮 Système de mini-jeux complet (Morpion, Puissance 4, Pierre-Papier-Ciseaux, Quiz, Memory, Devine le Nombre)",
+        "👥 Mode multijoueur en temps réel avec système d'invitation",
+        "🤖 Mode vs Bot intelligent pour jouer seul",
+        "📨 Notifications d'invitation de jeu",
+        "🔧 Correction du bug des GIFs qui se superposaient",
+        "🗑️ Suppression du curseur personnalisé buggy",
+        "💬 Amélioration de l'IA locale (100+ réponses)"
+      ]
+    },
+    {
+      "version": "2.9.0",
+      "date": "2026-01-13",
+      "title": "✨ Grande mise à jour sociale",
+      "changes": [
+        "📊 Système de sondages interactifs",
+        "👤 Profils utilisateurs personnalisables",
+        "💌 Messages privés (DM) avec persistance",
+        "🎭 Statuts personnalisés (En ligne, Absent, Ne pas déranger)",
+        "🖼️ GIFs intégrés avec recherche Giphy",
+        "🤖 Assistant IA GeminiBot intégré",
+        "📌 Messages épinglés",
+        "🖼️ Galerie multimédia (images, fichiers, liens)"
+      ]
+    },
+    {
+      "version": "2.8.0",
+      "date": "2026-01-10",
+      "title": "🎨 Refonte visuelle",
+      "changes": [
+        "🎨 Nouveau design moderne style Discord",
+        "🌙 Mode sombre amélioré",
+        "💫 Animations fluides",
+        "📱 Interface responsive pour mobile",
+        "🔔 Système de notifications amélioré",
+        "⚡ Optimisation des performances"
+      ]
+    },
+    {
+      "version": "2.7.0",
+      "date": "2026-01-05",
+      "title": "💬 Salons de discussion",
+      "changes": [
+        "📁 Système de salons (Général, Jeux, Musique, Tech, Random)",
+        "🔒 Salons privés avec code d'accès",
+        "📜 Historique par salon",
+        "👥 Liste des utilisateurs en temps réel",
+        "🔄 Reconnexion automatique"
+      ]
+    },
+    {
+      "version": "2.6.0",
+      "date": "2026-01-01",
+      "title": "😄 Réactions & Émojis",
+      "changes": [
+        "😄 Réactions aux messages",
+        "🎨 Picker d'émojis complet",
+        "↩️ Système de réponse aux messages",
+        "✏️ Édition de messages",
+        "🗑️ Suppression de messages"
+      ]
+    },
+    {
+      "version": "2.5.0",
+      "date": "2025-12-28",
+      "title": "📎 Partage de fichiers",
+      "changes": [
+        "📎 Upload de fichiers et images",
+        "🖼️ Prévisualisation des images",
+        "📁 Support de nombreux formats",
+        "🔗 Partage de liens avec aperçu",
+        "💾 Téléchargement de fichiers"
+      ]
+    },
+    {
+      "version": "2.0.0",
+      "date": "2025-12-20",
+      "title": "🚀 Lancement ChatRoom V2",
+      "changes": [
+        "🌐 Architecture client-serveur avec Socket.IO",
+        "💬 Chat en temps réel",
+        "👤 Système d'utilisateurs",
+        "🎨 Interface utilisateur moderne",
+        "📱 Compatible mobile et desktop"
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2025-12-01",
+      "title": "🎉 Première version",
+      "changes": [
+        "💬 Chat basique",
+        "👤 Pseudonymes",
+        "🎨 Interface simple"
+      ]
+    }
+  ]
+}
