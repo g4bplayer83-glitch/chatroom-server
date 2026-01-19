@@ -1,11 +1,23 @@
 {
-  "currentVersion": "2.9.3B",
+  "currentVersion": "2.9.4B",
   "lastUpdate": "2026-01-19",
   "versions": [
     {
+      "version": "2.9.4B",
+      "date": "2026-01-19",
+      "title": "🎬 Médias intégrés & UI",
+      "changes": [
+        "🎧 Lecteurs audio/vidéo intégrés pour les pièces jointes (y compris DMs)",
+        "📺 Lecteur YouTube intégré dans les aperçus de liens",
+        "🔗 Aperçu direct des liens audio/vidéo (player intégré)",
+        "👥 Sélection des joueurs multijoueur corrigée (liste des connectés)",
+        "📏 Largeur des lecteurs et bulles média étendue"
+      ]
+    },
+    {
       "version": "2.9.3B",
       "date": "2026-01-19",
-      "title": "🗄️ DocSpace Beta & Stockage",
+      "title": "🧭 DocSpace & Expérience améliorée 🗄️ DocSpace Beta & Stockage",
       "changes": [
         "🗄️ Icône stockage pour le serveur",
         "✨ Micro‑animations visuelles (header + prévisualisation)",
@@ -13,20 +25,29 @@
         "💬 DMs plus fluides avec indicateur de frappe",
         "📎 Pièces jointes dans les DMs",
         "📌 Épingles admin synchronisées",
-        "🔐 Accès sécurisé mémorisé localement"
+        "🔐 Accès sécurisé mémorisé localement",
+        "📁 Stockage de tous types de fichiers (jusqu'à 100MB)",
+        "💬 DMs améliorés (scroll fluide, indicateur de frappe, pièces jointes)",
+        "📌 Épinglage admin synchronisé pour tout le serveur",
+        "🔐 Code d'accès à l'entrée (59123) avec mémorisation locale",
+        "✨ Aperçu de capture/paste plus transparent avec animation"
       ]
     },
     {
       "version": "2.9.2",
       "date": "2026-01-14",
-      "title": "🧭 DocSpace & Expérience améliorée",
+      "title": "� Panel Admin Renforcé & Apps Natives",
       "changes": [
-        "🆕 Renommage complet du projet en DocSpace",
-        "📁 Stockage de tous types de fichiers (jusqu'à 100MB)",
-        "💬 DMs améliorés (scroll fluide, indicateur de frappe, pièces jointes)",
-        "📌 Épinglage admin synchronisé pour tout le serveur",
-        "🔐 Code d'accès à l'entrée (59123) avec mémorisation locale",
-        "✨ Aperçu de capture/paste plus transparent avec animation",
+      "🔐 Panel Admin considérablement amélioré",
+        "📢 Système d'annonces épinglées pour tous",
+        "🎨 Personnalisation du nom du serveur",
+        "👋 Message de bienvenue personnalisable",
+        "🎮 Contrôle des mini-jeux (activer/désactiver)",
+        "📋 Système de logs serveur complet",
+        "💾 Export des logs en JSON",
+        "🔊 Fonction Unmute tous",
+        "🔄 Réinitialisation complète du serveur",
+        "🏷️ Badge version V2.9.2 en bas à gauche",
         "💻 Application Windows (.exe) disponible",
         "📱 Application Android (.apk) disponible"
       ]

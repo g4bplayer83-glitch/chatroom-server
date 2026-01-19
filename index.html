@@ -634,6 +634,10 @@
             animation: messageSlide 0.2s ease-out;
             position: relative;
         }
+
+        .message.media-message {
+            max-width: 100%;
+        }
         
         @keyframes messageSlide {
             from { opacity: 0; transform: translateY(8px); }
@@ -986,6 +990,35 @@
             display: flex;
             align-items: center;
             gap: 8px;
+            width: 100%;
+        }
+
+        .attachment.media-attachment {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .message-media {
+            width: 100%;
+            max-width: 720px;
+            border-radius: 10px;
+            background: #000;
+        }
+
+        .message-video {
+            max-height: 240px;
+        }
+
+        .message-audio {
+            background: transparent;
+            width: 100%;
+            min-width: 420px;
+        }
+
+        .message.media-message .message-media {
+            max-width: 100%;
         }
 
         .message.own .attachment {
@@ -3978,6 +4011,12 @@
             border-radius: 10px;
             cursor: pointer;
             display: block;
+        }
+
+        .dm-attachment .message-media {
+            max-width: 360px;
+            border-radius: 10px;
+            background: #000;
         }
         .dm-btn {
             padding: 8px;
@@ -7430,6 +7469,28 @@
             return mimetype && mimetype.startsWith('image/');
         }
 
+        function getAttachmentExtension(attachment) {
+            const name = (attachment?.originalname || attachment?.filename || attachment?.path || '').toLowerCase();
+            const match = name.match(/\.([a-z0-9]+)(?:\?|#|$)/i);
+            return match ? match[1].toLowerCase() : '';
+        }
+
+        function isVideoAttachment(attachment) {
+            if (!attachment) return false;
+            const mimetype = attachment.mimetype || '';
+            if (mimetype.startsWith('video/')) return true;
+            const ext = getAttachmentExtension(attachment);
+            return ['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v', 'ogv'].includes(ext);
+        }
+
+        function isAudioAttachment(attachment) {
+            if (!attachment) return false;
+            const mimetype = attachment.mimetype || '';
+            if (mimetype.startsWith('audio/')) return true;
+            const ext = getAttachmentExtension(attachment);
+            return ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'webm'].includes(ext);
+        }
+
         // Gestion de l'avatar lors de la connexion
         document.getElementById('avatarInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
@@ -8598,6 +8659,9 @@
             const messagesContainer = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+            if (attachment && (isAudioAttachment(attachment) || isVideoAttachment(attachment))) {
+                messageDiv.classList.add('media-message');
+            }
             // Utiliser l'ID du serveur si disponible, sinon générer un ID local
             const messageId = serverId ? String(serverId) : ('local_' + Date.now() + '-' + Math.random().toString(36).substr(2, 9));
             messageDiv.dataset.messageId = messageId;
@@ -8643,6 +8707,36 @@
                                 <div class="attachment-name">${escapeHtml(attachment.originalname)}</div>
                                 <div class="attachment-size">${formatFileSize(attachment.size)}</div>
                             </div>
+                        </div>
+                    `;
+                } else if (isVideoAttachment(attachment)) {
+                    attachmentHtml = `
+                        <div class="attachment media-attachment">
+                            <video class="message-media message-video" controls preload="metadata">
+                                <source src="${attachment.path}" type="${attachment.mimetype || ''}">
+                            </video>
+                            <div class="attachment-info">
+                                <div class="attachment-name">${escapeHtml(attachment.originalname)}</div>
+                                <div class="attachment-size">${formatFileSize(attachment.size)}</div>
+                            </div>
+                            <button class="download-btn" onclick="downloadFile('${attachment.filename}', '${attachment.originalname}')">
+                                ⬇️ ${translateText('download_btn')}
+                            </button>
+                        </div>
+                    `;
+                } else if (isAudioAttachment(attachment)) {
+                    attachmentHtml = `
+                        <div class="attachment media-attachment">
+                            <audio class="message-media message-audio" controls preload="metadata">
+                                <source src="${attachment.path}" type="${attachment.mimetype || ''}">
+                            </audio>
+                            <div class="attachment-info">
+                                <div class="attachment-name">${escapeHtml(attachment.originalname)}</div>
+                                <div class="attachment-size">${formatFileSize(attachment.size)}</div>
+                            </div>
+                            <button class="download-btn" onclick="downloadFile('${attachment.filename}', '${attachment.originalname}')">
+                                ⬇️ ${translateText('download_btn')}
+                            </button>
                         </div>
                     `;
                 } else {
@@ -10381,7 +10475,7 @@ window.addEmojiReaction = addEmojiReaction;
             status.textContent = 'Choisir un adversaire';
             
             // Récupérer les utilisateurs connectés (sauf moi)
-            const otherUsers = Array.from(onlineUsers).filter(u => u !== currentUsername);
+            const otherUsers = (connectedUsers || []).filter(u => u.username && u.username !== currentUsername);
             
             if (otherUsers.length === 0) {
                 board.innerHTML = `
@@ -10401,8 +10495,8 @@ window.addEmojiReaction = addEmojiReaction;
                     </div>
                     <div class="player-selection-list">
                         ${otherUsers.map(u => `
-                            <div class="player-selection-item" onclick="sendGameInvite('${u}', '${gameType}')">
-                                <span class="player-selection-name">👤 ${u}</span>
+                            <div class="player-selection-item" onclick="sendGameInvite('${u.username}', '${gameType}')">
+                                <span class="player-selection-name">${u.avatar ? `<img src="${u.avatar}" style="width:22px;height:22px;border-radius:50%;margin-right:6px;vertical-align:middle;">` : '👤'} ${u.username}</span>
                                 <span class="player-selection-btn">Inviter 🎮</span>
                             </div>
                         `).join('')}
@@ -11833,12 +11927,35 @@ window.addEmojiReaction = addEmojiReaction;
         // === PREVIEW LIENS ===
         function createLinkPreview(url) {
             // Détecter YouTube
-            const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+            const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]+)/);
             if (youtubeMatch) {
                 return `
                     <div class="youtube-embed">
                         <iframe src="https://www.youtube.com/embed/${youtubeMatch[1]}" 
                                 allowfullscreen></iframe>
+                    </div>
+                `;
+            }
+
+            // Détecter liens médias directs (audio/vidéo)
+            const lowerUrl = url.toLowerCase();
+            const videoMatch = lowerUrl.match(/\.(mp4|webm|m4v|mov|ogv|mkv|avi)(?:\?|#|$)/i);
+            const audioMatch = lowerUrl.match(/\.(mp3|wav|ogg|m4a|aac|flac|opus)(?:\?|#|$)/i);
+            if (videoMatch) {
+                return `
+                    <div class="link-preview">
+                        <video class="message-media message-video" controls preload="metadata">
+                            <source src="${url}">
+                        </video>
+                    </div>
+                `;
+            }
+            if (audioMatch) {
+                return `
+                    <div class="link-preview">
+                        <audio class="message-media message-audio" controls preload="metadata">
+                            <source src="${url}">
+                        </audio>
                     </div>
                 `;
             }
@@ -12260,6 +12377,24 @@ window.addEmojiReaction = addEmojiReaction;
                 return `
                     <div class="dm-attachment">
                         <img src="${attachment.path}" alt="${escapeHtml(attachment.originalname)}" onclick="openImageModal('${attachment.path}')">
+                    </div>
+                `;
+            }
+            if (isVideoAttachment(attachment)) {
+                return `
+                    <div class="dm-attachment">
+                        <video class="message-media message-video" controls preload="metadata">
+                            <source src="${attachment.path}" type="${attachment.mimetype || ''}">
+                        </video>
+                    </div>
+                `;
+            }
+            if (isAudioAttachment(attachment)) {
+                return `
+                    <div class="dm-attachment">
+                        <audio class="message-media message-audio" controls preload="metadata">
+                            <source src="${attachment.path}" type="${attachment.mimetype || ''}">
+                        </audio>
                     </div>
                 `;
             }
