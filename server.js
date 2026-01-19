@@ -34,26 +34,14 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-    // Types de fichiers autorisés
-    const allowedTypes = [
-        'image/', 'video/', 'audio/', 'text/', 'application/pdf',
-        'application/msword', 'application/vnd.openxmlformats-officedocument',
-        'application/zip', 'application/x-rar-compressed'
-    ];
-    
-    const isAllowed = allowedTypes.some(type => file.mimetype.startsWith(type));
-    
-    if (isAllowed) {
-        cb(null, true);
-    } else {
-        cb(new Error('Type de fichier non autorisé'), false);
-    }
+    // Autoriser tous les types de fichiers
+    cb(null, true);
 };
 
 const upload = multer({ 
     storage: storage,
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB max
+        fileSize: 100 * 1024 * 1024, // 100MB max
         files: 1
     },
     fileFilter: fileFilter
@@ -62,7 +50,7 @@ const upload = multer({
 const avatarUpload = multer({
     storage: storage,
     limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB max pour les avatars
+        fileSize: 10 * 1024 * 1024, // 10MB max pour les avatars
         files: 1
     },
     fileFilter: (req, file, cb) => {
@@ -75,8 +63,8 @@ const avatarUpload = multer({
 });
 
 // Middleware
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // Servir les fichiers statiques
 app.use(express.static(__dirname));
@@ -148,6 +136,7 @@ const REACTIONS_FILE = path.join(DATA_DIR, 'reactions.json');
 const CHANNELS_FILE = path.join(DATA_DIR, 'channel_histories.json');
 const DM_FILE = path.join(DATA_DIR, 'dm_history.json');
 const POLLS_FILE = path.join(DATA_DIR, 'polls.json');
+const PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
 
 console.log(`📂 Dossier de données: ${DATA_DIR}`);
 
@@ -160,6 +149,30 @@ if (!fs.existsSync(DATA_DIR)) {
 // === FONCTIONS DE PERSISTANCE ===
 // Variable d'environnement: RESET_HISTORY=true pour effacer l'historique au démarrage
 const RESET_ON_START = process.env.RESET_HISTORY === 'true';
+
+// Messages épinglés (persistés)
+let pinnedMessages = [];
+
+function loadPinnedMessages() {
+    try {
+        if (fs.existsSync(PINNED_FILE)) {
+            const data = fs.readFileSync(PINNED_FILE, 'utf8');
+            pinnedMessages = JSON.parse(data) || [];
+            console.log(`✅ Messages épinglés chargés: ${pinnedMessages.length}`);
+        }
+    } catch (error) {
+        console.error('❌ Erreur chargement messages épinglés:', error.message);
+        pinnedMessages = [];
+    }
+}
+
+function savePinnedMessages() {
+    try {
+        fs.writeFileSync(PINNED_FILE, JSON.stringify(pinnedMessages, null, 2));
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde messages épinglés:', error.message);
+    }
+}
 
 function loadPersistedData() {
     // Si RESET_HISTORY=true, on efface tout au démarrage
@@ -176,6 +189,8 @@ function loadPersistedData() {
         saveHistory();
         saveReactions();
         saveChannelHistories();
+        pinnedMessages = [];
+        savePinnedMessages();
         return;
     }
     
@@ -284,6 +299,7 @@ loadDMs();
 
 // Charger les données au démarrage
 loadPersistedData();
+loadPinnedMessages();
 
 // Fonction de logging améliorée
 function logActivity(type, message, data = {}) {
@@ -315,7 +331,7 @@ function cleanupOldFiles() {
     try {
         const files = fs.readdirSync(uploadDir);
         const now = Date.now();
-        const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours
+        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 jours
         let cleanedCount = 0;
         
         files.forEach(file => {
@@ -352,7 +368,7 @@ app.post('/upload', (req, res) => {
                 ip: req.ip 
             });
             if (err.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({ error: 'Fichier trop volumineux (max 10MB)' });
+                return res.status(400).json({ error: 'Fichier trop volumineux (max 100MB)' });
             }
             return res.status(400).json({ error: `Erreur d'upload: ${err.message}` });
         } else if (err) {
@@ -397,7 +413,7 @@ app.post('/upload-avatar', (req, res) => {
                 ip: req.ip 
             });
             if (err.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({ error: 'Image trop volumineuse (max 5MB)' });
+                return res.status(400).json({ error: 'Image trop volumineuse (max 10MB)' });
             }
             return res.status(400).json({ error: `Erreur d'upload: ${err.message}` });
         } else if (err) {
@@ -450,7 +466,7 @@ app.get('/download/:filename', (req, res) => {
 // Utiliser avec: /admin/reset?key=VOTRE_CLE_SECRETE
 // Définir ADMIN_KEY dans les variables d'environnement de render.com
 app.get('/admin/reset', (req, res) => {
-    const adminKey = process.env.ADMIN_KEY || 'chatroom2024';
+    const adminKey = process.env.ADMIN_KEY || 'docspace2024';
     
     if (req.query.key !== adminKey) {
         return res.status(403).json({ error: 'Accès refusé' });
@@ -494,11 +510,11 @@ app.post('/api/gemini', express.json(), async (req, res) => {
             return res.status(400).json({ error: 'Prompt requis' });
         }
         
-        const systemPrompt = `Tu es GeminiBot, un assistant IA intégré dans ChatRoom, une application de chat en temps réel.
+        const systemPrompt = `Tu es GeminiBot, un assistant IA intégré dans DocSpace, une application de chat en temps réel.
 Tu es amical, serviable et tu réponds en français.
 Tu peux aider avec des questions générales, donner des conseils, expliquer des concepts, écrire du code, raconter des blagues, etc.
 Garde tes réponses concises (max 300 mots) car c'est un chat.
-Si on te demande qui tu es, dis que tu es GeminiBot, l'IA de ChatRoom powered by Google Gemini.
+Si on te demande qui tu es, dis que tu es GeminiBot, l'IA de DocSpace powered by Google Gemini.
 N'utilise pas de markdown complexe, juste du texte simple avec des emojis.`;
         
         const contents = [];
@@ -927,6 +943,32 @@ io.on('connection', (socket) => {
                     socket.emit('admin_response', { success: true, message: 'Message diffusé' });
                 }
                 break;
+
+            case 'pin_message':
+                if (data.messageId) {
+                    const exists = pinnedMessages.find(m => String(m.id) === String(data.messageId));
+                    if (!exists) {
+                        pinnedMessages.push({
+                            id: data.messageId,
+                            username: data.username || 'Utilisateur',
+                            content: (data.content || '').substring(0, 200),
+                            pinnedAt: new Date()
+                        });
+                        savePinnedMessages();
+                    }
+                    io.emit('pinned_update', { pinnedMessages });
+                    socket.emit('admin_response', { success: true, message: 'Message épinglé' });
+                }
+                break;
+
+            case 'unpin_message':
+                if (data.messageId) {
+                    pinnedMessages = pinnedMessages.filter(m => String(m.id) !== String(data.messageId));
+                    savePinnedMessages();
+                    io.emit('pinned_update', { pinnedMessages });
+                    socket.emit('admin_response', { success: true, message: 'Message désépinglé' });
+                }
+                break;
             
             // === NOUVELLES ACTIONS ADMIN ===
             case 'set_private':
@@ -975,6 +1017,18 @@ io.on('connection', (socket) => {
                     success: true, 
                     message: serverConfig.globalMute ? 'Mute global activé' : 'Mute global désactivé' 
                 });
+                break;
+
+            case 'unmute_all':
+                serverConfig.globalMute = false;
+                const unmuteMsg = {
+                    type: 'system',
+                    message: `🔊 Les utilisateurs peuvent parler à nouveau`,
+                    timestamp: new Date(),
+                    id: messageId++
+                };
+                io.emit('system_message', unmuteMsg);
+                socket.emit('admin_response', { success: true, message: 'Mute global désactivé' });
                 break;
             
             case 'kick_all':
@@ -1291,6 +1345,7 @@ io.on('connection', (socket) => {
             socket.emit('message_reactions_sync', messageReactions);
             socket.emit('user_statuses_sync', userStatuses);
             socket.emit('admin_list_update', { admins: adminUsersList });
+            socket.emit('pinned_update', { pinnedMessages });
             
             logActivity('SYSTEM', `Historique envoyé à ${cleanUsername}`, {
                 messagesCount: chatHistory.length,
@@ -1806,8 +1861,8 @@ io.on('connection', (socket) => {
         const sender = connectedUsers.get(socket.id);
         if (!sender) return;
         
-        const { to, content } = data;
-        if (!to || !content) return;
+        const { to, content, attachment } = data;
+        if (!to || (!content && !attachment)) return;
         
         // Créer la clé de conversation (triée pour unicité)
         const key = [sender.username, to].sort().join(':');
@@ -1820,7 +1875,8 @@ io.on('connection', (socket) => {
         const message = {
             from: sender.username,
             to: to,
-            content: content,
+            content: content || '',
+            attachment: attachment || null,
             timestamp: new Date()
         };
         
@@ -1843,7 +1899,8 @@ io.on('connection', (socket) => {
         if (recipientSocket) {
             io.to(recipientSocket).emit('dm_received', {
                 from: sender.username,
-                content: content,
+                content: content || '',
+                attachment: attachment || null,
                 timestamp: message.timestamp,
                 avatar: sender.avatar
             });
@@ -1856,6 +1913,43 @@ io.on('connection', (socket) => {
             from: sender.username,
             to: to
         });
+    });
+
+    // === INDICATEUR DE FRAPPE DM ===
+    socket.on('dm_typing_start', (data) => {
+        const sender = connectedUsers.get(socket.id);
+        if (!sender) return;
+        const { to } = data || {};
+        if (!to) return;
+
+        let recipientSocket = null;
+        connectedUsers.forEach((u, sid) => {
+            if (u.username === to) {
+                recipientSocket = sid;
+            }
+        });
+
+        if (recipientSocket) {
+            io.to(recipientSocket).emit('dm_typing', { from: sender.username, isTyping: true });
+        }
+    });
+
+    socket.on('dm_typing_stop', (data) => {
+        const sender = connectedUsers.get(socket.id);
+        if (!sender) return;
+        const { to } = data || {};
+        if (!to) return;
+
+        let recipientSocket = null;
+        connectedUsers.forEach((u, sid) => {
+            if (u.username === to) {
+                recipientSocket = sid;
+            }
+        });
+
+        if (recipientSocket) {
+            io.to(recipientSocket).emit('dm_typing', { from: sender.username, isTyping: false });
+        }
     });
     
     // Récupérer la liste des conversations DM de l'utilisateur
@@ -2347,7 +2441,7 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 server.listen(PORT, HOST, () => {
-    logActivity('SYSTEM', `ChatRoom Server v2.3 démarré avec succès !`, {
+    logActivity('SYSTEM', `DocSpace Server v2.3 démarré avec succès !`, {
         port: PORT,
         host: HOST,
         uploadsDir: uploadDir,
