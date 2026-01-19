@@ -1,22 +1,32 @@
 {
-  "currentVersion": "2.9.2",
-  "lastUpdate": "2026-01-14",
+  "currentVersion": "2.9.3B",
+  "lastUpdate": "2026-01-19",
   "versions": [
+    {
+      "version": "2.9.3B",
+      "date": "2026-01-19",
+      "title": "🗄️ DocSpace Beta & Stockage",
+      "changes": [
+        "🗄️ Icône stockage pour le serveur",
+        "✨ Micro‑animations visuelles (header + prévisualisation)",
+        "📁 Stockage amélioré (tout type + 100MB)",
+        "💬 DMs plus fluides avec indicateur de frappe",
+        "📎 Pièces jointes dans les DMs",
+        "📌 Épingles admin synchronisées",
+        "🔐 Accès sécurisé mémorisé localement"
+      ]
+    },
     {
       "version": "2.9.2",
       "date": "2026-01-14",
-      "title": "� Panel Admin Renforcé & Apps Natives",
+      "title": "🧭 DocSpace & Expérience améliorée",
       "changes": [
-        "🔐 Panel Admin considérablement amélioré",
-        "📢 Système d'annonces épinglées pour tous",
-        "🎨 Personnalisation du nom du serveur",
-        "👋 Message de bienvenue personnalisable",
-        "🎮 Contrôle des mini-jeux (activer/désactiver)",
-        "📋 Système de logs serveur complet",
-        "💾 Export des logs en JSON",
-        "🔊 Fonction Unmute tous",
-        "🔄 Réinitialisation complète du serveur",
-        "🏷️ Badge version V2.9.2 en bas à gauche",
+        "🆕 Renommage complet du projet en DocSpace",
+        "📁 Stockage de tous types de fichiers (jusqu'à 100MB)",
+        "💬 DMs améliorés (scroll fluide, indicateur de frappe, pièces jointes)",
+        "📌 Épinglage admin synchronisé pour tout le serveur",
+        "🔐 Code d'accès à l'entrée (59123) avec mémorisation locale",
+        "✨ Aperçu de capture/paste plus transparent avec animation",
         "💻 Application Windows (.exe) disponible",
         "📱 Application Android (.apk) disponible"
       ]

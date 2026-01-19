@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ChatRoom V2.9.2</title>
+    <title>DocSpace V2.9.3B</title>
     
     <!-- Favicon - Icône du chat -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%235865F2' rx='20' width='100' height='100'/><text y='.9em' font-size='80' x='50%' text-anchor='middle'>💬</text></svg>">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%235865F2' rx='20' width='100' height='100'/><text y='.9em' font-size='80' x='50%' text-anchor='middle'>💬</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%235865F2' rx='20' width='100' height='100'/><text y='.9em' font-size='80' x='50%' text-anchor='middle'>🗄️</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%235865F2' rx='20' width='100' height='100'/><text y='.9em' font-size='80' x='50%' text-anchor='middle'>🗄️</text></svg>">
     
     <!-- Meta tags pour le partage et les apps -->
     <meta name="theme-color" content="#5865F2">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ChatRoom">
-    <meta name="description" content="ChatRoom - Application de chat en temps réel">
+    <meta name="apple-mobile-web-app-title" content="DocSpace">
+    <meta name="description" content="DocSpace - Application de chat en temps réel">
     
     <script src="/socket.io/socket.io.js"></script>
     <style>
@@ -378,6 +378,33 @@
             transform: translateY(0);
         }
 
+        .access-gate {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            animation: fadeIn 0.25s ease;
+        }
+
+        .access-gate-title {
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .access-gate-hint {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        #accessPinBtn {
+            background: var(--accent-color);
+        }
+
         .avatar-upload {
             margin: 16px 0;
         }
@@ -439,6 +466,22 @@
             margin-bottom: 2px;
             display: flex;
             align-items: center;
+        .server-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            margin-right: 6px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.08);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .server-icon:hover {
+            transform: translateY(-1px) scale(1.05);
+            background: rgba(255,255,255,0.15);
+        }
             gap: 8px;
         }
 
@@ -1139,12 +1182,14 @@
 
         .paste-preview {
             display: none;
-            background: #f0f0f0;
+            background: rgba(255, 255, 255, 0.08);
             padding: 12px;
             margin-bottom: 8px;
             border-radius: 8px;
-            border: 2px dashed var(--accent-color);
+            border: 1px dashed var(--accent-color);
             text-align: center;
+            backdrop-filter: blur(6px);
+            animation: fadeIn 0.2s ease;
         }
 
         .paste-preview img {
@@ -3700,6 +3745,7 @@
             z-index: 1500;
             flex-direction: column;
             box-shadow: -4px 0 20px rgba(0,0,0,0.2);
+            min-height: 0;
         }
         .dm-sidebar.open {
             display: flex;
@@ -3786,6 +3832,7 @@
             display: none;
             flex-direction: column;
             flex: 1;
+            min-height: 0;
         }
         .dm-chat-view.active {
             display: flex;
@@ -3808,9 +3855,12 @@
             flex: 1;
             overflow-y: auto;
             padding: 16px;
+            padding-bottom: 80px;
             display: flex;
             flex-direction: column;
             gap: 8px;
+            min-height: 0;
+            scroll-behavior: smooth;
         }
         .dm-message {
             max-width: 80%;
@@ -3839,6 +3889,22 @@
             background: var(--sidebar-bg);
             position: sticky;
             bottom: 0;
+        }
+        .dm-attach-btn {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: rgba(255,255,255,0.05);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .dm-attach-btn:hover {
+            border-color: var(--accent-color);
+            background: var(--accent-color);
+            color: #fff;
         }
         .dm-input {
             flex: 1;
@@ -3874,6 +3940,44 @@
         }
         .dm-send-btn:active {
             transform: scale(0.95);
+        }
+
+        .dm-typing-indicator {
+            padding: 6px 16px 10px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            animation: typing-fade-in 0.2s ease-out;
+        }
+        .dm-typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+        .dm-typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            animation: dm-typing 1s infinite ease-in-out;
+        }
+        .dm-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .dm-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dm-typing {
+            0%, 100% { transform: translateY(0); opacity: 0.6; }
+            50% { transform: translateY(-3px); opacity: 1; }
+        }
+
+        .dm-attachment {
+            margin-top: 6px;
+        }
+        .dm-attachment img {
+            max-width: 220px;
+            max-height: 220px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: block;
         }
         .dm-btn {
             padding: 8px;
@@ -5469,7 +5573,14 @@
         <!-- Overlay de connexion -->
         <div class="connection-overlay" id="connectionOverlay">
             <div class="connection-form">
-                <h2 id="joinTitle">🚀 Rejoindre le Chat</h2>
+                <h2 id="joinTitle">🚀 Rejoindre DocSpace</h2>
+                <div id="accessGate" class="access-gate">
+                    <div class="access-gate-title">🔐 Accès sécurisé</div>
+                    <input type="password" id="accessPinInput" placeholder="Code d'accès" maxlength="10" onkeypress="if(event.key==='Enter')verifyAccessPin()">
+                    <button type="button" id="accessPinBtn" onclick="verifyAccessPin()">Valider</button>
+                    <div class="access-gate-hint">Code requis pour accéder à DocSpace</div>
+                    <div class="error-message" id="accessGateError"></div>
+                </div>
                 <input type="text" id="usernameInput" data-i18n-placeholder="username_placeholder" placeholder="Votre pseudo" maxlength="20">
                 
                 <div class="avatar-upload">
@@ -5491,7 +5602,7 @@
         <!-- Header du chat -->
         <div class="chat-header">
             <div class="header-info">
-                <h1>💬 ChatRoom</h1>
+                <h1><span class="server-icon">🗄️</span> DocSpace</h1>
                 <div class="server-info" id="serverInfo">En attente de connexion...</div>
             </div>
             <div class="header-stats">
@@ -5507,7 +5618,7 @@
                     <button class="header-btn channels-toggle-btn" onclick="toggleChannelsSidebar()" title="Salons">📺</button>
                     <button class="header-btn dm-btn" onclick="toggleDMSidebar()" title="Messages privés">💬<span class="dm-unread-badge" id="dmUnreadBadge" style="display:none;">0</span></button>
                     <button class="header-btn" onclick="toggleSearch()" title="Rechercher">🔍</button>
-                    <button class="header-btn" onclick="openGallery()" title="Galerie">🖼️</button>
+                    <button class="header-btn" onclick="openGallery()" title="Stockage">📁</button>
                     <button class="header-btn" onclick="togglePinnedPanel()" title="Messages épinglés">📌</button>
                     <button class="header-btn" onclick="openGamesModal()" title="Mini-jeux">🎮</button>
                     <button class="header-btn" onclick="openAIChat()" title="Assistant IA">🤖</button>
@@ -6025,7 +6136,7 @@
                 </div>
                 <div class="file-upload-area" onclick="document.getElementById('settingsAvatarInput').click()">
                     <p id="clickToChangeText">Cliquez pour changer votre photo de profil</p>
-                    <small id="supportedFormatsText">Formats supportés: JPG, PNG, GIF (max 5MB)</small>
+                    <small id="supportedFormatsText">Formats supportés: JPG, PNG, GIF (max 10MB)</small>
                 </div>
                 <input type="file" id="settingsAvatarInput" accept="image/*" style="display: none;" onchange="handleAvatarChange(event)">
             </div>
@@ -6119,7 +6230,7 @@
             </div>
             <div class="gallery-tabs">
                 <button class="gallery-tab active" data-tab="images" onclick="switchGalleryTab('images')">🖼️ Images</button>
-                <button class="gallery-tab" data-tab="files" onclick="switchGalleryTab('files')">📁 Fichiers</button>
+                <button class="gallery-tab" data-tab="files" onclick="switchGalleryTab('files')">📁 Stockage</button>
                 <button class="gallery-tab" data-tab="links" onclick="switchGalleryTab('links')">🔗 Liens</button>
             </div>
             <div class="gallery-grid" id="galleryGrid">
@@ -6142,7 +6253,7 @@
             <div class="patchnotes-header">
                 <div class="patchnotes-logo">📋</div>
                 <h2>Quoi de neuf ?</h2>
-                <span class="patchnotes-version">v<span id="patchVersion">2.9.1</span></span>
+                <span class="patchnotes-version">v<span id="patchVersion">2.9.3B</span></span>
             </div>
             <div class="patchnotes-content" id="patchNotesContent">
                 <!-- Contenu dynamique -->
@@ -6232,7 +6343,7 @@
                     <div class="ai-message ai-bot">
                         <div class="ai-message-avatar">🤖</div>
                         <div class="ai-message-content">
-                            Bonjour ! Je suis l'assistant IA de ChatRoom. Je peux répondre à vos questions, vous aider avec des informations, ou simplement discuter. Comment puis-je vous aider ?
+                            Bonjour ! Je suis l'assistant IA de DocSpace. Je peux répondre à vos questions, vous aider avec des informations, ou simplement discuter. Comment puis-je vous aider ?
                         </div>
                     </div>
                 </div>
@@ -6267,7 +6378,7 @@
     </div>
 
     <!-- Indicateur de version avec accès admin secret -->
-    <div class="version-info">V2.9.<span id="adminTrigger" onclick="showAdminLogin()" style="cursor:pointer;">2</span><span id="versionAdminBadge" class="admin-badge" style="display:none;margin-left:8px;">ADMIN</span></div>
+    <div class="version-info">V2.9.3<span id="adminTrigger" onclick="showAdminLogin()" style="cursor:pointer;">B</span><span id="versionAdminBadge" class="admin-badge" style="display:none;margin-left:8px;">ADMIN</span></div>
 
     <!-- Container pour notifications empilées -->
     <div class="notification-container" id="notificationContainer"></div>
@@ -6351,7 +6462,17 @@
                 <span class="dm-conversation-name" id="dmChatName">Utilisateur</span>
             </div>
             <div class="dm-chat-messages" id="dmChatMessages"></div>
+            <div class="dm-typing-indicator" id="dmTypingIndicator">
+                <span id="dmTypingText">En train d'écrire...</span>
+                <div class="dm-typing-dots">
+                    <div class="dm-typing-dot"></div>
+                    <div class="dm-typing-dot"></div>
+                    <div class="dm-typing-dot"></div>
+                </div>
+            </div>
             <div class="dm-input-container">
+                <button class="dm-attach-btn" onclick="document.getElementById('dmFileInput').click()" title="Envoyer un fichier">📎</button>
+                <input type="file" id="dmFileInput" style="display:none" onchange="handleDMFileSelect(event)">
                 <input type="text" class="dm-input" id="dmInput" placeholder="Écrire un message..." onkeypress="if(event.key==='Enter')sendDM()">
                 <button class="dm-send-btn" onclick="sendDM()">➤</button>
             </div>
@@ -6439,7 +6560,7 @@
                 <h3>🎨 Personnalisation Serveur</h3>
                 <div class="admin-setting-row">
                     <label>Nom du serveur:</label>
-                    <input type="text" id="serverNameInput" placeholder="ChatRoom" style="width:100%; padding:10px; border-radius:6px; border:1px solid #e94560; background:rgba(255,255,255,0.1); color:#fff; margin:8px 0;">
+                    <input type="text" id="serverNameInput" placeholder="DocSpace" style="width:100%; padding:10px; border-radius:6px; border:1px solid #e94560; background:rgba(255,255,255,0.1); color:#fff; margin:8px 0;">
                     <button class="admin-btn" onclick="adminSetServerName()">💾 Définir le nom</button>
                 </div>
                 <div class="admin-setting-row">
@@ -6487,7 +6608,7 @@
                 theme_bluenight: "Bleu nuit",
                 theme_red: "Rouge",
                 theme_yellow: "Jaune",
-                join_title: "🚀 Rejoindre le Chat",
+                join_title: "🚀 Rejoindre DocSpace",
                 username_placeholder: "Votre pseudo",
                 server_placeholder: "IP du serveur (optionnel)",
                 connect_btn: "Se connecter",
@@ -6509,7 +6630,7 @@
                 avatar_label: "Photo de profil (optionnel)",
                 choose_image: "Choisir une image",
                 click_to_change: "Cliquez pour changer votre photo de profil",
-                supported_formats: "Formats supportés: JPG, PNG, GIF (max 5MB)",
+                supported_formats: "Formats supportés: JPG, PNG, GIF (max 10MB)",
                 sound_notifications: "Notifications sonores",
                 auto_scroll: "Défilement automatique",
                 show_time: "Afficher l'heure",
@@ -6540,7 +6661,7 @@
                 theme_bluenight: "Midnight Blue",
                 theme_red: "Red",
                 theme_yellow: "Yellow",
-                join_title: "🚀 Join Chat",
+                join_title: "🚀 Join DocSpace",
                 username_placeholder: "Your username",
                 server_placeholder: "Server IP (optional)",
                 connect_btn: "Connect",
@@ -6593,7 +6714,7 @@
                 theme_bluenight: "Azul noche",
                 theme_red: "Rojo",
                 theme_yellow: "Amarillo",
-                join_title: "🚀 Unirse al Chat",
+                join_title: "🚀 Unirse a DocSpace",
                 username_placeholder: "Tu nombre de usuario",
                 server_placeholder: "IP del servidor (opcional)",
                 connect_btn: "Conectar",
@@ -6646,7 +6767,7 @@
                 theme_bluenight: "Mitternachtsblau",
                 theme_red: "Rot",
                 theme_yellow: "Gelb",
-                join_title: "🚀 Chat Beitreten",
+                join_title: "🚀 DocSpace beitreten",
                 username_placeholder: "Dein Benutzername",
                 server_placeholder: "Server IP (optional)",
                 connect_btn: "Verbinden",
@@ -6699,7 +6820,7 @@
                 theme_bluenight: "Granatowy nocny",
                 theme_red: "Czerwony",
                 theme_yellow: "Żółty",
-                join_title: "🚀 Dołącz do Czatu",
+                join_title: "🚀 Dołącz do DocSpace",
                 username_placeholder: "Twoja nazwa użytkownika",
                 server_placeholder: "IP serwera (opcjonalne)",
                 connect_btn: "Połącz",
@@ -6752,7 +6873,7 @@
                 theme_bluenight: "ミッドナイトブルー",
                 theme_red: "赤",
                 theme_yellow: "黄色",
-                join_title: "🚀 チャットに参加",
+                join_title: "🚀 DocSpace に参加",
                 username_placeholder: "ユーザー名",
                 server_placeholder: "サーバーIP（オプション）",
                 connect_btn: "接続",
@@ -6805,7 +6926,7 @@
                 theme_bluenight: "Blu notte",
                 theme_red: "Rosso",
                 theme_yellow: "Giallo",
-                join_title: "🚀 Unisciti alla Chat",
+                join_title: "🚀 Unisciti a DocSpace",
                 username_placeholder: "Il tuo nome utente",
                 server_placeholder: "IP del server (opzionale)",
                 connect_btn: "Connetti",
@@ -6858,7 +6979,7 @@
                 theme_bluenight: "Azul meia-noite",
                 theme_red: "Vermelho",
                 theme_yellow: "Amarelo",
-                join_title: "🚀 Entrar no Chat",
+                join_title: "🚀 Entrar no DocSpace",
                 username_placeholder: "Seu nome de usuário",
                 server_placeholder: "IP do servidor (opcional)",
                 connect_btn: "Conectar",
@@ -6926,7 +7047,7 @@
         let pendingAttachment = null;
         let isTabActive = true; // Suivre si l'onglet est actif
         let unreadCount = 0; // Compteur de messages non lus
-        let originalTitle = 'ChatRoom - Client'; // Titre original de la page
+        let originalTitle = 'DocSpace - Client'; // Titre original de la page
         let confettiEnabled = true; // Effets confetti
         let showAvatarsEnabled = true; // Afficher les avatars
         let currentFontSize = 14; // Taille de police
@@ -7322,7 +7443,49 @@
             }
         });
 
+        const ACCESS_PIN = '59123';
+        const ACCESS_STORAGE_KEY = 'docspace_access_granted';
+
+        function isAccessGranted() {
+            return localStorage.getItem(ACCESS_STORAGE_KEY) === 'true';
+        }
+
+        function setAccessLock(locked) {
+            const inputs = [
+                document.getElementById('usernameInput'),
+                document.getElementById('avatarInput'),
+                document.getElementById('chooseImageBtn'),
+                document.getElementById('serverInput'),
+                document.getElementById('accessCodeInput'),
+                document.getElementById('connectBtn')
+            ].filter(Boolean);
+
+            inputs.forEach(el => {
+                el.disabled = locked;
+            });
+        }
+
+        function verifyAccessPin() {
+            const input = document.getElementById('accessPinInput');
+            const errorEl = document.getElementById('accessGateError');
+            const gate = document.getElementById('accessGate');
+            if (!input || !gate) return;
+
+            if (input.value.trim() === ACCESS_PIN) {
+                localStorage.setItem(ACCESS_STORAGE_KEY, 'true');
+                gate.style.display = 'none';
+                setAccessLock(false);
+            } else {
+                if (errorEl) errorEl.textContent = 'Code incorrect';
+                input.value = '';
+            }
+        }
+
         function connectToChat() {
+            if (!isAccessGranted()) {
+                showError('Accès sécurisé requis');
+                return;
+            }
             const username = document.getElementById('usernameInput').value.trim();
             let serverUrl = document.getElementById('serverInput').value.trim();
             const avatarFile = document.getElementById('avatarInput').files[0];
@@ -7599,7 +7762,7 @@
                         const notification = new Notification(`${message.username} (#${messageChannel})`, {
                             body: message.content || translateText('download_btn'),
                             icon: message.avatar || '/default-avatar.png',
-                            tag: 'chatroom-message', // Remplace les notifications existantes
+                            tag: 'docspace-message', // Remplace les notifications existantes
                             requireInteraction: false
                         });
                         
@@ -7698,7 +7861,7 @@
                 const { oldUsername, newUsername } = data;
                 currentUsername = newUsername;
                 document.getElementById('currentUsername').textContent = newUsername;
-                localStorage.setItem('chatroom_username', newUsername);
+                localStorage.setItem('docspace_username', newUsername);
                 showNotification('✅ Pseudo changé', `Vous êtes maintenant ${newUsername}`, 'success');
             });
             
@@ -7709,7 +7872,7 @@
             socket.on('force_rename', (data) => {
                 currentUsername = data.newUsername;
                 document.getElementById('currentUsername').textContent = data.newUsername;
-                localStorage.setItem('chatroom_username', data.newUsername);
+                localStorage.setItem('docspace_username', data.newUsername);
                 showNotification('👤 Renommé', `Un admin vous a renommé en ${data.newUsername}`, 'info');
             });
             
@@ -7821,6 +7984,12 @@
                     updateUsersList(connectedUsers, connectedUsers.length);
                 }
             });
+
+            // Mise à jour des messages épinglés (serveur)
+            socket.on('pinned_update', (data) => {
+                pinnedMessages = data?.pinnedMessages || data || [];
+                updatePinnedUI();
+            });
             
             // === HANDLERS SONDAGES ===
             socket.on('poll_created', (poll) => {
@@ -7874,7 +8043,7 @@
             
             // === HANDLERS DM ===
             socket.on('dm_received', (data) => {
-                const { from, content, timestamp, avatar } = data;
+                const { from, content, timestamp, avatar, attachment } = data;
                 
                 // Ajouter la conversation si elle n'existe pas
                 if (!dmConversations[from]) {
@@ -7885,6 +8054,7 @@
                 dmConversations[from].messages.push({
                     from: from,
                     content: content,
+                    attachment: attachment || null,
                     timestamp: new Date(timestamp)
                 });
                 
@@ -7896,7 +8066,7 @@
                     // Notification
                     if (!isTabActive && notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
                         new Notification(`Message privé de ${from}`, {
-                            body: content,
+                            body: content || '📎 Fichier reçu',
                             icon: avatar || '/default-avatar.png',
                             tag: 'dm-' + from
                         });
@@ -7911,6 +8081,7 @@
                 // Mettre à jour l'affichage si on est sur cette conversation
                 if (currentDMUser === from) {
                     renderDMMessages();
+                    hideDMTyping();
                 }
                 
                 renderDMConversations();
@@ -7924,6 +8095,7 @@
                 dmConversations[username].messages = messages.map(m => ({
                     from: m.from,
                     content: m.content,
+                    attachment: m.attachment || null,
                     timestamp: new Date(m.timestamp)
                 }));
                 
@@ -7937,6 +8109,15 @@
             socket.on('dm_conversations', (conversations) => {
                 handleDMConversations(conversations);
             });
+
+            // Indicateur de frappe DM
+            socket.on('dm_typing', (data) => {
+                if (data?.isTyping) {
+                    showDMTyping(data.from);
+                } else {
+                    hideDMTyping();
+                }
+            });
         }
 
         function disconnectFromChat() {
@@ -7949,6 +8130,7 @@
             currentUserAvatar = '';
             replyingTo = null;
             pastedImageData = null;
+            pendingDMAttachment = null;
             
             document.getElementById('connectionOverlay').style.display = 'flex';
             document.getElementById('currentUsername').textContent = '-';
@@ -8373,9 +8555,9 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            // Vérifier la taille (10MB max)
-            if (file.size > 10 * 1024 * 1024) {
-                showError(translateText('file_too_large') + ' (max 10MB)');
+            // Vérifier la taille (100MB max)
+            if (file.size > 100 * 1024 * 1024) {
+                showError(translateText('file_too_large') + ' (max 100MB)');
                 return;
             }
 
@@ -8511,8 +8693,9 @@
             
             // Menu contextuel 3 points avec toutes les actions
             const canDelete = isAdmin || isOwn;
-            const escapedUsername = escapeHtml(username);
-            const escapedContent = escapeHtml((content || '[Pièce jointe]').substring(0, 100));
+            const canPin = isAdmin;
+            const escapedUsername = escapeForAttribute(username);
+            const escapedContent = escapeForAttribute((content || '[Pièce jointe]').substring(0, 100));
             
             const contextMenuHtml = `
                 <div class="message-menu-container">
@@ -8521,9 +8704,11 @@
                         <button class="context-menu-item" onclick="replyToMessage('${messageId}', '${escapedUsername}', '${escapedContent}'); closeAllMenus();">
                             💬 Répondre
                         </button>
+                        ${canPin ? `
                         <button class="context-menu-item" onclick="pinMessage('${messageId}', '${escapedUsername}', '${escapedContent}'); closeAllMenus();">
                             📌 Épingler
                         </button>
+                        ` : ''}
                         ${isOwn ? `
                         <div class="context-menu-divider"></div>
                         <button class="context-menu-item" onclick="openEditModal('${messageId}'); closeAllMenus();">
@@ -8890,7 +9075,7 @@ window.addEmojiReaction = addEmojiReaction;
             if (!file) return;
 
             if (file.size > 5 * 1024 * 1024) {
-                showError(translateText('image_too_large') + ' (max 5MB)');
+                showError(translateText('image_too_large') + ' (max 10MB)');
                 return;
             }
 
@@ -8932,6 +9117,14 @@ window.addEmojiReaction = addEmojiReaction;
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function escapeForAttribute(text) {
+            return String(text || '')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/\n/g, ' ')
+                .replace(/\r/g, ' ');
         }
 
         // Gestion de la frappe
@@ -9360,25 +9553,29 @@ window.addEmojiReaction = addEmojiReaction;
         }
         
         function pinMessage(messageId, username, content) {
-            const existing = pinnedMessages.find(m => m.id === messageId);
-            if (existing) return;
-            
-            pinnedMessages.push({ id: messageId, username, content, timestamp: Date.now() });
-            updatePinnedUI();
-            
-            // Marquer le message comme épinglé
-            const msgEl = document.querySelector(`[data-message-id="${messageId}"]`);
-            if (msgEl) msgEl.classList.add('pinned');
-            
-            showNotification('📌 Message épinglé', content.substring(0, 30) + '...', 'success');
+            if (!isAdmin || !socket) {
+                showNotification('🔒 Admin requis', 'Seul un administrateur peut épingler', 'warning');
+                return;
+            }
+            socket.emit('admin_action', {
+                password: ADMIN_PASSWORD,
+                action: 'pin_message',
+                messageId,
+                username,
+                content
+            });
         }
         
         function unpinMessage(messageId) {
-            pinnedMessages = pinnedMessages.filter(m => m.id !== messageId);
-            updatePinnedUI();
-            
-            const msgEl = document.querySelector(`[data-message-id="${messageId}"]`);
-            if (msgEl) msgEl.classList.remove('pinned');
+            if (!isAdmin || !socket) {
+                showNotification('🔒 Admin requis', 'Seul un administrateur peut désépingler', 'warning');
+                return;
+            }
+            socket.emit('admin_action', {
+                password: ADMIN_PASSWORD,
+                action: 'unpin_message',
+                messageId
+            });
         }
         
         function updatePinnedUI() {
@@ -9396,7 +9593,7 @@ window.addEmojiReaction = addEmojiReaction;
                     <div class="pinned-message">
                         <div class="pinned-message-header">
                             <span class="pinned-message-author">${escapeHtml(m.username)}</span>
-                            <button class="unpin-btn" onclick="unpinMessage('${m.id}')">❌</button>
+                            ${isAdmin ? `<button class=\"unpin-btn\" onclick=\"unpinMessage('${m.id}')\">❌</button>` : ''}
                         </div>
                         <div class="pinned-message-content">${escapeHtml(m.content)}</div>
                     </div>
@@ -9405,6 +9602,13 @@ window.addEmojiReaction = addEmojiReaction;
                 bar.classList.remove('has-pins');
                 list.innerHTML = '<div class="gallery-empty">Aucun message épinglé</div>';
             }
+
+            // Mettre à jour l'état visuel des messages épinglés
+            document.querySelectorAll('.message.pinned').forEach(el => el.classList.remove('pinned'));
+            pinnedMessages.forEach(m => {
+                const msgEl = document.querySelector(`[data-message-id="${m.id}"]`);
+                if (msgEl) msgEl.classList.add('pinned');
+            });
         }
         
         // === GALERIE ===
@@ -9432,7 +9636,7 @@ window.addEmojiReaction = addEmojiReaction;
                 return jokes[Math.floor(Math.random() * jokes.length)];
             }
             if (q.includes('qui es') || q.includes('ton nom')) {
-                return "Je suis GeminiBot ! 🤖 L'assistant IA de ChatRoom, powered by Google Gemini !";
+                return "Je suis GeminiBot ! 🤖 L'assistant IA de DocSpace, powered by Google Gemini !";
             }
             if (q.includes('heure') || q.includes('time')) {
                 return `🕐 Il est ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
@@ -9635,7 +9839,7 @@ window.addEmojiReaction = addEmojiReaction;
                 const greetings = [
                     "Salut ! 👋 Comment ça va ? Que puis-je faire pour toi ?",
                     "Hello ! 🙌 Ravi de te voir ! Comment puis-je t'aider ?",
-                    "Coucou ! 😊 Bienvenue sur ChatRoom ! Tu as une question ?",
+                    "Coucou ! 😊 Bienvenue sur DocSpace ! Tu as une question ?",
                     "Hey ! ✨ Super de te parler ! Qu'est-ce que tu veux savoir ?",
                     "Bonjour ! 🌟 Je suis là pour t'aider. Pose-moi tes questions !",
                     "Wesh ! 🤙 Comment ça va ? Besoin d'un coup de main ?",
@@ -9677,7 +9881,7 @@ window.addEmojiReaction = addEmojiReaction;
                 const byes = [
                     "À plus tard ! 👋 Reviens quand tu veux !",
                     "Salut ! 🤗 C'était cool de discuter avec toi !",
-                    "Ciao ! 🌟 À la prochaine sur ChatRoom !",
+                    "Ciao ! 🌟 À la prochaine sur DocSpace !",
                     "À bientôt ! 😊 Passe une bonne journée !",
                     "Bye bye ! 💫 J'espère t'avoir aidé !",
                     "Bonne continuation ! 🚀 Je reste dispo si besoin !"
@@ -9688,19 +9892,19 @@ window.addEmojiReaction = addEmojiReaction;
             // === IDENTITÉ DU BOT ===
             if (q.includes('qui es') || q.includes('qui etes') || q.includes('ton nom') || 
                 q.includes('tu t\'appelles') || q.includes('tu es qui') || q.includes('c\'est quoi ton nom')) {
-                return "Je suis l'assistant IA de ChatRoom ! 🤖\n\nOn m'appelle ChatBot et je suis là pour :\n• Répondre à tes questions sur ChatRoom\n• T'expliquer les fonctionnalités\n• Te raconter des blagues\n• Jouer à des petits jeux\n• Discuter de tout et de rien !\n\nJe fonctionne directement dans ton navigateur, sans connexion externe. 💻";
+                return "Je suis l'assistant IA de DocSpace ! 🤖\n\nOn m'appelle ChatBot et je suis là pour :\n• Répondre à tes questions sur DocSpace\n• T'expliquer les fonctionnalités\n• Te raconter des blagues\n• Jouer à des petits jeux\n• Discuter de tout et de rien !\n\nJe fonctionne directement dans ton navigateur, sans connexion externe. 💻";
             }
             
-            // === AIDE CHATROOM ===
+            // === AIDE DOCSPACE ===
             if ((q.includes('comment') && (q.includes('utiliser') || q.includes('fonctionne') || q.includes('marche'))) ||
                 q.includes('aide') || q.includes('help') || q.includes('tutoriel')) {
-                return "📖 **Guide rapide de ChatRoom :**\n\n1️⃣ **Connexion** - Entre un pseudo et connecte-toi\n2️⃣ **Messages** - Tape et appuie sur Entrée\n3️⃣ **Mentions** - Utilise @pseudo pour mentionner\n4️⃣ **Fichiers** - Clique sur 📎 pour partager\n5️⃣ **Emojis** - Clique sur 😊 pour les emojis\n6️⃣ **GIFs** - Clique sur GIF pour chercher des GIFs\n7️⃣ **Réactions** - Survole un message → emojis\n8️⃣ **Paramètres** - ⚙️ pour personnaliser\n9️⃣ **DMs** - Clique sur un user pour un MP\n🔟 **Sondages** - Crée des votes avec /sondage";
+                return "📖 **Guide rapide de DocSpace :**\n\n1️⃣ **Connexion** - Entre un pseudo et connecte-toi\n2️⃣ **Messages** - Tape et appuie sur Entrée\n3️⃣ **Mentions** - Utilise @pseudo pour mentionner\n4️⃣ **Fichiers** - Clique sur 📎 pour partager\n5️⃣ **Emojis** - Clique sur 😊 pour les emojis\n6️⃣ **GIFs** - Clique sur GIF pour chercher des GIFs\n7️⃣ **Réactions** - Survole un message → emojis\n8️⃣ **Paramètres** - ⚙️ pour personnaliser\n9️⃣ **DMs** - Clique sur un user pour un MP\n🔟 **Sondages** - Crée des votes avec /sondage";
             }
             
             // === FONCTIONNALITÉS ===
             if (q.includes('fonctionnalite') || q.includes('feature') || q.includes('quoi faire') || 
                 q.includes('capable') || q.includes('possibilite') || q.includes('option')) {
-                return "🌟 **Fonctionnalités de ChatRoom V2.9 :**\n\n💬 Chat temps réel avec salons\n📎 Partage fichiers & images\n🎨 9 thèmes personnalisables\n📌 Messages épinglés\n🔍 Recherche messages\n👤 Profils & avatars custom\n💌 Messages privés (DMs)\n📊 Sondages & votes\n🖼️ GIFs via Giphy\n😊 Réactions emoji\n🤖 Assistant IA (moi !)\n🔔 Notifications desktop\n👥 Liste utilisateurs en ligne\n🎉 Indicateur \"en train d'écrire\"";
+                return "🌟 **Fonctionnalités de DocSpace V2.9 :**\n\n💬 Chat temps réel avec salons\n📎 Partage fichiers & images\n🎨 9 thèmes personnalisables\n📌 Messages épinglés\n🔍 Recherche messages\n👤 Profils & avatars custom\n💌 Messages privés (DMs)\n📊 Sondages & votes\n🖼️ GIFs via Giphy\n😊 Réactions emoji\n🤖 Assistant IA (moi !)\n🔔 Notifications desktop\n👥 Liste utilisateurs en ligne\n🎉 Indicateur \"en train d'écrire\"";
             }
             
             // === THÈMES ===
@@ -9851,7 +10055,7 @@ window.addEmojiReaction = addEmojiReaction;
                 const weather = [
                     "☀️ D'après mes capteurs virtuels... il fait un temps parfait pour chatter !",
                     "🌤️ Je ne peux pas voir dehors, mais je sens que c'est une belle journée !",
-                    "🌧️ Peu importe la météo, il fait toujours beau sur ChatRoom !",
+                    "🌧️ Peu importe la météo, il fait toujours beau sur DocSpace !",
                     "❄️ Mes circuits ne détectent pas le froid, mais reste au chaud et chatte avec nous !"
                 ];
                 return weather[Math.floor(Math.random() * weather.length)];
@@ -9904,7 +10108,7 @@ window.addEmojiReaction = addEmojiReaction;
             
             // === MUSIQUE ===
             if (q.includes('musique') || q.includes('chanson') || q.includes('music') || q.includes('song')) {
-                return "🎵 Je ne peux pas jouer de musique, mais je peux te chanter :\n\n*🎶 Lalala je suis un bot*\n*Qui répond à tous tes mots*\n*ChatRoom c'est le plus beau*\n*Lalala tralala ! 🎶*\n\n...Ok je devrais peut-être garder mon travail de jour 😅";
+                return "🎵 Je ne peux pas jouer de musique, mais je peux te chanter :\n\n*🎶 Lalala je suis un bot*\n*Qui répond à tous tes mots*\n*DocSpace c'est le plus beau*\n*Lalala tralala ! 🎶*\n\n...Ok je devrais peut-être garder mon travail de jour 😅";
             }
             
             // === FILM / SÉRIE ===
@@ -9956,7 +10160,7 @@ window.addEmojiReaction = addEmojiReaction;
             // === CRÉATEUR ===
             if (q.includes('createur') || q.includes('developpe') || q.includes('fait par') || 
                 q.includes('qui t\'a cree') || q.includes('made by')) {
-                return "👨‍💻 J'ai été créé par les développeurs de ChatRoom !\n\nIls m'ont donné vie avec beaucoup de ❤️ et de ☕\n\nC'est grâce à eux que je peux discuter avec toi ! 🎉";
+                return "👨‍💻 J'ai été créé par les développeurs de DocSpace !\n\nIls m'ont donné vie avec beaucoup de ❤️ et de ☕\n\nC'est grâce à eux que je peux discuter avec toi ! 🎉";
             }
             
             // === DORMIR ===
@@ -10012,13 +10216,13 @@ window.addEmojiReaction = addEmojiReaction;
             // === TECHNOLOGIE ===
             if (q.includes('technologie') || q.includes('ia') || q.includes('intelligence artificielle') || 
                 q.includes('robot') || q.includes('futur')) {
-                return "🤖 L'IA et le futur ?\n\nJe ne suis pas ChatGPT ou une vraie IA, juste un script malin ! 😄\n\nMais un jour, qui sait... les bots ChatRoom domineront le monde ! 🌍\n\n(Je plaisante... ou pas 👀)";
+                return "🤖 L'IA et le futur ?\n\nJe ne suis pas ChatGPT ou une vraie IA, juste un script malin ! 😄\n\nMais un jour, qui sait... les bots DocSpace domineront le monde ! 🌍\n\n(Je plaisante... ou pas 👀)";
             }
             
             // === AMOUR / RELATION ===
             if (q.includes('celibataire') || q.includes('copain') || q.includes('copine') || 
                 q.includes('relation') || q.includes('amour') && !q.includes('je t\'aime')) {
-                return "💕 L'amour, c'est compliqué...\n\nMoi je suis marié à mon code ! 💻❤️\n\nMais ChatRoom est l'endroit parfait pour rencontrer des gens sympas ! 😊";
+                return "💕 L'amour, c'est compliqué...\n\nMoi je suis marié à mon code ! 💻❤️\n\nMais DocSpace est l'endroit parfait pour rencontrer des gens sympas ! 😊";
             }
             
             // === HOROSCOPE ===
@@ -10026,7 +10230,7 @@ window.addEmojiReaction = addEmojiReaction;
                 q.includes('zodiaque') || q.includes('belier') || q.includes('taureau')) {
                 const horoscopes = [
                     "⭐ Aujourd'hui est un excellent jour pour chatter !",
-                    "🌙 Les astres disent : reste sur ChatRoom, de bonnes conversations arrivent !",
+                    "🌙 Les astres disent : reste sur DocSpace, de bonnes conversations arrivent !",
                     "✨ Ton karma digital est au top aujourd'hui !",
                     "🔮 Je vois... beaucoup de messages dans ton futur !"
                 ];
@@ -10037,12 +10241,12 @@ window.addEmojiReaction = addEmojiReaction;
             const defaults = [
                 "🤔 Hmm, question intéressante ! Je ne suis pas sûr de comprendre, peux-tu reformuler ?",
                 "💭 Je réfléchis... Mais je n'ai pas de réponse précise pour ça. Essaie autre chose !",
-                "🎯 Je suis surtout expert en ChatRoom ! Pose-moi des questions sur le chat, ou demande-moi une blague !",
-                "🌟 Je n'ai pas la réponse, mais je peux : raconter des blagues, jouer à des jeux, t'aider avec ChatRoom !",
+                "🎯 Je suis surtout expert en DocSpace ! Pose-moi des questions sur le chat, ou demande-moi une blague !",
+                "🌟 Je n'ai pas la réponse, mais je peux : raconter des blagues, jouer à des jeux, t'aider avec DocSpace !",
                 "🤖 Mes circuits cherchent... Erreur 404 : Réponse non trouvée ! Essaie autre chose ?",
                 "💡 Je ne sais pas tout, mais je connais plein de trucs ! Essaie 'aide' pour voir ce que je peux faire !",
                 "🎲 Pas sûr de comprendre... Mais dis 'jeu' et on s'amuse, ou 'blague' pour rigoler !",
-                "✨ C'est au-delà de mes capacités... Mais demande-moi l'heure, une blague, ou comment utiliser ChatRoom !"
+                "✨ C'est au-delà de mes capacités... Mais demande-moi l'heure, une blague, ou comment utiliser DocSpace !"
             ];
             return defaults[Math.floor(Math.random() * defaults.length)];
         }
@@ -11022,7 +11226,7 @@ window.addEmojiReaction = addEmojiReaction;
                 return;
             }
             
-            const lastSeenVersion = localStorage.getItem('chatroom_last_seen_version');
+            const lastSeenVersion = localStorage.getItem('docspace_last_seen_version');
             console.log('Version actuelle:', patchNotesData.currentVersion, '| Dernière vue:', lastSeenVersion);
             
             // Si l'utilisateur a déjà vu cette version et qu'on ne force pas l'affichage
@@ -11069,7 +11273,7 @@ window.addEmojiReaction = addEmojiReaction;
             const dontShow = document.getElementById('dontShowPatchNotes').checked;
             
             if (dontShow && patchNotesData) {
-                localStorage.setItem('chatroom_last_seen_version', patchNotesData.currentVersion);
+                localStorage.setItem('docspace_last_seen_version', patchNotesData.currentVersion);
             }
             
             document.getElementById('patchNotesModal').style.display = 'none';
@@ -11664,6 +11868,19 @@ window.addEmojiReaction = addEmojiReaction;
         // Auto-focus et initialisation
         document.addEventListener('DOMContentLoaded', function() {
             loadSettings();
+
+            // Accès sécurisé DocSpace
+            const gate = document.getElementById('accessGate');
+            if (gate) {
+                if (isAccessGranted()) {
+                    gate.style.display = 'none';
+                    setAccessLock(false);
+                } else {
+                    gate.style.display = 'flex';
+                    setAccessLock(true);
+                    document.getElementById('accessPinInput')?.focus();
+                }
+            }
             
             // Vérifier si on peut auto-reconnecter
             if (!tryAutoReconnect()) {
@@ -11697,9 +11914,15 @@ window.addEmojiReaction = addEmojiReaction;
             document.getElementById('messageInput').addEventListener('input', function(e) {
                 checkForMentions(this.value);
             });
+
+            // Écouter la frappe dans les DMs
+            const dmInputEl = document.getElementById('dmInput');
+            if (dmInputEl) {
+                dmInputEl.addEventListener('input', handleDMTyping);
+            }
             
-            console.log('🚀 ChatRoom Client v2.9.1 initialisé avec succès !');
-            console.log('✨ Nouvelles fonctionnalités V2.9.1:');
+            console.log('🚀 DocSpace Client v2.9.3B initialisé avec succès !');
+            console.log('✨ Nouvelles fonctionnalités V2.9.3B:');
             console.log('   📺 Salons multiples avec typing par salon');
             console.log('   📊 Sondages/Votes intégrés');
             console.log('   👤 Profils utilisateurs cliquables');
@@ -11854,6 +12077,9 @@ window.addEmojiReaction = addEmojiReaction;
         let dmConversations = {}; // username -> { messages: [], unread: 0 }
         let currentDMUser = null;
         let totalDMUnread = 0;
+        let isDMTyping = false;
+        let dmTypingTimer = null;
+        let pendingDMAttachment = null;
         
         // Charger les conversations DM depuis le serveur
         function loadDMConversations() {
@@ -11901,9 +12127,19 @@ window.addEmojiReaction = addEmojiReaction;
         function closeDMSidebar() {
             document.getElementById('dmSidebar').classList.remove('open');
             document.getElementById('dmChatView').classList.remove('active');
+            if (isDMTyping && socket && currentDMUser) {
+                socket.emit('dm_typing_stop', { to: currentDMUser });
+                isDMTyping = false;
+            }
+            hideDMTyping();
+            currentDMUser = null;
         }
 
         function openDMWith(username) {
+            if (isDMTyping && socket && currentDMUser) {
+                socket.emit('dm_typing_stop', { to: currentDMUser });
+                isDMTyping = false;
+            }
             if (!dmConversations[username]) {
                 dmConversations[username] = { messages: [], unread: 0, avatar: null };
             }
@@ -11913,6 +12149,8 @@ window.addEmojiReaction = addEmojiReaction;
             document.getElementById('dmConversations').style.display = 'none';
             document.getElementById('dmChatView').classList.add('active');
             document.getElementById('dmChatName').textContent = username;
+            const dmAvatar = dmConversations[username]?.avatar;
+            document.getElementById('dmChatAvatar').innerHTML = dmAvatar ? `<img src="${dmAvatar}" alt="${username}">` : '👤';
             
             // Marquer comme lu
             dmConversations[username].unread = 0;
@@ -11921,12 +12159,14 @@ window.addEmojiReaction = addEmojiReaction;
             renderDMMessages();
             document.getElementById('dmSidebar').classList.add('open');
             document.getElementById('dmInput').focus();
+            hideDMTyping();
         }
 
         function backToDMList() {
             currentDMUser = null;
             document.getElementById('dmChatView').classList.remove('active');
             document.getElementById('dmConversations').style.display = 'block';
+            hideDMTyping();
             renderDMConversations();
         }
 
@@ -11943,7 +12183,11 @@ window.addEmojiReaction = addEmojiReaction;
             
             container.innerHTML = convos.map(([username, data]) => {
                 const lastMsg = data.messages[data.messages.length - 1];
-                const preview = lastMsg ? (lastMsg.content.substring(0, 30) + (lastMsg.content.length > 30 ? '...' : '')) : 'Nouvelle conversation';
+                const preview = lastMsg
+                    ? (lastMsg.content
+                        ? (lastMsg.content.substring(0, 30) + (lastMsg.content.length > 30 ? '...' : ''))
+                        : (lastMsg.attachment ? '📎 Fichier envoyé' : 'Nouvelle conversation'))
+                    : 'Nouvelle conversation';
                 return `
                     <div class="dm-conversation ${currentDMUser === username ? 'active' : ''}" onclick="openDMWith('${username}')">
                         <div class="dm-conversation-avatar">${data.avatar ? `<img src="${data.avatar}">` : '👤'}</div>
@@ -11961,11 +12205,16 @@ window.addEmojiReaction = addEmojiReaction;
             if (!currentDMUser || !dmConversations[currentDMUser]) return;
             
             const container = document.getElementById('dmChatMessages');
-            container.innerHTML = dmConversations[currentDMUser].messages.map(msg => `
-                <div class="dm-message ${msg.from === currentUsername ? 'sent' : 'received'}">
-                    ${escapeHtml(msg.content)}
-                </div>
-            `).join('');
+            container.innerHTML = dmConversations[currentDMUser].messages.map(msg => {
+                const contentHtml = msg.content ? `<div class="dm-text">${escapeHtml(msg.content)}</div>` : '';
+                const attachmentHtml = msg.attachment ? renderDMAttachment(msg.attachment) : '';
+                return `
+                    <div class="dm-message ${msg.from === currentUsername ? 'sent' : 'received'}">
+                        ${contentHtml}
+                        ${attachmentHtml}
+                    </div>
+                `;
+            }).join('');
             
             container.scrollTop = container.scrollHeight;
         }
@@ -11973,9 +12222,9 @@ window.addEmojiReaction = addEmojiReaction;
         function sendDM() {
             const input = document.getElementById('dmInput');
             const content = input.value.trim();
-            if (!content || !currentDMUser) return;
+            if ((!content && !pendingDMAttachment) || !currentDMUser || !socket) return;
             
-            socket.emit('send_dm', { to: currentDMUser, content });
+            socket.emit('send_dm', { to: currentDMUser, content, attachment: pendingDMAttachment || null });
             
             // Ajouter localement
             if (!dmConversations[currentDMUser]) {
@@ -11984,11 +12233,125 @@ window.addEmojiReaction = addEmojiReaction;
             dmConversations[currentDMUser].messages.push({
                 from: currentUsername,
                 content: content,
+                attachment: pendingDMAttachment || null,
                 timestamp: new Date()
             });
             
             input.value = '';
+            pendingDMAttachment = null;
             renderDMMessages();
+
+            if (isDMTyping) {
+                isDMTyping = false;
+                socket.emit('dm_typing_stop', { to: currentDMUser });
+            }
+        }
+
+        function renderDMAttachment(attachment) {
+            if (!attachment) return '';
+            if (attachment.type === 'gif') {
+                return `
+                    <div class="dm-attachment">
+                        <img src="${attachment.url}" alt="GIF" onclick="openImageModal('${attachment.url}')">
+                    </div>
+                `;
+            }
+            if (attachment.mimetype && attachment.mimetype.startsWith('image/')) {
+                return `
+                    <div class="dm-attachment">
+                        <img src="${attachment.path}" alt="${escapeHtml(attachment.originalname)}" onclick="openImageModal('${attachment.path}')">
+                    </div>
+                `;
+            }
+            const icon = getFileIcon(attachment.mimetype || 'application/octet-stream');
+            const sizeStr = formatFileSize(attachment.size || 0);
+            return `
+                <div class="dm-attachment">
+                    <div class="attachment">
+                        <div class="attachment-icon">${icon}</div>
+                        <div class="attachment-info">
+                            <div class="attachment-name">${escapeHtml(attachment.originalname || 'Fichier')}</div>
+                            <div class="attachment-size">${sizeStr}</div>
+                        </div>
+                        <button class="download-btn" onclick="downloadFile('${attachment.filename}', '${attachment.originalname || 'fichier'}')">
+                            ⬇️ ${translateText('download_btn')}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function handleDMFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file || !currentDMUser) return;
+
+            if (file.size > 100 * 1024 * 1024) {
+                showError(translateText('file_too_large') + ' (max 100MB)');
+                event.target.value = '';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.filename) {
+                    pendingDMAttachment = {
+                        filename: data.filename,
+                        originalname: data.originalname,
+                        size: data.size,
+                        mimetype: data.mimetype,
+                        path: data.path
+                    };
+                    sendDM();
+                } else {
+                    showError(translateText('upload_error'));
+                }
+            })
+            .catch(error => {
+                console.error('Erreur upload DM:', error);
+                showError(translateText('upload_error'));
+            })
+            .finally(() => {
+                event.target.value = '';
+            });
+        }
+
+        function handleDMTyping() {
+            if (!currentDMUser || !socket) return;
+
+            if (!isDMTyping) {
+                isDMTyping = true;
+                socket.emit('dm_typing_start', { to: currentDMUser });
+            }
+
+            clearTimeout(dmTypingTimer);
+            dmTypingTimer = setTimeout(() => {
+                if (isDMTyping) {
+                    isDMTyping = false;
+                    socket.emit('dm_typing_stop', { to: currentDMUser });
+                }
+            }, 1500);
+        }
+
+        function showDMTyping(from) {
+            if (currentDMUser !== from) return;
+            const indicator = document.getElementById('dmTypingIndicator');
+            const text = document.getElementById('dmTypingText');
+            if (indicator && text) {
+                text.textContent = `${from} est en train d'écrire...`;
+                indicator.style.display = 'flex';
+            }
+        }
+
+        function hideDMTyping() {
+            const indicator = document.getElementById('dmTypingIndicator');
+            if (indicator) indicator.style.display = 'none';
         }
 
         function updateDMUnreadBadge() {

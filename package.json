@@ -1,7 +1,7 @@
 {
-  "name": "chatroom-server",
-  "version": "2.7.0",
-  "description": "Serveur de chat en temps réel avec panneau admin renforcé, bans temporaires, mode privé et menu contextuel",
+  "name": "docspace-server",
+  "version": "2.9.3-beta",
+  "description": "Serveur de chat DocSpace en temps réel avec panneau admin renforcé, bans temporaires, mode privé et menu contextuel",
   "main": "server.js",
   "engines": {
     "node": ">=16.0.0",
@@ -51,8 +51,8 @@
   "config": {
     "port": "3000",
     "host": "0.0.0.0",
-    "maxFileSize": "10MB",
-    "maxAvatarSize": "5MB",
+    "maxFileSize": "100MB",
+    "maxAvatarSize": "10MB",
     "maxHistoryMessages": 100
   },
   "render": {
