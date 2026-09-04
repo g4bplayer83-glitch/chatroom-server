@@ -76,19 +76,21 @@ function fbSaveImmediate(key, data) {
 }
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
     },
-    pingTimeout: 60000,
-    pingInterval: 25000
+    pingTimeout: 45000,
+    pingInterval: 25000,
+    maxHttpBufferSize: 2e6
 });
 global.io = io;
 
 // Configuration multer pour les fichiers
-const uploadDir = path.join(__dirname, 'uploads');
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -199,6 +201,20 @@ const VOICE_RUNTIME_MODE = String(process.env.DOCSPACE_VOICE_MODE || 'p2p').toLo
 const VOICE_SFU_PROVIDER = String(process.env.DOCSPACE_SFU_PROVIDER || 'mediasoup').toLowerCase();
 const VOICE_SFU_SIGNALING_URL = process.env.DOCSPACE_SFU_SIGNALING_URL || '';
 const VOICE_SFU_PUBLIC_WS = process.env.DOCSPACE_SFU_PUBLIC_WS || '';
+const VOICE_FORCE_RELAY = String(process.env.DOCSPACE_FORCE_RELAY || 'false').toLowerCase() === 'true';
+const VOICE_STUN_URLS = String(process.env.DOCSPACE_STUN_URLS || 'stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302')
+    .split(',').map(v => v.trim()).filter(Boolean);
+const VOICE_TURN_URLS = String(process.env.DOCSPACE_TURN_URLS || '')
+    .split(',').map(v => v.trim()).filter(Boolean);
+const VOICE_TURN_USERNAME = String(process.env.DOCSPACE_TURN_USERNAME || '');
+const VOICE_TURN_CREDENTIAL = String(process.env.DOCSPACE_TURN_CREDENTIAL || '');
+function getVoiceIceServers() {
+    const servers = VOICE_STUN_URLS.map(urls => ({ urls }));
+    if (VOICE_TURN_URLS.length && VOICE_TURN_USERNAME && VOICE_TURN_CREDENTIAL) {
+        servers.push({ urls: VOICE_TURN_URLS, username: VOICE_TURN_USERNAME, credential: VOICE_TURN_CREDENTIAL });
+    }
+    return servers;
+}
 
 let userSocketIndex = new Map(); // username(lower) -> Set(socketId)
 let multiDeviceSyncState = new Map(); // username(lower) -> { updatedAt, byDevice: { deviceId: state } }
@@ -261,10 +277,10 @@ const LIVE_EVENTS_CATALOG = [
         messageXpMultiplier: 1.4
     },
     {
-        id: 'arcade_frenzy',
-        icon: '🕹️',
-        title: 'Arcade Frenzy',
-        description: 'Ambiance mini-jeux, XP des messages x1.3.',
+        id: 'community_pulse',
+        icon: '💬',
+        title: 'Community Pulse',
+        description: 'Activité communautaire: XP des messages x1.3.',
         messageXpMultiplier: 1.3
     }
 ];
@@ -332,59 +348,51 @@ let userBookmarks = {}; // username -> [{ messageId, content, author, channel, t
 // === FRIEND SYSTEM ===
 let friendships = {}; // username -> { friends: [username], pending: [username], requests: [username] }
 
-// === LEVELING / XP SYSTEM ===
-let userXP = {}; // username -> { xp, level, totalMessages, lastXpGain }
-let miniGameStats = {}; // username -> { points, played, wins, losses, draws, byGame }
+// === LEVELING / XP SYSTEM — XP ONLY + COSMETIC UNLOCKS ===
+let userXP = {}; // username -> persistent XP progression
+
 const XP_PER_MESSAGE = 18;
 const XP_PER_REACTION = 8;
-const XP_LEVEL_BASE = 100; // XP for level 1, doubles each level
+const XP_LEVEL_BASE = 100;
 const DAILY_LOGIN_XP_BONUS = 60;
 const DAILY_LOGIN_STREAK_STEP = 15;
 const DAILY_LOGIN_STREAK_MAX_BONUS = 90;
 const XP_MESSAGE_COOLDOWN_MS = 25000;
-const XP_MESSAGE_COOLDOWN_REDUCED_MS = 18000;
-const XP_UTILITY_DURATION_MS = 15 * 60 * 1000;
 const VOICE_PASSIVE_XP_PER_MINUTE = 5;
-const BANANA_XP_RATIO = 11;
 const VOICE_SPEAKING_EVENT_THROTTLE_MS = 120;
-const UTILITY_PURCHASES_LIMIT_PER_HOUR = 8;
-const CLICKER_XP_PER_CLICK = 2;
-const CLICKER_TAP_COOLDOWN_MS = 180;
-const CLICKER_LUCKY_BANANA_CHANCE = 0.03;
-const CLICKER_JACKPOT_CHANCE = 0.004;
-const CLICKER_JACKPOT_XP = 50;
-const CLICKER_JACKPOT_BANANAS = 5;
-const CLICKER_MEGA_JACKPOT_CHANCE = 0.0005;
-const CLICKER_MEGA_JACKPOT_XP = 200;
-const CLICKER_MEGA_JACKPOT_BANANAS = 20;
-const CLICKER_AUTOCLICKER_COST = 560;
-const CLICKER_AUTOCLICKER_INTERVAL_MS = 1000; // 1 click per second
-const CLICKER_AUTOCLICKER_XP_PER_TICK = 1; // reduced XP for auto clicks
-const CLICKER_UPGRADES = {
-    efficiency: { baseCost: 20, costMultiplier: 1.8, maxLevel: 10, label: '⚡ Efficacité', desc: '+1 XP/clic par niveau' },
-    luck:       { baseCost: 30, costMultiplier: 2.0, maxLevel: 10, label: '🍀 Chance', desc: '+1% drop 🍌 par niveau' },
-    speed:      { baseCost: 40, costMultiplier: 2.2, maxLevel: 8, label: '💨 Vitesse', desc: 'Auto-click plus rapide' }
+const CUSTOM_THEME_MIN_LEVEL = 20;
+const THEME_LEVEL_UNLOCKS = {
+    default: 0,
+    dark: 0,
+    retro: 0,
+    bluenight: 2,
+    red: 4,
+    yellow: 4,
+    purple: 4,
+    pink: 7,
+    'pink-light': 7,
+    orange: 10,
+    green: 10,
+    custom: 20
 };
+
 const NAME_EFFECT_ITEMS = {
-    name_glow: { cost: 24, label: 'Halo lumineux' },
-    name_gradient: { cost: 29, label: 'Dégradé arc-en-ciel' },
-    name_neon: { cost: 34, label: 'Néon vibrant' }
+    name_glow: { minLevel: 3, label: 'Halo lumineux' },
+    name_gradient: { minLevel: 7, label: 'Dégradé arc-en-ciel' },
+    name_neon: { minLevel: 12, label: 'Néon vibrant' }
 };
+
 const DAILY_MISSIONS = {
-    messages: { target: 10, rewardXP: 80, rewardBananas: 3, label: 'Messages du jour' },
-    reactions: { target: 5, rewardXP: 60, rewardBananas: 2, label: 'Reactions du jour' },
-    voiceMinutes: { target: 10, rewardXP: 100, rewardBananas: 4, label: 'Minutes en vocal' },
-    miniGameRounds: { target: 3, rewardXP: 90, rewardBananas: 3, label: 'Mini-jeux du jour' },
-    clickerClicks: { target: 100, rewardXP: 120, rewardBananas: 5, label: 'Cookie Clicker' }
+    messages: { target: 10, rewardXP: 80, label: 'Messages du jour' },
+    reactions: { target: 5, rewardXP: 60, label: 'Réactions du jour' },
+    voiceMinutes: { target: 10, rewardXP: 100, label: 'Minutes en vocal' }
 };
 
 const SEASONAL_QUEST_ROTATION_DAYS = 7;
 const SEASONAL_QUEST_POOL = [
-    { id: 'season_messages', metric: 'messages', title: 'Sprint messagerie', label: 'Messages saison', baseTarget: 16, targetGrowthPerSeason: 2, rewardXP: 140, rewardBananas: 6 },
-    { id: 'season_reactions', metric: 'reactions', title: 'Amplificateur social', label: 'Reactions saison', baseTarget: 12, targetGrowthPerSeason: 1, rewardXP: 110, rewardBananas: 5 },
-    { id: 'season_voice', metric: 'voiceMinutes', title: 'Pulse vocal', label: 'Minutes vocal saison', baseTarget: 20, targetGrowthPerSeason: 2, rewardXP: 170, rewardBananas: 7 },
-    { id: 'season_arcade', metric: 'miniGameRounds', title: 'Arcade saisonniere', label: 'Parties mini-jeux saison', baseTarget: 5, targetGrowthPerSeason: 1, rewardXP: 150, rewardBananas: 6 },
-    { id: 'season_clicker', metric: 'clickerClicks', title: 'Cookie Marathon', label: 'Clicks saison', baseTarget: 180, targetGrowthPerSeason: 15, rewardXP: 190, rewardBananas: 8 }
+    { id: 'season_messages', metric: 'messages', title: 'Sprint messagerie', label: 'Messages saison', baseTarget: 16, targetGrowthPerSeason: 2, rewardXP: 140 },
+    { id: 'season_reactions', metric: 'reactions', title: 'Amplificateur social', label: 'Réactions saison', baseTarget: 12, targetGrowthPerSeason: 1, rewardXP: 110 },
+    { id: 'season_voice', metric: 'voiceMinutes', title: 'Pulse vocal', label: 'Minutes vocal saison', baseTarget: 20, targetGrowthPerSeason: 2, rewardXP: 170 }
 ];
 
 const XP_ROLES = [
@@ -399,20 +407,14 @@ const XP_ROLES = [
 
 function buildDailyMissionProgressDefaults() {
     const defaults = {};
-    Object.keys(DAILY_MISSIONS).forEach((key) => {
-        defaults[key] = 0;
-    });
+    Object.keys(DAILY_MISSIONS).forEach((key) => { defaults[key] = 0; });
     return defaults;
 }
-
 function buildDailyMissionCompletedDefaults() {
     const defaults = {};
-    Object.keys(DAILY_MISSIONS).forEach((key) => {
-        defaults[key] = false;
-    });
+    Object.keys(DAILY_MISSIONS).forEach((key) => { defaults[key] = false; });
     return defaults;
 }
-
 function getRoleForLevel(level) {
     const safeLevel = Math.max(0, Number(level || 0));
     return XP_ROLES.find((role) => safeLevel >= role.minLevel) || XP_ROLES[XP_ROLES.length - 1];
@@ -421,219 +423,90 @@ function getXPForLevel(level) { return Math.floor(XP_LEVEL_BASE * Math.pow(1.5, 
 function getLevelFromXP(xp) {
     let level = 0;
     let totalNeeded = 0;
-    while (totalNeeded + getXPForLevel(level + 1) <= xp) {
+    const safeXP = Math.max(0, Number(xp || 0));
+    while (totalNeeded + getXPForLevel(level + 1) <= safeXP) {
         level++;
         totalNeeded += getXPForLevel(level);
     }
-    return { level, currentXP: xp - totalNeeded, neededXP: getXPForLevel(level + 1) };
+    return { level, currentXP: safeXP - totalNeeded, neededXP: getXPForLevel(level + 1) };
 }
-
-function getBananaPoints(username) {
-    const data = userXP[username];
-    if (!data) return 0;
-    return Math.max(0, Math.floor(Number(data.bonusBananas || 0)));
-}
-
-function spendBananas(username, cost) {
-    const entry = ensureXPEntry(username);
-    let remaining = Math.max(0, Math.floor(cost || 0));
-    if (remaining <= 0) return true;
-
-    const available = Math.max(0, Number(entry.bonusBananas || 0));
-    if (available < remaining) return false;
-    entry.bonusBananas = available - remaining;
-
-    return true;
-}
-
-function convertXPToBananas(username, bananaAmount) {
-    const entry = ensureXPEntry(username);
-    const requested = Math.max(0, Math.floor(Number(bananaAmount || 0)));
-    if (requested <= 0) {
-        return { success: false, message: 'Montant invalide' };
-    }
-
-    const xpCost = requested * BANANA_XP_RATIO;
-    const currentXP = Math.max(0, Number(entry.xp || 0));
-    if (currentXP < xpCost) {
-        return {
-            success: false,
-            message: `XP insuffisante (${currentXP}/${xpCost})`
-        };
-    }
-
-    entry.xp = currentXP - xpCost;
-    entry.level = getLevelFromXP(entry.xp).level;
-    entry.bonusBananas = Math.max(0, Number(entry.bonusBananas || 0)) + requested;
-
-    return {
-        success: true,
-        bananasAdded: requested,
-        xpSpent: xpCost,
-        bananaPoints: getBananaPoints(username)
-    };
-}
-
 function sanitizeNameEffect(effect) {
     const safe = String(effect || 'none').toLowerCase();
-    if (['name_glow', 'name_gradient', 'name_neon'].includes(safe)) return safe;
-    return 'none';
+    return Object.prototype.hasOwnProperty.call(NAME_EFFECT_ITEMS, safe) ? safe : 'none';
 }
-
+function getUnlockedNameEffects(level) {
+    const safeLevel = Math.max(0, Number(level || 0));
+    const out = {};
+    Object.entries(NAME_EFFECT_ITEMS).forEach(([key, def]) => { out[key] = safeLevel >= def.minLevel; });
+    return out;
+}
 function getActiveNameEffect(username) {
     const entry = ensureXPEntry(username);
+    const level = getLevelFromXP(entry.xp || 0).level;
     const active = sanitizeNameEffect(entry.activeNameEffect || 'none');
     if (active === 'none') return 'none';
-    const owned = entry.ownedNameEffects || {};
-    return owned[active] ? active : 'none';
+    return level >= NAME_EFFECT_ITEMS[active].minLevel ? active : 'none';
 }
 
 function mergeXPEntries(baseEntry, incomingEntry) {
     const base = baseEntry || {};
     const incoming = incomingEntry || {};
-
     base.xp = Math.max(0, Number(base.xp || 0)) + Math.max(0, Number(incoming.xp || 0));
     base.totalMessages = Math.max(0, Number(base.totalMessages || 0)) + Math.max(0, Number(incoming.totalMessages || 0));
-    base.bonusBananas = Math.max(0, Number(base.bonusBananas || 0)) + Math.max(0, Number(incoming.bonusBananas || 0));
     base.streakDays = Math.max(Number(base.streakDays || 0), Number(incoming.streakDays || 0));
     base.lastXpGain = Math.max(Number(base.lastXpGain || 0), Number(incoming.lastXpGain || 0));
     base.lastReactionXpAt = Math.max(Number(base.lastReactionXpAt || 0), Number(incoming.lastReactionXpAt || 0));
-    base.streakShieldCharges = Math.min(3, Math.max(Number(base.streakShieldCharges || 0), Number(incoming.streakShieldCharges || 0)));
-    base.xpBoostUntil = Math.max(Number(base.xpBoostUntil || 0), Number(incoming.xpBoostUntil || 0));
-    base.reactionBoostUntil = Math.max(Number(base.reactionBoostUntil || 0), Number(incoming.reactionBoostUntil || 0));
-    base.cooldownReducerUntil = Math.max(Number(base.cooldownReducerUntil || 0), Number(incoming.cooldownReducerUntil || 0));
-    base.shopWindowStart = Math.max(Number(base.shopWindowStart || 0), Number(incoming.shopWindowStart || 0));
-    base.shopWindowCount = Math.max(Number(base.shopWindowCount || 0), Number(incoming.shopWindowCount || 0));
-
-    const owned = { ...(base.ownedNameEffects || {}) };
-    const incomingOwned = incoming.ownedNameEffects || {};
-    Object.keys(NAME_EFFECT_ITEMS).forEach((k) => {
-        owned[k] = !!owned[k] || !!incomingOwned[k];
-    });
-    base.ownedNameEffects = owned;
-
-    const wanted = sanitizeNameEffect(base.activeNameEffect || incoming.activeNameEffect || 'none');
-    base.activeNameEffect = (wanted !== 'none' && owned[wanted]) ? wanted : 'none';
-
+    base.lastLoginDay = base.lastLoginDay || incoming.lastLoginDay || null;
     base.dailyMissionDay = base.dailyMissionDay || incoming.dailyMissionDay || null;
-    const progress = {
-        ...buildDailyMissionProgressDefaults(),
-        ...(base.dailyMissionProgress || {}),
-        ...(incoming.dailyMissionProgress || {})
-    };
-    const completed = {
-        ...buildDailyMissionCompletedDefaults(),
-        ...(base.dailyMissionCompleted || {}),
-        ...(incoming.dailyMissionCompleted || {})
-    };
+    const progress = { ...buildDailyMissionProgressDefaults(), ...(base.dailyMissionProgress || {}), ...(incoming.dailyMissionProgress || {}) };
+    const completed = { ...buildDailyMissionCompletedDefaults(), ...(base.dailyMissionCompleted || {}), ...(incoming.dailyMissionCompleted || {}) };
     Object.keys(DAILY_MISSIONS).forEach((key) => {
         progress[key] = Math.max(0, Number(progress[key] || 0));
         completed[key] = !!completed[key];
     });
     base.dailyMissionProgress = progress;
     base.dailyMissionCompleted = completed;
-
-    base.clicker = {
-        totalClicks: Math.max(0, Number(base?.clicker?.totalClicks || 0)) + Math.max(0, Number(incoming?.clicker?.totalClicks || 0)),
-        sessionClicks: Math.max(0, Number(base?.clicker?.sessionClicks || 0)) + Math.max(0, Number(incoming?.clicker?.sessionClicks || 0)),
-        luckyDrops: Math.max(0, Number(base?.clicker?.luckyDrops || 0)) + Math.max(0, Number(incoming?.clicker?.luckyDrops || 0)),
-        lastTapAt: Math.max(0, Number(base?.clicker?.lastTapAt || 0), Number(incoming?.clicker?.lastTapAt || 0))
-    };
-
-    base.level = getLevelFromXP(base.xp).level;
-    return base;
-}
-
-function mergeMiniGameStatsEntries(baseEntry, incomingEntry) {
-    const base = baseEntry || { points: 0, played: 0, wins: 0, losses: 0, draws: 0, byGame: {} };
-    const incoming = incomingEntry || { byGame: {} };
-
-    base.points = Math.max(0, Number(base.points || 0)) + Math.max(0, Number(incoming.points || 0));
-    base.played = Math.max(0, Number(base.played || 0)) + Math.max(0, Number(incoming.played || 0));
-    base.wins = Math.max(0, Number(base.wins || 0)) + Math.max(0, Number(incoming.wins || 0));
-    base.losses = Math.max(0, Number(base.losses || 0)) + Math.max(0, Number(incoming.losses || 0));
-    base.draws = Math.max(0, Number(base.draws || 0)) + Math.max(0, Number(incoming.draws || 0));
-
-    base.byGame = base.byGame || {};
-    const incomingByGame = incoming.byGame || {};
-    Object.entries(incomingByGame).forEach(([gameKey, row]) => {
-        const cur = base.byGame[gameKey] || { points: 0, played: 0, wins: 0, losses: 0, draws: 0 };
-        cur.points = Math.max(0, Number(cur.points || 0)) + Math.max(0, Number(row.points || 0));
-        cur.played = Math.max(0, Number(cur.played || 0)) + Math.max(0, Number(row.played || 0));
-        cur.wins = Math.max(0, Number(cur.wins || 0)) + Math.max(0, Number(row.wins || 0));
-        cur.losses = Math.max(0, Number(cur.losses || 0)) + Math.max(0, Number(row.losses || 0));
-        cur.draws = Math.max(0, Number(cur.draws || 0)) + Math.max(0, Number(row.draws || 0));
-        base.byGame[gameKey] = cur;
-    });
-    base.lastPlayedAt = incoming.lastPlayedAt || base.lastPlayedAt || null;
+    base.customTheme = base.customTheme || incoming.customTheme || null;
+    const level = getLevelFromXP(base.xp).level;
+    const wanted = sanitizeNameEffect(base.activeNameEffect || incoming.activeNameEffect || 'none');
+    base.activeNameEffect = wanted !== 'none' && level >= NAME_EFFECT_ITEMS[wanted].minLevel ? wanted : 'none';
+    base.level = level;
     return base;
 }
 
 function ensureXPEntry(username) {
     if (!userXP[username]) {
         userXP[username] = {
-            xp: 0,
-            level: 0,
-            totalMessages: 0,
-            lastXpGain: 0,
-            streakDays: 0,
-            lastLoginDay: null,
-            xpBoostUntil: 0,
-            reactionBoostUntil: 0,
-            cooldownReducerUntil: 0,
-            bonusBananas: 0,
-            ownedNameEffects: {},
-            activeNameEffect: 'none',
-            streakShieldCharges: 0,
-            lastReactionXpAt: 0,
-            shopWindowStart: 0,
-            shopWindowCount: 0,
+            xp: 0, level: 0, totalMessages: 0, lastXpGain: 0,
+            streakDays: 0, lastLoginDay: null, lastReactionXpAt: 0,
+            activeNameEffect: 'none', customTheme: null,
             dailyMissionDay: null,
             dailyMissionProgress: buildDailyMissionProgressDefaults(),
-            dailyMissionCompleted: buildDailyMissionCompletedDefaults(),
-            clicker: {
-                totalClicks: 0,
-                sessionClicks: 0,
-                luckyDrops: 0,
-                lastTapAt: 0
-            }
+            dailyMissionCompleted: buildDailyMissionCompletedDefaults()
         };
     }
-
-    if (typeof userXP[username].streakDays !== 'number') userXP[username].streakDays = 0;
-    if (typeof userXP[username].lastLoginDay !== 'string') userXP[username].lastLoginDay = null;
-    if (typeof userXP[username].xpBoostUntil !== 'number') userXP[username].xpBoostUntil = 0;
-    if (typeof userXP[username].reactionBoostUntil !== 'number') userXP[username].reactionBoostUntil = 0;
-    if (typeof userXP[username].cooldownReducerUntil !== 'number') userXP[username].cooldownReducerUntil = 0;
-    if (typeof userXP[username].bonusBananas !== 'number') userXP[username].bonusBananas = 0;
-    if (!userXP[username].ownedNameEffects || typeof userXP[username].ownedNameEffects !== 'object') userXP[username].ownedNameEffects = {};
-    userXP[username].activeNameEffect = sanitizeNameEffect(userXP[username].activeNameEffect || 'none');
-    if (userXP[username].activeNameEffect !== 'none' && !userXP[username].ownedNameEffects[userXP[username].activeNameEffect]) {
-        userXP[username].activeNameEffect = 'none';
-    }
-    if (typeof userXP[username].streakShieldCharges !== 'number') userXP[username].streakShieldCharges = 0;
-    if (typeof userXP[username].lastReactionXpAt !== 'number') userXP[username].lastReactionXpAt = 0;
-    if (typeof userXP[username].shopWindowStart !== 'number') userXP[username].shopWindowStart = 0;
-    if (typeof userXP[username].shopWindowCount !== 'number') userXP[username].shopWindowCount = 0;
-    if (typeof userXP[username].dailyMissionDay !== 'string') userXP[username].dailyMissionDay = null;
-    if (!userXP[username].dailyMissionProgress || typeof userXP[username].dailyMissionProgress !== 'object') {
-        userXP[username].dailyMissionProgress = buildDailyMissionProgressDefaults();
-    }
-    if (!userXP[username].dailyMissionCompleted || typeof userXP[username].dailyMissionCompleted !== 'object') {
-        userXP[username].dailyMissionCompleted = buildDailyMissionCompletedDefaults();
-    }
+    const entry = userXP[username];
+    // Migration v3.3.0 consolidée: retirer les anciens champs de monnaie/boutique.
+    ['bonusBananas', 'bananas', 'bananaPoints', 'xpBoostUntil', 'reactionBoostUntil',
+     'cooldownReducerUntil', 'streakShieldCharges', 'inventory', 'ownedItems',
+     'clicker', 'shopPurchases'].forEach((legacyKey) => { delete entry[legacyKey]; });
+    entry.xp = Math.max(0, Number(entry.xp || 0));
+    entry.level = getLevelFromXP(entry.xp).level;
+    entry.totalMessages = Math.max(0, Number(entry.totalMessages || 0));
+    entry.lastXpGain = Math.max(0, Number(entry.lastXpGain || 0));
+    entry.streakDays = Math.max(0, Number(entry.streakDays || 0));
+    entry.lastReactionXpAt = Math.max(0, Number(entry.lastReactionXpAt || 0));
+    if (typeof entry.lastLoginDay !== 'string') entry.lastLoginDay = null;
+    if (typeof entry.dailyMissionDay !== 'string') entry.dailyMissionDay = null;
+    if (!entry.dailyMissionProgress || typeof entry.dailyMissionProgress !== 'object') entry.dailyMissionProgress = buildDailyMissionProgressDefaults();
+    if (!entry.dailyMissionCompleted || typeof entry.dailyMissionCompleted !== 'object') entry.dailyMissionCompleted = buildDailyMissionCompletedDefaults();
     Object.keys(DAILY_MISSIONS).forEach((key) => {
-        userXP[username].dailyMissionProgress[key] = Math.max(0, Number(userXP[username].dailyMissionProgress[key] || 0));
-        userXP[username].dailyMissionCompleted[key] = !!userXP[username].dailyMissionCompleted[key];
+        entry.dailyMissionProgress[key] = Math.max(0, Number(entry.dailyMissionProgress[key] || 0));
+        entry.dailyMissionCompleted[key] = !!entry.dailyMissionCompleted[key];
     });
-    if (!userXP[username].clicker || typeof userXP[username].clicker !== 'object') {
-        userXP[username].clicker = { totalClicks: 0, sessionClicks: 0, luckyDrops: 0, lastTapAt: 0 };
-    }
-    userXP[username].clicker.totalClicks = Math.max(0, Number(userXP[username].clicker.totalClicks || 0));
-    userXP[username].clicker.sessionClicks = Math.max(0, Number(userXP[username].clicker.sessionClicks || 0));
-    userXP[username].clicker.luckyDrops = Math.max(0, Number(userXP[username].clicker.luckyDrops || 0));
-    userXP[username].clicker.lastTapAt = Math.max(0, Number(userXP[username].clicker.lastTapAt || 0));
-    return userXP[username];
+    entry.activeNameEffect = sanitizeNameEffect(entry.activeNameEffect || 'none');
+    if (entry.activeNameEffect !== 'none' && entry.level < NAME_EFFECT_ITEMS[entry.activeNameEffect].minLevel) entry.activeNameEffect = 'none';
+    return entry;
 }
 
 function getDayKey(ts = Date.now()) {
@@ -643,66 +516,40 @@ function getDayKey(ts = Date.now()) {
     const day = String(d.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
 }
-
-function getPreviousDayKey(ts = Date.now()) {
-    return getDayKey(ts - 24 * 60 * 60 * 1000);
-}
+function getPreviousDayKey(ts = Date.now()) { return getDayKey(ts - 24 * 60 * 60 * 1000); }
 
 function buildXPDataPayload(username) {
     const data = ensureXPEntry(username);
     ensureDailyMissionsForEntry(data);
     const levelData = getLevelFromXP(data.xp || 0);
     const role = getRoleForLevel(levelData.level);
-    const boostUntil = data.xpBoostUntil || 0;
-    const reactionBoostUntil = data.reactionBoostUntil || 0;
-    const cooldownReducerUntil = data.cooldownReducerUntil || 0;
     const missionTargets = {};
     const missionRewards = {};
     const missionProgress = {};
     const missionCompleted = {};
-
     Object.entries(DAILY_MISSIONS).forEach(([key, mission]) => {
         missionTargets[key] = mission.target;
-        missionRewards[key] = {
-            xp: mission.rewardXP,
-            bananas: mission.rewardBananas
-        };
+        missionRewards[key] = { xp: mission.rewardXP };
         missionProgress[key] = Number(data.dailyMissionProgress?.[key] || 0);
         missionCompleted[key] = !!data.dailyMissionCompleted?.[key];
     });
-
+    const unlockedNameEffects = getUnlockedNameEffects(levelData.level);
+    const themeUnlocks = {};
+    Object.entries(THEME_LEVEL_UNLOCKS).forEach(([theme, minLevel]) => {
+        themeUnlocks[theme] = levelData.level >= minLevel;
+    });
+    const unlockedThemes = Object.entries(themeUnlocks).filter(([, unlocked]) => unlocked).map(([theme]) => theme);
     return {
         xp: data.xp || 0,
         ...levelData,
         role,
         totalMessages: data.totalMessages || 0,
-        bananaPoints: getBananaPoints(username),
-        bananaBreakdown: {
-            fromWallet: Math.max(0, Number(data.bonusBananas || 0)),
-            convertibleFromXP: Math.floor((data.xp || 0) / BANANA_XP_RATIO),
-            fromTasks: Math.max(0, Number(data.bonusBananas || 0)),
-            ratioXP: BANANA_XP_RATIO
-        },
         streakDays: data.streakDays || 0,
-        xpBoostUntil: boostUntil,
-        xpBoostActive: boostUntil > Date.now(),
-        reactionBoostUntil,
-        reactionBoostActive: reactionBoostUntil > Date.now(),
-        cooldownReducerUntil,
-        cooldownReducerActive: cooldownReducerUntil > Date.now(),
-        streakShieldCharges: data.streakShieldCharges || 0,
         activeNameEffect: getActiveNameEffect(username),
-        ownedNameEffects: {
-            name_glow: !!data.ownedNameEffects?.name_glow,
-            name_gradient: !!data.ownedNameEffects?.name_gradient,
-            name_neon: !!data.ownedNameEffects?.name_neon
-        },
-        clicker: {
-            totalClicks: Number(data.clicker?.totalClicks || 0),
-            sessionClicks: Number(data.clicker?.sessionClicks || 0),
-            luckyDrops: Number(data.clicker?.luckyDrops || 0),
-            cooldownMs: CLICKER_TAP_COOLDOWN_MS
-        },
+        unlockedNameEffects,
+        unlockedThemes,
+        themeUnlocks,
+        customThemeUnlocked: levelData.level >= CUSTOM_THEME_MIN_LEVEL,
         dailyMissions: {
             dayKey: data.dailyMissionDay || getDayKey(),
             targets: missionTargets,
@@ -711,19 +558,14 @@ function buildXPDataPayload(username) {
             completed: missionCompleted
         },
         seasonalQuests: buildSeasonalQuestsPayload(username),
-        customThemeUnlocked: !!data.customThemeUnlocked,
+        customThemeUnlocked: levelData.level >= CUSTOM_THEME_MIN_LEVEL,
+        customThemeMinLevel: CUSTOM_THEME_MIN_LEVEL,
         customTheme: data.customTheme || null,
-        autoClickerUnlocked: !!data.autoClickerUnlocked,
         serverEnv: SERVER_ENV
     };
 }
 
-function getMessageCooldownMs(entry) {
-    return entry.cooldownReducerUntil && entry.cooldownReducerUntil > Date.now()
-        ? XP_MESSAGE_COOLDOWN_REDUCED_MS
-        : XP_MESSAGE_COOLDOWN_MS;
-}
-
+function getMessageCooldownMs() { return XP_MESSAGE_COOLDOWN_MS; }
 function ensureDailyMissionsForEntry(entry) {
     const todayKey = getDayKey();
     if (entry.dailyMissionDay !== todayKey) {
@@ -737,7 +579,6 @@ function ensureDailyMissionsForEntry(entry) {
         });
     }
 }
-
 function addRawXP(username, amount) {
     const entry = ensureXPEntry(username);
     const safeAmount = Math.max(0, Math.floor(amount || 0));
@@ -746,72 +587,42 @@ function addRawXP(username, amount) {
     entry.xp += safeAmount;
     const newLevelData = getLevelFromXP(entry.xp);
     entry.level = newLevelData.level;
-    return {
-        gainedXP: safeAmount,
-        levelUp: newLevelData.level > oldLevel,
-        newLevel: newLevelData.level
-    };
+    return { gainedXP: safeAmount, levelUp: newLevelData.level > oldLevel, newLevel: newLevelData.level };
 }
-
 function applyMissionProgress(username, deltas = {}) {
     const entry = ensureXPEntry(username);
     ensureDailyMissionsForEntry(entry);
-
     Object.keys(deltas || {}).forEach((key) => {
         if (!Object.prototype.hasOwnProperty.call(DAILY_MISSIONS, key)) return;
         entry.dailyMissionProgress[key] = Math.max(0, Number(entry.dailyMissionProgress[key] || 0) + Number(deltas[key] || 0));
     });
-
     const rewards = [];
-    const keys = Object.keys(DAILY_MISSIONS);
-    for (const key of keys) {
+    for (const key of Object.keys(DAILY_MISSIONS)) {
+        const mission = DAILY_MISSIONS[key];
         if (entry.dailyMissionCompleted[key]) continue;
-        if ((entry.dailyMissionProgress[key] || 0) >= DAILY_MISSIONS[key].target) {
+        if ((entry.dailyMissionProgress[key] || 0) >= mission.target) {
             entry.dailyMissionCompleted[key] = true;
-            const rewardXP = DAILY_MISSIONS[key].rewardXP;
-            const rewardBananas = Math.max(0, Number(DAILY_MISSIONS[key].rewardBananas || 0));
-            const xpResult = addRawXP(username, rewardXP);
-            if (rewardBananas > 0) {
-                entry.bonusBananas = Math.max(0, Number(entry.bonusBananas || 0)) + rewardBananas;
-            }
-            rewards.push({
-                key,
-                label: DAILY_MISSIONS[key].label,
-                rewardXP,
-                rewardBananas,
-                levelUp: xpResult.levelUp,
-                newLevel: xpResult.newLevel
-            });
+            const xpResult = addRawXP(username, mission.rewardXP);
+            rewards.push({ key, label: mission.label, rewardXP: mission.rewardXP, levelUp: xpResult.levelUp, newLevel: xpResult.newLevel });
         }
     }
-
     return rewards;
 }
-
 function emitMissionRewardsToSocket(targetSocket, username, rewards = [], options = {}) {
     if (!targetSocket || !Array.isArray(rewards) || rewards.length === 0) return;
-
     rewards.forEach((reward) => {
         targetSocket.emit('daily_mission_reward', {
             missionKey: reward.key,
             missionLabel: reward.label,
-            rewardXP: reward.rewardXP,
-            rewardBananas: reward.rewardBananas || 0
+            rewardXP: reward.rewardXP
         });
-
         if (reward.levelUp) {
             io.emit('system_message', {
-                type: 'system',
-                message: `🎉 ${username} a atteint le niveau ${reward.newLevel} !`,
-                timestamp: new Date(),
-                id: messageId++
+                type: 'system', message: `🎉 ${username} a atteint le niveau ${reward.newLevel} !`, timestamp: new Date(), id: messageId++
             });
         }
     });
-
-    if (options.emitXpData) {
-        targetSocket.emit('xp_data', buildXPDataPayload(username));
-    }
+    if (options.emitXpData) targetSocket.emit('xp_data', buildXPDataPayload(username));
 }
 
 // === REMINDERS ===
@@ -864,7 +675,6 @@ const BOOKMARKS_FILE = path.join(DATA_DIR, 'bookmarks.json');
 const REMINDERS_FILE = path.join(DATA_DIR, 'reminders.json');
 const AUTOMOD_FILE = path.join(DATA_DIR, 'automod.json');
 const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
-const MINIGAMES_FILE = path.join(DATA_DIR, 'mini_games_stats.json');
 const CHANNEL_CONFIG_FILE = path.join(DATA_DIR, 'channel_config.json');
 const SERVER_RUNTIME_FILE = path.join(DATA_DIR, 'server_runtime_stats.json');
 const LIVE_EVENTS_FILE = path.join(DATA_DIR, 'live_events_state.json');
@@ -920,20 +730,6 @@ const PERF_CONFIG = IS_CLOUD ? {
     maxPresenceHistory: 500,
     pingIntervalMs: 25000,
     pingTimeoutMs: 60000
-};
-
-// === SHOP PROMOTIONS ===
-let shopPromotion = {
-    active: false,
-    discount: 0,
-    itemFilter: null, // null = all items, or array of item keys
-    label: '',
-    endsAt: 0,
-    autoMode: false,
-    autoIntervalMinutes: 120,
-    autoDurationMinutes: 30,
-    autoDiscountPercent: 20,
-    nextAutoAt: 0
 };
 
 // Charger ou initialiser la config des salons
@@ -1016,6 +812,41 @@ function incrementCounter(bucket, key, amount = 1) {
 
 function normalizeUsernameKey(username) {
     return String(username || '').trim().toLowerCase();
+}
+
+function resolveCanonicalUsername(requested) {
+    const raw = String(requested || '').trim();
+    const key = normalizeUsernameKey(raw);
+    if (!key) return null;
+
+    for (const [, user] of connectedUsers.entries()) {
+        if (normalizeUsernameKey(user?.username) === key) return user.username;
+    }
+    if (typeof accounts === 'object' && accounts) {
+        const account = accounts[key];
+        if (account?.username) return account.username;
+    }
+    if (typeof userProfiles !== 'undefined' && userProfiles) {
+        for (const [name] of userProfiles.entries()) {
+            if (normalizeUsernameKey(name) === key) return name;
+        }
+    }
+    for (const name of Object.keys(friendships || {})) {
+        if (normalizeUsernameKey(name) === key) return name;
+    }
+    for (const name of Object.keys(userXP || {})) {
+        if (normalizeUsernameKey(name) === key) return name;
+    }
+    return null;
+}
+
+function getUserAvatarByName(username) {
+    const canonical = resolveCanonicalUsername(username) || String(username || '').trim();
+    for (const [, user] of connectedUsers.entries()) {
+        if (normalizeUsernameKey(user?.username) === normalizeUsernameKey(canonical) && user?.avatar) return user.avatar;
+    }
+    const profile = userProfiles?.get?.(canonical);
+    return profile?.avatar || '';
 }
 
 function getSocketsForUsername(username) {
@@ -1494,7 +1325,6 @@ function buildSeasonalQuestsPayload(username) {
             completed,
             rewards: {
                 xp: template.rewardXP,
-                bananas: template.rewardBananas
             }
         };
     });
@@ -1737,9 +1567,32 @@ function loadDMs() {
     try {
         if (fs.existsSync(DM_FILE)) {
             const data = fs.readFileSync(DM_FILE, 'utf8');
-            dmHistory = JSON.parse(data);
+            const rawHistory = JSON.parse(data) || {};
+            // R5: normalize legacy conversation keys so old DMs remain visible after the
+            // case-insensitive realtime rewrite. Messages themselves are preserved.
+            const normalized = {};
+            for (const [legacyKey, messages] of Object.entries(rawHistory)) {
+                const parts = String(legacyKey).split(':').filter(Boolean);
+                const key = parts.length >= 2
+                    ? [parts[0].trim().toLowerCase(), parts.slice(1).join(':').trim().toLowerCase()].sort().join(':')
+                    : String(legacyKey).trim().toLowerCase();
+                if (!normalized[key]) normalized[key] = [];
+                normalized[key].push(...(Array.isArray(messages) ? messages : []));
+            }
+            for (const key of Object.keys(normalized)) {
+                const seen = new Set();
+                normalized[key] = normalized[key]
+                    .filter(msg => {
+                        const id = String(msg?.id || `${msg?.from || ''}|${msg?.to || ''}|${msg?.timestamp || ''}|${msg?.content || ''}`);
+                        if (seen.has(id)) return false;
+                        seen.add(id); return true;
+                    })
+                    .sort((a,b) => new Date(a?.timestamp || 0) - new Date(b?.timestamp || 0))
+                    .slice(-250);
+            }
+            dmHistory = normalized;
             const convCount = Object.keys(dmHistory).length;
-            console.log(`✅ DMs chargés: ${convCount} conversations`);
+            console.log(`✅ DMs chargés: ${convCount} conversations (clés normalisées R5)`);
         }
     } catch (error) {
         console.error('❌ Erreur chargement DMs:', error.message);
@@ -1881,44 +1734,6 @@ function saveAccounts() {
     try { fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2)); fbSave('accounts', accounts); } catch (e) { console.error('❌ Erreur sauvegarde comptes:', e.message); }
 }
 
-function loadMiniGameStats() {
-    try {
-        if (fs.existsSync(MINIGAMES_FILE)) {
-            miniGameStats = JSON.parse(fs.readFileSync(MINIGAMES_FILE, 'utf8')) || {};
-            console.log(`✅ Stats mini-jeux chargées: ${Object.keys(miniGameStats).length} utilisateurs`);
-        }
-    } catch (e) {
-        console.error('❌ Erreur chargement stats mini-jeux:', e.message);
-        miniGameStats = {};
-    }
-}
-
-function saveMiniGameStats() {
-    if (saveMiniGameStats._timer) return;
-    saveMiniGameStats._timer = setTimeout(() => {
-        saveMiniGameStats._timer = null;
-        try {
-            fs.writeFileSync(MINIGAMES_FILE, JSON.stringify(miniGameStats, null, 2));
-            fbSave('miniGameStats', miniGameStats);
-        } catch (e) {
-            console.error('❌ Erreur sauvegarde stats mini-jeux:', e.message);
-        }
-    }, 1500);
-}
-
-function saveMiniGameStatsImmediate() {
-    if (saveMiniGameStats._timer) {
-        clearTimeout(saveMiniGameStats._timer);
-        saveMiniGameStats._timer = null;
-    }
-    try {
-        fs.writeFileSync(MINIGAMES_FILE, JSON.stringify(miniGameStats, null, 2));
-        fbSaveImmediate('miniGameStats', miniGameStats);
-    } catch (e) {
-        console.error('❌ Erreur sauvegarde stats mini-jeux:', e.message);
-    }
-}
-
 function loadProfiles() {
     try {
         if (fs.existsSync(PROFILES_FILE)) {
@@ -1947,7 +1762,7 @@ async function loadAllData() {
             // Load all data from Firebase in parallel
             const [
                 fbAccounts, fbXP, fbFriends, fbBookmarks, fbReminders,
-                fbAutoMod, fbMiniGames, fbProfiles, fbDMs, fbHistory,
+                fbAutoMod, fbProfiles, fbDMs, fbHistory,
                 fbChannels, fbReactions, fbPinned, fbPresence, fbChannelCfg
             ] = await Promise.all([
                 fbLoad('accounts'),
@@ -1956,7 +1771,6 @@ async function loadAllData() {
                 fbLoad('bookmarks'),
                 fbLoad('reminders'),
                 fbLoad('autoModConfig'),
-                fbLoad('miniGameStats'),
                 fbLoad('profiles'),
                 fbLoad('dmHistory'),
                 fbLoad('chatHistory'),
@@ -1975,7 +1789,6 @@ async function loadAllData() {
             if (fbBookmarks && Object.keys(fbBookmarks).length > 0) { userBookmarks = fbBookmarks; fbCount++; }
             if (fbReminders) { reminders = fbReminders.reminders || []; reminderIdCounter = fbReminders.lastId || 1; fbCount++; }
             if (fbAutoMod) { autoModConfig = { ...autoModConfig, ...fbAutoMod }; fbCount++; }
-            if (fbMiniGames && Object.keys(fbMiniGames).length > 0) { miniGameStats = fbMiniGames; fbCount++; }
             if (fbProfiles && Object.keys(fbProfiles).length > 0) { userProfiles = new Map(Object.entries(fbProfiles)); fbCount++; }
             if (fbDMs && Object.keys(fbDMs).length > 0) { dmHistory = fbDMs; fbCount++; }
             if (fbHistory) {
@@ -1994,7 +1807,7 @@ async function loadAllData() {
             if (fbPresence) { presenceHistory = Array.isArray(fbPresence) ? fbPresence : []; fbCount++; }
             if (fbChannelCfg && fbChannelCfg.channels && fbChannelCfg.channels.length > 0) { channelConfig = fbChannelCfg; fbCount++; }
 
-            console.log(`☁️ Firebase: ${fbCount}/15 collections chargées en ${Date.now() - fbStart}ms`);
+            console.log(`☁️ Firebase: ${fbCount}/14 collections chargées en ${Date.now() - fbStart}ms`);
 
             // If Firebase had data, skip local file loading for loaded collections
             if (fbCount > 5) {
@@ -2022,7 +1835,6 @@ async function loadAllData() {
     loadReminders();
     loadAutoMod();
     loadAccounts();
-    loadMiniGameStats();
     loadProfiles();
 
     // If Firebase is available but had no data, seed it from local files
@@ -2034,7 +1846,6 @@ async function loadAllData() {
         fbSave('bookmarks', userBookmarks);
         fbSave('reminders', { reminders, lastId: reminderIdCounter });
         fbSave('autoModConfig', autoModConfig);
-        fbSave('miniGameStats', miniGameStats);
         fbSave('profiles', Object.fromEntries(userProfiles));
         fbSave('dmHistory', dmHistory);
         fbSave('chatHistory', { messages: chatHistory, lastMessageId: messageId });
@@ -2055,7 +1866,7 @@ loadAllData().then(() => {
     // Fallback local d'urgence
     loadDMs(); loadPersistedData(); loadPinnedMessages(); loadLiveOpsState(); refreshLiveOpsState();
     loadPresenceHistory(); loadXPData(); loadFriendships(); loadBookmarks(); loadReminders();
-    loadAutoMod(); loadAccounts(); loadMiniGameStats(); loadProfiles();
+    loadAutoMod(); loadAccounts(); loadProfiles();
 });
 
 // === REMINDER CHECKER (every 10 seconds) ===
@@ -2141,10 +1952,7 @@ function grantXP(username, amount, options = {}) {
     const now = Date.now();
     const cooldownMs = getMessageCooldownMs(entry);
     if (!ignoreCooldown && source === 'message' && (now - entry.lastXpGain < cooldownMs)) return null;
-
-    const xpBoostMultiplier = entry.xpBoostUntil && now < entry.xpBoostUntil ? 2 : 1;
-    const customMultiplier = Math.max(1, Number(options.multiplier || 1));
-    const multiplier = xpBoostMultiplier * customMultiplier;
+    const multiplier = Math.max(1, Number(options.multiplier || 1));
     const gainedXP = Math.max(1, Math.floor(amount * multiplier));
     
     const oldLevel = getLevelFromXP(entry.xp).level;
@@ -2161,113 +1969,6 @@ function grantXP(username, amount, options = {}) {
     // Save periodically (every 5 XP gains)
     if (entry.xp % (gainedXP * 5) < gainedXP) saveXPData();
     return { levelUp: false, username, gainedXP };
-}
-
-function ensureMiniGameStatsEntry(username) {
-    if (!miniGameStats[username]) {
-        miniGameStats[username] = {
-            points: 0,
-            played: 0,
-            wins: 0,
-            losses: 0,
-            draws: 0,
-            byGame: {},
-            lastPlayedAt: null
-        };
-    }
-    if (!miniGameStats[username].byGame || typeof miniGameStats[username].byGame !== 'object') {
-        miniGameStats[username].byGame = {};
-    }
-    return miniGameStats[username];
-}
-
-function getMiniGameReward(gameType, outcome) {
-    const gameBonus = {
-        tictactoe: 2,
-        connect4: 3,
-        rps: 1,
-        quiz: 3,
-        trivia: 4,
-        hangman: 3,
-        arena2d: 5,
-        memory: 2,
-        guess: 2
-    };
-
-    const baseByOutcome = {
-        win: { points: 12, xp: 35 },
-        draw: { points: 7, xp: 20 },
-        loss: { points: 4, xp: 12 },
-        played: { points: 3, xp: 10 }
-    };
-
-    const safeOutcome = baseByOutcome[outcome] ? outcome : 'played';
-    const base = baseByOutcome[safeOutcome];
-    const bonus = gameBonus[gameType] || 1;
-    return {
-        points: base.points + bonus,
-        xp: base.xp + bonus * 2
-    };
-}
-
-function recordMiniGameResult(username, gameType, outcome = 'played', extra = {}) {
-    const stats = ensureMiniGameStatsEntry(username);
-    const gameKey = gameType || 'unknown';
-    if (!stats.byGame[gameKey]) {
-        stats.byGame[gameKey] = { points: 0, played: 0, wins: 0, losses: 0, draws: 0 };
-    }
-
-    const reward = getMiniGameReward(gameKey, outcome);
-    const points = Math.max(0, Math.floor((extra.points ?? reward.points) || 0));
-    const xp = Math.max(0, Math.floor((extra.xp ?? reward.xp) || 0));
-
-    stats.played += 1;
-    stats.points += points;
-    if (outcome === 'win') stats.wins += 1;
-    else if (outcome === 'draw') stats.draws += 1;
-    else if (outcome === 'loss') stats.losses += 1;
-
-    const byGame = stats.byGame[gameKey];
-    byGame.played += 1;
-    byGame.points += points;
-    if (outcome === 'win') byGame.wins += 1;
-    else if (outcome === 'draw') byGame.draws += 1;
-    else if (outcome === 'loss') byGame.losses += 1;
-
-    stats.lastPlayedAt = new Date().toISOString();
-    saveMiniGameStats();
-
-    let xpResult = null;
-    let bananas = 0;
-    if (outcome === 'win') bananas = 2;
-    else if (outcome === 'draw') bananas = 1;
-
-    if (bananas > 0) {
-        const xpEntry = ensureXPEntry(username);
-        xpEntry.bonusBananas = Math.max(0, Number(xpEntry.bonusBananas || 0)) + bananas;
-    }
-
-    if (xp > 0) {
-        xpResult = grantXP(username, xp, { ignoreCooldown: true, source: 'minigame' });
-        saveXPData();
-    }
-
-    const missionRewards = applyMissionProgress(username, { miniGameRounds: 1 });
-
-    return {
-        points,
-        xp,
-        bananas,
-        xpResult,
-        missionRewards,
-        totals: {
-            points: stats.points,
-            played: stats.played,
-            wins: stats.wins,
-            losses: stats.losses,
-            draws: stats.draws
-        }
-    };
 }
 
 // Fonction de logging améliorée
@@ -2563,6 +2264,24 @@ app.get('/ADMIN', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+app.get('/api/runtime/fly', (req, res) => {
+    const mem = process.memoryUsage();
+    res.json({
+        platform: IS_FLY ? 'fly.io' : (IS_RENDER ? 'render' : 'local'),
+        region: process.env.FLY_REGION || null,
+        primaryRegion: process.env.PRIMARY_REGION || null,
+        machineId: process.env.FLY_MACHINE_ID || null,
+        users: connectedUsers.size,
+        websocketConnections: io.engine.clientsCount,
+        voiceRooms: Object.fromEntries(Object.entries(voiceRooms).map(([name, room]) => [name, room.participants.size])),
+        memoryMB: Math.round(mem.rss / 1024 / 1024),
+        heapMB: Math.round(mem.heapUsed / 1024 / 1024),
+        uptimeSeconds: getTotalUptimeSeconds(),
+        turnConfigured: VOICE_TURN_URLS.length > 0 && !!VOICE_TURN_USERNAME && !!VOICE_TURN_CREDENTIAL,
+        voiceMode: VOICE_RUNTIME_MODE
+    });
+});
+
 app.get('/api/voice/runtime-config', (req, res) => {
     const sfuEnabled = VOICE_RUNTIME_MODE === 'sfu';
     res.json({
@@ -2571,6 +2290,9 @@ app.get('/api/voice/runtime-config', (req, res) => {
         provider: VOICE_SFU_PROVIDER,
         signalingUrl: VOICE_SFU_SIGNALING_URL,
         publicWsUrl: VOICE_SFU_PUBLIC_WS,
+        iceServers: getVoiceIceServers(),
+        forceRelay: VOICE_FORCE_RELAY,
+        region: process.env.FLY_REGION || null,
         generatedAt: Date.now()
     });
 });
@@ -2714,7 +2436,6 @@ app.get('/api/cloud-stats', (req, res) => {
         totalMessages: Object.values(channelHistories).reduce((s, a) => s + a.length, 0),
         dms: Object.keys(dmHistory).length,
         friendships: Object.keys(friendships).length,
-        miniGamePlayers: Object.keys(miniGameStats).length,
         profiles: userProfiles.size,
         presenceEntries: presenceHistory.length
     };
@@ -2826,8 +2547,6 @@ app.get('/api/server/dashboard', (req, res) => {
             voiceRooms: voiceRoomsSummary
         },
         realtime: {
-            activeGames: global.activeGames ? global.activeGames.size : 0,
-            pendingInvites: global.gameInvites ? global.gameInvites.size : 0,
             typingUsers: typingUsers.size
         },
         liveOps: {
@@ -2903,7 +2622,7 @@ io.on('connection', (socket) => {
             const xpEntry = ensureXPEntry(username);
             const now = Date.now();
             if (!xpEntry.lastReactionXpAt || now - xpEntry.lastReactionXpAt >= 5000) {
-                const reactionMultiplier = xpEntry.reactionBoostUntil && xpEntry.reactionBoostUntil > now ? 2 : 1;
+                const reactionMultiplier = 1;
                 const xpResult = grantXP(username, XP_PER_REACTION, {
                     source: 'reaction',
                     ignoreCooldown: true,
@@ -2926,8 +2645,7 @@ io.on('connection', (socket) => {
                 socket.emit('daily_mission_reward', {
                     missionKey: reward.key,
                     missionLabel: reward.label,
-                    rewardXP: reward.rewardXP,
-                    rewardBananas: reward.rewardBananas || 0
+                    rewardXP: reward.rewardXP
                 });
                 if (reward.levelUp) {
                     io.emit('system_message', {
@@ -3031,18 +2749,6 @@ io.on('connection', (socket) => {
                     delete userXP[oldUsername];
                     ensureXPEntry(cleanNewUsername);
                     saveXPData();
-                }
-
-                const oldMiniGames = miniGameStats[oldUsername];
-                const newMiniGames = miniGameStats[cleanNewUsername];
-                if (oldMiniGames && newMiniGames) {
-                    miniGameStats[cleanNewUsername] = mergeMiniGameStatsEntries(newMiniGames, oldMiniGames);
-                    delete miniGameStats[oldUsername];
-                    saveMiniGameStats();
-                } else if (oldMiniGames && !newMiniGames) {
-                    miniGameStats[cleanNewUsername] = oldMiniGames;
-                    delete miniGameStats[oldUsername];
-                    saveMiniGameStats();
                 }
 
                 for (const [, rData] of Object.entries(voiceRooms)) {
@@ -3469,25 +3175,6 @@ io.on('connection', (socket) => {
                 break;
             }
 
-            case 'banana_add': {
-                const bName = resolveXPUsername(target);
-                const amount = parseInt(data.amount, 10);
-                if (!bName || !Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
-                    socket.emit('admin_response', { success: false, message: 'Paramètres bananes invalides' });
-                    break;
-                }
-                const entry = ensureXPEntry(bName);
-                entry.bonusBananas = Math.max(0, Number(entry.bonusBananas || 0)) + amount;
-                saveXPData();
-                const targetSid = findSocketIdByUsername(bName);
-                if (targetSid) {
-                    io.to(targetSid).emit('banana_updated', { bananaPoints: getBananaPoints(bName) });
-                    io.to(targetSid).emit('xp_data', buildXPDataPayload(bName));
-                }
-                socket.emit('admin_response', { success: true, message: `${bName}: +${amount} 🍌 (total ${getBananaPoints(bName)})` });
-                logActivity('ADMIN', 'Bananes ajoutées', { admin: adminName, target: bName, amount, total: getBananaPoints(bName) });
-                break;
-            }
 
             case 'live_ops_get': {
                 refreshLiveOpsState();
@@ -3615,51 +3302,8 @@ io.on('connection', (socket) => {
                 break;
             }
 
-            case 'shop_promotion_set': {
-                const promo = value || {};
-                shopPromotion.active = true;
-                shopPromotion.discount = Math.min(80, Math.max(5, parseInt(promo.discount) || 20));
-                shopPromotion.label = String(promo.label || `🔥 Promo -${shopPromotion.discount}%`).slice(0, 100);
-                // Auto-select random items (max 5) if no filter specified
-                if (promo.itemFilter) {
-                    shopPromotion.itemFilter = promo.itemFilter;
-                } else {
-                    const allItems = ['confetti', 'shake', 'flash', 'rain', 'fireworks', 'xp_boost', 'streak_shield', 'reaction_boost', 'cooldown_reducer', 'name_glow', 'name_gradient', 'name_neon'];
-                    const shuffled = allItems.sort(() => Math.random() - 0.5);
-                    shopPromotion.itemFilter = shuffled.slice(0, Math.min(5, Math.max(2, Math.floor(Math.random() * 4) + 2)));
-                }
-                shopPromotion.endsAt = Date.now() + (parseInt(promo.durationMinutes) || 30) * 60 * 1000;
-                io.emit('shop_promotion_state', shopPromotion);
-                socket.emit('admin_response', { success: true, message: `Promo boutique active: -${shopPromotion.discount}% sur ${shopPromotion.itemFilter.length} items pendant ${promo.durationMinutes || 30} min` });
-                logActivity('ADMIN', 'Promotion boutique lancée', { admin: adminName, discount: shopPromotion.discount, items: shopPromotion.itemFilter });
-                break;
-            }
 
-            case 'shop_promotion_end': {
-                shopPromotion.active = false;
-                shopPromotion.discount = 0;
-                shopPromotion.endsAt = 0;
-                shopPromotion.label = '';
-                io.emit('shop_promotion_state', shopPromotion);
-                socket.emit('admin_response', { success: true, message: 'Promotion boutique terminée' });
-                logActivity('ADMIN', 'Promotion boutique terminée', { admin: adminName });
-                break;
-            }
 
-            case 'shop_promotion_auto': {
-                const autoConf = value || {};
-                shopPromotion.autoMode = !!autoConf.enabled;
-                shopPromotion.autoIntervalMinutes = Math.max(30, parseInt(autoConf.intervalMinutes) || 120);
-                shopPromotion.autoDurationMinutes = Math.max(5, parseInt(autoConf.durationMinutes) || 30);
-                shopPromotion.autoDiscountPercent = Math.min(80, Math.max(5, parseInt(autoConf.discountPercent) || 20));
-                if (shopPromotion.autoMode) {
-                    shopPromotion.nextAutoAt = Date.now() + shopPromotion.autoIntervalMinutes * 60 * 1000;
-                }
-                io.emit('shop_promotion_state', shopPromotion);
-                socket.emit('admin_response', { success: true, message: shopPromotion.autoMode ? `Promos auto activées: -${shopPromotion.autoDiscountPercent}% toutes les ${shopPromotion.autoIntervalMinutes}min` : 'Promos auto désactivées' });
-                logActivity('ADMIN', `Promo auto: ${shopPromotion.autoMode ? 'ON' : 'OFF'}`, { admin: adminName });
-                break;
-            }
             
             // === NOUVELLES ACTIONS ADMIN ===
             case 'set_private':
@@ -4315,14 +3959,6 @@ io.on('connection', (socket) => {
             if (xpEntry.lastLoginDay !== todayKey) {
                 if (xpEntry.lastLoginDay === yesterdayKey) {
                     xpEntry.streakDays = (xpEntry.streakDays || 0) + 1;
-                } else if (xpEntry.streakShieldCharges > 0 && xpEntry.lastLoginDay) {
-                    xpEntry.streakShieldCharges -= 1;
-                    xpEntry.streakDays = Math.max(1, xpEntry.streakDays || 1);
-                    socket.emit('banana_reward', {
-                        type: 'streak_shield',
-                        title: '🛡️ Protection de série',
-                        message: 'Une charge de protection a sauvé votre série quotidienne.'
-                    });
                 } else {
                     xpEntry.streakDays = 1;
                 }
@@ -4410,9 +4046,6 @@ io.on('connection', (socket) => {
             
             // Envoyer l'historique de présence au nouvel utilisateur
             socket.emit('presence_history_sync', presenceHistory);
-            
-            // Envoyer l'état des promotions shop
-            socket.emit('shop_promotion_state', shopPromotion);
             
             // Signal que le join est complet
             socket.emit('user_join_ready', { username: cleanUsername });
@@ -4717,8 +4350,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                 socket.emit('daily_mission_reward', {
                     missionKey: reward.key,
                     missionLabel: reward.label,
-                    rewardXP: reward.rewardXP,
-                    rewardBananas: reward.rewardBananas || 0
+                    rewardXP: reward.rewardXP
                 });
                 if (reward.levelUp) {
                     io.emit('system_message', {
@@ -5112,6 +4744,13 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         observability.voice.reconnectIntents += 1;
     });
 
+
+    socket.on('get_presence_history', () => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        socket.emit('presence_history_sync', presenceHistory.slice(-MAX_PRESENCE_HISTORY));
+    });
+
     // === VOCAL WebRTC ===
     
     // Rejoindre un salon vocal
@@ -5126,6 +4765,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             if (rData.participants.has(socket.id)) {
                 rData.participants.delete(socket.id);
                 socket.leave('voice_' + rName);
+                socket.to('voice_' + rName).emit('voice_peer_left', { socketId: socket.id });
                 io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
             }
         }
@@ -5133,6 +4773,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         // Rejoindre le nouveau salon
         voiceRooms[room].participants.set(socket.id, {
             username: user.username,
+            avatar: user.avatar || '',
             muted: false,
             deafened: false,
             video: false,
@@ -5145,7 +4786,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         const otherParticipants = [];
         voiceRooms[room].participants.forEach((pData, pId) => {
             if (pId !== socket.id) {
-                otherParticipants.push({ socketId: pId, username: pData.username, video: !!pData.video, screen: !!pData.screen });
+                otherParticipants.push({ socketId: pId, username: pData.username, avatar: pData.avatar || connectedUsers.get(pId)?.avatar || '', video: !!pData.video, screen: !!pData.screen });
             }
         });
         
@@ -5158,6 +4799,22 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         logActivity('VOICE', `${user.username} a rejoint ${room}`, { room });
     });
     
+    // R5: explicit vocal resync. A client can request the authoritative room snapshot
+    // after reconnect/F12/device changes instead of relying on one transient event.
+    socket.on('voice_sync_request', (data = {}) => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        let room = String(data.room || '').trim();
+        if (!room || !voiceRooms[room]?.participants?.has(socket.id)) {
+            room = Object.entries(voiceRooms).find(([, rData]) => rData.participants.has(socket.id))?.[0] || '';
+        }
+        if (!room || !voiceRooms[room]) {
+            socket.emit('voice_sync_snapshot', { room: null, participants: [] });
+            return;
+        }
+        socket.emit('voice_sync_snapshot', { room, participants: getVoiceParticipants(room) });
+    });
+
     // Quitter le salon vocal
     socket.on('voice_leave', () => {
         const user = connectedUsers.get(socket.id);
@@ -5245,11 +4902,6 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
 
     // Déconnexion
     socket.on('disconnect', (reason) => {
-        // Clear auto-clicker interval if active
-        if (socket._autoClickerInterval) {
-            clearInterval(socket._autoClickerInterval);
-            socket._autoClickerInterval = null;
-        }
         const user = connectedUsers.get(socket.id);
         if (user) {
             const sessionDuration = Date.now() - user.joinTime.getTime();
@@ -5277,48 +4929,6 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             if (typingUsers.has(socket.id)) {
                 typingUsers.delete(socket.id);
                 updateTypingIndicator();
-            }
-            
-            // Nettoyer les invitations de jeu en attente
-            if (global.gameInvites) {
-                for (const [inviteId, invite] of global.gameInvites) {
-                    if (invite.from === user.username) {
-                        // L'inviteur se déconnecte → notifier le destinataire
-                        const toSocket = findCurrentSocket(invite.to);
-                        if (toSocket) {
-                            io.to(toSocket).emit('game_invite_cancelled', { inviteId, from: invite.from });
-                        }
-                        global.gameInvites.delete(inviteId);
-                    } else if (invite.to === user.username) {
-                        // Le destinataire se déconnecte → notifier l'inviteur
-                        const fromSocket = findCurrentSocket(invite.from);
-                        if (fromSocket) {
-                            io.to(fromSocket).emit('game_declined', { by: user.username, gameType: invite.gameType });
-                        }
-                        global.gameInvites.delete(inviteId);
-                    }
-                }
-            }
-            
-            // Nettoyer les parties actives
-            if (global.activeGames) {
-                for (const [gameId, game] of global.activeGames) {
-                    const playerInGame = game.players.find(p => p.username === user.username);
-                    if (playerInGame) {
-                        game.players.forEach(p => {
-                            if (p.username !== user.username) {
-                                const opponentSocket = findCurrentSocket(p.username);
-                                if (opponentSocket) {
-                                    io.to(opponentSocket).emit('game_opponent_quit', {
-                                        gameId: gameId,
-                                        quitter: user.username
-                                    });
-                                }
-                            }
-                        });
-                        global.activeGames.delete(gameId);
-                    }
-                }
             }
             
             // Retirer l'utilisateur
@@ -5486,428 +5096,122 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         socket.emit('user_profile', profile);
     });
     
-    // === HANDLERS MESSAGES PRIVÉS (DM) ===
-    socket.on('send_dm', (data) => {
+    // === HANDLERS MESSAGES PRIVÉS (DM) — R5 SYNC ===
+    socket.on('send_dm', (data, ack) => {
         const sender = connectedUsers.get(socket.id);
-        if (!sender) return;
-        
-        const { to, content, attachment } = data;
-        if (!to || (!content && !attachment)) return;
-        
-        // Créer la clé de conversation (triée pour unicité)
-        const key = [sender.username, to].sort().join(':');
-        
-        // Initialiser l'historique si nécessaire
-        if (!dmHistory[key]) {
-            dmHistory[key] = [];
+        if (!sender) {
+            if (typeof ack === 'function') ack({ success: false, message: 'Session non connectée' });
+            return;
         }
-        
+
+        const requestedTarget = String(data?.to || '').trim();
+        const target = resolveCanonicalUsername(requestedTarget);
+        const content = String(data?.content || '').trim().substring(0, 4000);
+        const attachment = data?.attachment || null;
+        if (!target) {
+            const payload = { success: false, message: 'Utilisateur introuvable' };
+            socket.emit('dm_error', payload);
+            if (typeof ack === 'function') ack(payload);
+            return;
+        }
+        if (normalizeUsernameKey(target) === normalizeUsernameKey(sender.username)) {
+            const payload = { success: false, message: 'Impossible de vous envoyer un DM à vous-même' };
+            socket.emit('dm_error', payload);
+            if (typeof ack === 'function') ack(payload);
+            return;
+        }
+        if (!content && !attachment) return;
+
+        const key = [normalizeUsernameKey(sender.username), normalizeUsernameKey(target)].sort().join(':');
+        if (!dmHistory[key]) dmHistory[key] = [];
+
         const message = {
+            id: crypto.randomUUID ? crypto.randomUUID() : `dm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
             from: sender.username,
-            to: to,
-            content: content || '',
-            attachment: attachment || null,
-            timestamp: new Date()
+            to: target,
+            content,
+            attachment,
+            timestamp: new Date().toISOString(),
+            avatar: sender.avatar || getUserAvatarByName(sender.username)
         };
-        
         dmHistory[key].push(message);
-        
-        // Limiter l'historique DM
-        if (dmHistory[key].length > 100) {
-            dmHistory[key] = dmHistory[key].slice(-100);
-        }
-        
-        // Trouver le destinataire s'il est connecté
-        let recipientSocket = null;
-        connectedUsers.forEach((u, sid) => {
-            if (u.username === to) {
-                recipientSocket = sid;
-            }
-        });
-        
-        // Envoyer au destinataire
-        if (recipientSocket) {
-            io.to(recipientSocket).emit('dm_received', {
-                from: sender.username,
-                content: content || '',
-                attachment: attachment || null,
-                timestamp: message.timestamp,
-                avatar: sender.avatar
-            });
-        }
-        
-        // Sauvegarder les DMs
+        if (dmHistory[key].length > 250) dmHistory[key] = dmHistory[key].slice(-250);
         saveDMs();
-        
-        logActivity('DM', `Message privé envoyé`, {
-            from: sender.username,
-            to: to
+
+        // Serveur = source de vérité : confirmation à l'expéditeur + push à tous les appareils du destinataire.
+        socket.emit('dm_sent', { ...message, peer: target, peerAvatar: getUserAvatarByName(target) });
+        getSocketsForUsername(target).forEach((sid) => {
+            io.to(sid).emit('dm_received', { ...message, avatar: message.avatar });
         });
+        getSocketsForUsername(sender.username).forEach((sid) => {
+            io.to(sid).emit('dm_conversations_changed', { peer: target });
+        });
+        getSocketsForUsername(target).forEach((sid) => {
+            io.to(sid).emit('dm_conversations_changed', { peer: sender.username });
+        });
+
+        const result = { success: true, message };
+        if (typeof ack === 'function') ack(result);
+        logActivity('DM', 'Message privé envoyé', { from: sender.username, to: target, messageId: message.id });
     });
 
-    // === INDICATEUR DE FRAPPE DM ===
     socket.on('dm_typing_start', (data) => {
         const sender = connectedUsers.get(socket.id);
         if (!sender) return;
-        const { to } = data || {};
-        if (!to) return;
-
-        let recipientSocket = null;
-        connectedUsers.forEach((u, sid) => {
-            if (u.username === to) {
-                recipientSocket = sid;
-            }
-        });
-
-        if (recipientSocket) {
-            io.to(recipientSocket).emit('dm_typing', { from: sender.username, isTyping: true });
-        }
+        const target = resolveCanonicalUsername(data?.to);
+        if (!target) return;
+        getSocketsForUsername(target).forEach((sid) => io.to(sid).emit('dm_typing', {
+            from: sender.username, avatar: sender.avatar || '', isTyping: true
+        }));
     });
 
     socket.on('dm_typing_stop', (data) => {
         const sender = connectedUsers.get(socket.id);
         if (!sender) return;
-        const { to } = data || {};
-        if (!to) return;
-
-        let recipientSocket = null;
-        connectedUsers.forEach((u, sid) => {
-            if (u.username === to) {
-                recipientSocket = sid;
-            }
-        });
-
-        if (recipientSocket) {
-            io.to(recipientSocket).emit('dm_typing', { from: sender.username, isTyping: false });
-        }
+        const target = resolveCanonicalUsername(data?.to);
+        if (!target) return;
+        getSocketsForUsername(target).forEach((sid) => io.to(sid).emit('dm_typing', {
+            from: sender.username, avatar: sender.avatar || '', isTyping: false
+        }));
     });
-    
-    // Récupérer la liste des conversations DM de l'utilisateur
+
     socket.on('get_dm_conversations', () => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        
+        const me = normalizeUsernameKey(user.username);
         const conversations = [];
-        Object.keys(dmHistory).forEach(key => {
+        Object.entries(dmHistory).forEach(([key, messages]) => {
             const users = key.split(':');
-            if (users.includes(user.username)) {
-                const otherUser = users[0] === user.username ? users[1] : users[0];
-                const messages = dmHistory[key];
-                const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
-                
-                conversations.push({
-                    username: otherUser,
-                    lastMessage: lastMessage ? lastMessage.content.substring(0, 50) : '',
-                    lastTimestamp: lastMessage ? lastMessage.timestamp : null,
-                    unread: 0 // Pour l'instant pas de système de non-lu
-                });
-            }
+            if (!users.includes(me)) return;
+            const otherKey = users[0] === me ? users[1] : users[0];
+            const otherUser = resolveCanonicalUsername(otherKey) || otherKey;
+            const lastMessage = messages.length ? messages[messages.length - 1] : null;
+            conversations.push({
+                username: otherUser,
+                avatar: getUserAvatarByName(otherUser),
+                online: getSocketsForUsername(otherUser).length > 0,
+                lastMessage: lastMessage ? (lastMessage.content || (lastMessage.attachment ? '📎 Fichier' : '')).substring(0, 80) : '',
+                lastTimestamp: lastMessage?.timestamp || null,
+                lastSender: lastMessage?.from || null,
+                unread: 0
+            });
         });
-        
-        // Trier par date du dernier message
-        conversations.sort((a, b) => {
-            if (!a.lastTimestamp) return 1;
-            if (!b.lastTimestamp) return -1;
-            return new Date(b.lastTimestamp) - new Date(a.lastTimestamp);
-        });
-        
+        conversations.sort((a,b) => new Date(b.lastTimestamp || 0) - new Date(a.lastTimestamp || 0));
         socket.emit('dm_conversations', conversations);
     });
-    
+
     socket.on('get_dm_history', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        
-        const { username } = data;
-        const key = [user.username, username].sort().join(':');
-        const history = dmHistory[key] || [];
-        
+        const target = resolveCanonicalUsername(data?.username) || String(data?.username || '').trim();
+        if (!target) return;
+        const key = [normalizeUsernameKey(user.username), normalizeUsernameKey(target)].sort().join(':');
         socket.emit('dm_history', {
-            username: username,
-            messages: history
+            username: target,
+            avatar: getUserAvatarByName(target),
+            online: getSocketsForUsername(target).length > 0,
+            messages: dmHistory[key] || []
         });
-    });
-
-    // === HANDLERS MINI-JEUX MULTIJOUEURS ===
-    
-    // Stocker les parties en cours
-    if (!global.activeGames) global.activeGames = new Map();
-    if (!global.gameInvites) global.gameInvites = new Map();
-    
-    // Helper: trouver le socket actuel d'un utilisateur par son username
-    function findCurrentSocket(username) {
-        let sid = null;
-        connectedUsers.forEach((u, socketId) => {
-            if (u.username === username) sid = socketId;
-        });
-        return sid;
-    }
-    
-    // Envoyer une invitation de jeu
-    socket.on('game_invite', (data) => {
-        const sender = connectedUsers.get(socket.id);
-        if (!sender) return;
-        
-        const { to, gameType } = data;
-        
-        // Trouver le destinataire
-        const recipientSocket = findCurrentSocket(to);
-        
-        if (recipientSocket) {
-            const inviteId = `${sender.username}-${to}-${Date.now()}`;
-            global.gameInvites.set(inviteId, {
-                from: sender.username,
-                to: to,
-                gameType: gameType,
-                timestamp: Date.now()
-            });
-            
-            io.to(recipientSocket).emit('game_invite_received', {
-                inviteId: inviteId,
-                from: sender.username,
-                gameType: gameType
-            });
-            
-            socket.emit('game_invite_sent', { to, gameType });
-            
-            logActivity('GAME', `Invitation de jeu envoyée`, {
-                from: sender.username,
-                to: to,
-                game: gameType
-            });
-        }
-    });
-    
-    // Accepter une invitation
-    socket.on('game_accept', (data) => {
-        const { inviteId } = data;
-        const invite = global.gameInvites.get(inviteId);
-        
-        if (!invite) return;
-        
-        // Résoudre les sockets ACTUELS par username (pas les anciens stockés)
-        const fromSocket = findCurrentSocket(invite.from);
-        const toSocket = socket.id; // L'accepteur est le socket actuel
-        
-        if (!fromSocket) {
-            // L'inviteur n'est plus connecté
-            socket.emit('game_invite_error', { message: `${invite.from} n'est plus connecté` });
-            global.gameInvites.delete(inviteId);
-            return;
-        }
-        
-        const gameId = `game-${Date.now()}`;
-        const game = {
-            id: gameId,
-            type: invite.gameType,
-            players: [
-                { username: invite.from, socket: fromSocket },
-                { username: invite.to, socket: toSocket }
-            ],
-            state: initGameState(invite.gameType),
-            currentTurn: 0,
-            started: Date.now()
-        };
-        
-        global.activeGames.set(gameId, game);
-        global.gameInvites.delete(inviteId);
-        
-        // Préparer les données initiales selon le type de jeu
-        let initialData = {};
-        if (invite.gameType === 'quiz' || invite.gameType === 'trivia') {
-            const q = game.state.questions[0];
-            initialData = {
-                question: invite.gameType === 'quiz' ? { q: q.q, a: q.a } : { q: q.q, a: q.a },
-                current: 1,
-                total: game.state.total
-            };
-        } else if (invite.gameType === 'rps') {
-            initialData = { round: 1, maxRounds: game.state.maxRounds, scores: [0, 0] };
-        } else if (invite.gameType === 'hangman') {
-            const display = game.state.word.split('').map(() => '_').join(' ');
-            const hintState = getHangmanHintState(game.state);
-            initialData = {
-                display,
-                wrong: [],
-                remaining: game.state.maxErrors,
-                maxErrors: game.state.maxErrors,
-                wordLength: game.state.word.length,
-                hintVisible: hintState.visible,
-                hintText: hintState.text
-            };
-        } else if (invite.gameType === 'arena2d') {
-            initialData = {
-                arenaState: game.state,
-                targetScore: game.state.targetScore
-            };
-        }
-        
-        // Notifier les deux joueurs avec les sockets actuels
-        io.to(fromSocket).emit('game_start', {
-            gameId: gameId,
-            gameType: invite.gameType,
-            opponent: invite.to,
-            yourTurn: true,
-            playerIndex: 0,
-            initialData
-        });
-        
-        io.to(toSocket).emit('game_start', {
-            gameId: gameId,
-            gameType: invite.gameType,
-            opponent: invite.from,
-            yourTurn: false,
-            playerIndex: 1,
-            initialData
-        });
-        
-        logActivity('GAME', `Partie commencée`, {
-            game: invite.gameType,
-            players: [invite.from, invite.to]
-        });
-    });
-    
-    // Refuser une invitation
-    socket.on('game_decline', (data) => {
-        const { inviteId } = data;
-        const invite = global.gameInvites.get(inviteId);
-        
-        if (!invite) return;
-        
-        // Résoudre le socket actuel de l'inviteur
-        const fromSocket = findCurrentSocket(invite.from);
-        if (fromSocket) {
-            io.to(fromSocket).emit('game_declined', {
-                by: invite.to,
-                gameType: invite.gameType
-            });
-        }
-        
-        global.gameInvites.delete(inviteId);
-    });
-    
-    // Jouer un coup
-    socket.on('game_move', (data) => {
-        const { gameId, move } = data;
-        const game = global.activeGames.get(gameId);
-        
-        if (!game) return;
-        
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-        
-        // Vérifier que le joueur fait partie de la partie
-        const playerIndex = game.players.findIndex(p => p.username === user.username);
-        if (playerIndex === -1) return;
-        
-        // Pour les jeux tour par tour (tictactoe, connect4, hangman), vérifier le tour
-        const turnBasedGames = ['tictactoe', 'connect4', 'hangman'];
-        if (turnBasedGames.includes(game.type) && playerIndex !== game.currentTurn) return;
-        
-        // Appliquer le coup selon le type de jeu
-        const result = applyGameMove(game, move, playerIndex);
-        
-        if (result.valid) {
-            game.state = result.state;
-            if (result.nextTurn !== undefined) game.currentTurn = result.nextTurn;
-            
-            // Les jeux avec customEmit gèrent leur propre émission
-            if (!result.customEmit) {
-                game.players.forEach((p, idx) => {
-                    const currentSid = findCurrentSocket(p.username);
-                    if (currentSid) {
-                        io.to(currentSid).emit('game_update', {
-                            gameId: gameId,
-                            state: game.state,
-                            yourTurn: idx === game.currentTurn,
-                            lastMove: move,
-                            lastMoveBy: user.username,
-                            winner: result.winner,
-                            draw: result.draw,
-                            hangmanState: result.hangmanState || null
-                        });
-                    }
-                });
-            }
-            
-            // Fin de partie
-            if ((result.winner || result.draw) && !result.waiting) {
-                const playerNames = game.players.map(p => p.username);
-                const rewardsByUser = {};
-
-                if (result.draw) {
-                    playerNames.forEach((name) => {
-                        rewardsByUser[name] = recordMiniGameResult(name, game.type, 'draw');
-                    });
-                } else if (result.winner === 'COOP_WIN') {
-                    playerNames.forEach((name) => {
-                        rewardsByUser[name] = recordMiniGameResult(name, game.type, 'win');
-                    });
-                } else if (result.winner === 'COOP_LOSE') {
-                    playerNames.forEach((name) => {
-                        rewardsByUser[name] = recordMiniGameResult(name, game.type, 'loss');
-                    });
-                } else {
-                    playerNames.forEach((name) => {
-                        const outcome = name === result.winner ? 'win' : 'loss';
-                        rewardsByUser[name] = recordMiniGameResult(name, game.type, outcome);
-                    });
-                }
-
-                game.players.forEach((p) => {
-                    const currentSid = findCurrentSocket(p.username);
-                    if (!currentSid) return;
-                    const outcome = result.draw
-                        ? 'draw'
-                        : (result.winner === 'COOP_WIN' ? 'win' : (result.winner === 'COOP_LOSE' ? 'loss' : (p.username === result.winner ? 'win' : 'loss')));
-                    const reward = rewardsByUser[p.username];
-                    if (reward) {
-                        io.to(currentSid).emit('minigame_reward', {
-                            gameType: game.type,
-                            outcome,
-                            points: reward.points,
-                            xp: reward.xp,
-                            bananas: reward.bananas || 0,
-                            totalMiniGamePoints: reward.totals.points
-                        });
-                        emitMissionRewardsToSocket(io.to(currentSid), p.username, reward.missionRewards || []);
-                    }
-                    io.to(currentSid).emit('xp_data', buildXPDataPayload(p.username));
-                });
-
-                global.activeGames.delete(gameId);
-                logActivity('GAME', `Partie terminée`, {
-                    game: game.type,
-                    winner: result.winner || 'Égalité'
-                });
-            }
-        }
-    });
-    
-    // Quitter une partie
-    socket.on('game_quit', (data) => {
-        const { gameId } = data;
-        const game = global.activeGames.get(gameId);
-        
-        if (!game) return;
-        
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-        
-        // Notifier l'adversaire (résoudre socket actuel)
-        game.players.forEach(p => {
-            if (p.username !== user.username) {
-                const opponentSocket = findCurrentSocket(p.username);
-                if (opponentSocket) {
-                    io.to(opponentSocket).emit('game_opponent_quit', {
-                        gameId: gameId,
-                        quitter: user.username
-                    });
-                }
-            }
-        });
-        
-        global.activeGames.delete(gameId);
     });
 
     // =========================================
@@ -5973,30 +5277,52 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     });
 
     // =========================================
-    // === BOOKMARK SYSTEM ===
+    // === BOOKMARK SYSTEM — R5 ===
     // =========================================
     socket.on('bookmark_message', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        const { messageId, content, author, channel, timestamp } = data;
+        const messageId = String(data?.messageId ?? '');
+        if (!messageId) return;
         if (!userBookmarks[user.username]) userBookmarks[user.username] = [];
-        // Check if already bookmarked
-        if (userBookmarks[user.username].some(b => b.messageId === messageId)) {
+        if (userBookmarks[user.username].some(b => String(b.messageId) === messageId)) {
             socket.emit('bookmark_error', { message: 'Message déjà sauvegardé' });
+            socket.emit('bookmarks_list', { bookmarks: userBookmarks[user.username] });
             return;
         }
-        userBookmarks[user.username].push({ messageId, content: (content || '').substring(0, 500), author, channel, timestamp, savedAt: new Date().toISOString() });
+
+        // Rechercher le message serveur pour ne pas dépendre uniquement du dataset DOM du client.
+        let source = null;
+        let sourceChannel = String(data?.channel || '').trim();
+        for (const [channelName, messages] of Object.entries(channelHistories || {})) {
+            const found = (messages || []).find(m => String(m.id) === messageId);
+            if (found) { source = found; sourceChannel = channelName; break; }
+        }
+        const bookmark = {
+            messageId,
+            content: String(source?.content ?? data?.content ?? '').substring(0, 1000),
+            author: String(source?.username ?? data?.author ?? 'Inconnu').substring(0, 80),
+            channel: sourceChannel || 'général',
+            timestamp: source?.timestamp || data?.timestamp || new Date().toISOString(),
+            savedAt: new Date().toISOString(),
+            attachment: source?.attachment || null
+        };
+        userBookmarks[user.username].unshift(bookmark);
+        userBookmarks[user.username] = userBookmarks[user.username].slice(0, 250);
         saveBookmarks();
-        socket.emit('bookmark_added', { messageId });
+        socket.emit('bookmark_added', bookmark);
+        socket.emit('bookmarks_list', { bookmarks: userBookmarks[user.username] });
     });
 
     socket.on('remove_bookmark', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        if (!userBookmarks[user.username]) return;
-        userBookmarks[user.username] = userBookmarks[user.username].filter(b => b.messageId !== data.messageId);
+        const messageId = String(data?.messageId ?? '');
+        if (!userBookmarks[user.username]) userBookmarks[user.username] = [];
+        userBookmarks[user.username] = userBookmarks[user.username].filter(b => String(b.messageId) !== messageId);
         saveBookmarks();
-        socket.emit('bookmark_removed', { messageId: data.messageId });
+        socket.emit('bookmark_removed', { messageId });
+        socket.emit('bookmarks_list', { bookmarks: userBookmarks[user.username] });
     });
 
     socket.on('get_bookmarks', () => {
@@ -6006,107 +5332,97 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     });
 
     // =========================================
-    // === FRIEND SYSTEM ===
+    // === FRIEND SYSTEM — R5 CANONICAL SYNC ===
     // =========================================
     socket.on('send_friend_request', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        const target = data.username;
-        if (target === user.username) return;
-        
+        const target = resolveCanonicalUsername(data?.username);
+        if (!target) {
+            socket.emit('friend_error', { message: 'Utilisateur introuvable' });
+            return;
+        }
+        if (normalizeUsernameKey(target) === normalizeUsernameKey(user.username)) {
+            socket.emit('friend_error', { message: 'Tu ne peux pas t’ajouter toi-même' });
+            return;
+        }
         if (!friendships[user.username]) friendships[user.username] = { friends: [], pending: [], requests: [] };
         if (!friendships[target]) friendships[target] = { friends: [], pending: [], requests: [] };
-        
-        // Already friends?
-        if (friendships[user.username].friends.includes(target)) {
-            socket.emit('friend_error', { message: 'Déjà amis !' });
+
+        const mine = friendships[user.username];
+        const theirs = friendships[target];
+        const contains = (arr, name) => (arr || []).some(v => normalizeUsernameKey(v) === normalizeUsernameKey(name));
+        if (contains(mine.friends, target)) return socket.emit('friend_error', { message: 'Déjà amis !' });
+        if (contains(mine.pending, target)) return socket.emit('friend_error', { message: 'Demande déjà envoyée' });
+        if (contains(mine.requests, target)) {
+            // Demandes croisées : accepter automatiquement.
+            mine.requests = mine.requests.filter(v => normalizeUsernameKey(v) !== normalizeUsernameKey(target));
+            theirs.pending = theirs.pending.filter(v => normalizeUsernameKey(v) !== normalizeUsernameKey(user.username));
+            if (!contains(mine.friends, target)) mine.friends.push(target);
+            if (!contains(theirs.friends, user.username)) theirs.friends.push(user.username);
+            saveFriendships();
+            emitFriendsListTo(user.username); emitFriendsListTo(target);
+            getSocketsForUsername(target).forEach(sid => io.to(sid).emit('friend_accepted', { username: user.username }));
+            socket.emit('friend_accepted', { username: target });
             return;
         }
-        // Already pending?
-        if (friendships[user.username].pending.includes(target)) {
-            socket.emit('friend_error', { message: 'Demande déjà envoyée' });
-            return;
-        }
-        
-        friendships[user.username].pending.push(target);
-        friendships[target].requests.push(user.username);
+
+        mine.pending.push(target);
+        theirs.requests.push(user.username);
         saveFriendships();
-        
         socket.emit('friend_request_sent', { username: target });
-        // Notify target if online
-        for (const [sid, u] of connectedUsers.entries()) {
-            if (u.username === target) {
-                io.to(sid).emit('friend_request_received', { from: user.username, avatar: user.avatar });
-                break;
-            }
-        }
+        emitFriendsListTo(user.username);
+        getSocketsForUsername(target).forEach(sid => io.to(sid).emit('friend_request_received', {
+            from: user.username, avatar: user.avatar || getUserAvatarByName(user.username)
+        }));
+        emitFriendsListTo(target);
     });
 
     socket.on('accept_friend', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        const from = data.username;
-        if (!friendships[user.username] || !friendships[from]) return;
-        
-        // Remove from requests/pending
-        friendships[user.username].requests = friendships[user.username].requests.filter(u => u !== from);
-        friendships[from].pending = friendships[from].pending.filter(u => u !== user.username);
-        
-        // Add to friends
-        if (!friendships[user.username].friends.includes(from)) friendships[user.username].friends.push(from);
-        if (!friendships[from].friends.includes(user.username)) friendships[from].friends.push(user.username);
-        
+        const from = resolveCanonicalUsername(data?.username);
+        if (!from || !friendships[user.username] || !friendships[from]) return;
+        const key = normalizeUsernameKey;
+        friendships[user.username].requests = (friendships[user.username].requests || []).filter(u => key(u) !== key(from));
+        friendships[from].pending = (friendships[from].pending || []).filter(u => key(u) !== key(user.username));
+        if (!(friendships[user.username].friends || []).some(u => key(u) === key(from))) friendships[user.username].friends.push(from);
+        if (!(friendships[from].friends || []).some(u => key(u) === key(user.username))) friendships[from].friends.push(user.username);
         saveFriendships();
         socket.emit('friend_accepted', { username: from });
-        // Envoyer listes mises à jour aux deux
-        emitFriendsListTo(user.username);
-        emitFriendsListTo(from);
-        for (const [sid, u] of connectedUsers.entries()) {
-            if (u.username === from) {
-                io.to(sid).emit('friend_accepted', { username: user.username });
-                break;
-            }
-        }
+        getSocketsForUsername(from).forEach(sid => io.to(sid).emit('friend_accepted', { username: user.username }));
+        emitFriendsListTo(user.username); emitFriendsListTo(from);
     });
 
     socket.on('reject_friend', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        const from = data.username;
-        if (!friendships[user.username] || !friendships[from]) return;
-        friendships[user.username].requests = friendships[user.username].requests.filter(u => u !== from);
-        friendships[from].pending = friendships[from].pending.filter(u => u !== user.username);
+        const from = resolveCanonicalUsername(data?.username);
+        if (!from || !friendships[user.username] || !friendships[from]) return;
+        const k = normalizeUsernameKey;
+        friendships[user.username].requests = (friendships[user.username].requests || []).filter(u => k(u) !== k(from));
+        friendships[from].pending = (friendships[from].pending || []).filter(u => k(u) !== k(user.username));
         saveFriendships();
-        // Envoyer listes mises à jour
-        emitFriendsListTo(user.username);
-        emitFriendsListTo(from);
+        emitFriendsListTo(user.username); emitFriendsListTo(from);
     });
 
     socket.on('remove_friend', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        const target = data.username;
-        if (friendships[user.username]) friendships[user.username].friends = friendships[user.username].friends.filter(u => u !== target);
-        if (friendships[target]) friendships[target].friends = friendships[target].friends.filter(u => u !== user.username);
+        const target = resolveCanonicalUsername(data?.username);
+        if (!target) return;
+        const k = normalizeUsernameKey;
+        if (friendships[user.username]) friendships[user.username].friends = (friendships[user.username].friends || []).filter(u => k(u) !== k(target));
+        if (friendships[target]) friendships[target].friends = (friendships[target].friends || []).filter(u => k(u) !== k(user.username));
         saveFriendships();
         socket.emit('friend_removed', { username: target });
-        // Envoyer liste mise à jour à l'autre
-        emitFriendsListTo(target);
+        emitFriendsListTo(user.username); emitFriendsListTo(target);
     });
 
     socket.on('get_friends', () => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        const data = friendships[user.username] || { friends: [], pending: [], requests: [] };
-        // Add online status
-        const friendsWithStatus = data.friends.map(f => {
-            let online = false;
-            for (const [, u] of connectedUsers.entries()) {
-                if (u.username === f) { online = true; break; }
-            }
-            return { username: f, online };
-        });
-        socket.emit('friends_list', { friends: friendsWithStatus, pending: data.pending, requests: data.requests });
+        emitFriendsListTo(user.username);
     });
 
     // =========================================
@@ -6161,9 +5477,8 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         if (!user) return;
         socket.emit('blocked_users_list', { blocked: global.blockedUsers[user.username] || [] });
     });
-
     // =========================================
-    // === XP / LEVELING ===
+    // === XP / LEVELING — XP ONLY ===
     // =========================================
     socket.on('get_xp', () => {
         const user = connectedUsers.get(socket.id);
@@ -6171,572 +5486,57 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         socket.emit('xp_data', buildXPDataPayload(user.username));
     });
 
-    socket.on('get_clicker_state', () => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-        const payload = buildXPDataPayload(user.username);
-        socket.emit('clicker_state', payload.clicker || { totalClicks: 0, sessionClicks: 0, luckyDrops: 0, cooldownMs: CLICKER_TAP_COOLDOWN_MS });
-    });
-
-    socket.on('clicker_tap', () => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-
-        const entry = ensureXPEntry(user.username);
-        const now = Date.now();
-        const lastTap = Number(entry.clicker?.lastTapAt || 0);
-        if (now - lastTap < CLICKER_TAP_COOLDOWN_MS) {
-            return;
-        }
-
-        entry.clicker.lastTapAt = now;
-        entry.clicker.totalClicks = Math.max(0, Number(entry.clicker.totalClicks || 0)) + 1;
-        entry.clicker.sessionClicks = Math.max(0, Number(entry.clicker.sessionClicks || 0)) + 1;
-        const oldLevel = getLevelFromXP(entry.xp || 0).level;
-
-        const milestoneBonus = entry.clicker.totalClicks % 50 === 0 ? 10 : 0;
-        const efficiencyLvl = entry.clickerUpgrades?.efficiency || 0;
-        const luckLvl = entry.clickerUpgrades?.luck || 0;
-        let gainedXP = CLICKER_XP_PER_CLICK + milestoneBonus + efficiencyLvl;
-        const xpResult = addRawXP(user.username, gainedXP);
-
-        let bananasWon = 0;
-        let jackpot = false;
-
-        const luckBonus = luckLvl * 0.01;
-        let megaJackpot = false;
-        if (Math.random() < CLICKER_MEGA_JACKPOT_CHANCE) {
-            megaJackpot = true;
-            jackpot = true;
-            bananasWon += CLICKER_MEGA_JACKPOT_BANANAS;
-            gainedXP += CLICKER_MEGA_JACKPOT_XP;
-            addRawXP(user.username, CLICKER_MEGA_JACKPOT_XP);
-        } else if (Math.random() < CLICKER_JACKPOT_CHANCE) {
-            jackpot = true;
-            bananasWon += CLICKER_JACKPOT_BANANAS;
-            gainedXP += CLICKER_JACKPOT_XP;
-            addRawXP(user.username, CLICKER_JACKPOT_XP);
-        } else if (Math.random() < CLICKER_LUCKY_BANANA_CHANCE + luckBonus) {
-            bananasWon += 1;
-        }
-
-        if (bananasWon > 0) {
-            entry.bonusBananas = Math.max(0, Number(entry.bonusBananas || 0)) + bananasWon;
-            entry.clicker.luckyDrops = Math.max(0, Number(entry.clicker.luckyDrops || 0)) + bananasWon;
-        }
-
-        const missionRewards = applyMissionProgress(user.username, { clickerClicks: 1 });
-
-        const newLevel = getLevelFromXP(entry.xp || 0).level;
-        if (newLevel > oldLevel || xpResult.levelUp) {
-            io.emit('system_message', {
-                type: 'system',
-                message: `🎉 ${user.username} a atteint le niveau ${newLevel} !`,
-                timestamp: new Date(),
-                id: messageId++
-            });
-        }
-
-        emitMissionRewardsToSocket(socket, user.username, missionRewards);
-        saveXPData();
-
-        socket.emit('clicker_tap_result', {
-            gainedXP,
-            bananasWon,
-            jackpot,
-            megaJackpot,
-            totalClicks: entry.clicker.totalClicks,
-            sessionClicks: entry.clicker.sessionClicks,
-            luckyDrops: entry.clicker.luckyDrops,
-            bananaPoints: getBananaPoints(user.username)
-        });
-        socket.emit('xp_data', buildXPDataPayload(user.username));
-        if (bananasWon > 0) broadcastLeaderboard();
-    });
-
-    socket.on('convert_xp_to_banana', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-
-        const bananas = Math.max(0, Math.floor(Number(data?.bananas || 0)));
-        const result = convertXPToBananas(user.username, bananas);
-        if (!result.success) {
-            socket.emit('banana_error', { message: result.message || 'Conversion impossible' });
-            return;
-        }
-
-        saveXPData();
-        socket.emit('banana_reward', {
-            type: 'xp_converter',
-            title: '🔁 Conversion XP',
-            message: `-${result.xpSpent} XP → +${result.bananasAdded} 🍌`
-        });
-        socket.emit('banana_updated', { bananaPoints: result.bananaPoints });
-        socket.emit('xp_data', buildXPDataPayload(user.username));
-        updateUsersList();
-        broadcastLeaderboard();
-    });
-
     socket.on('set_name_effect', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-
         const xpEntry = ensureXPEntry(user.username);
         const requested = sanitizeNameEffect(data?.effect || 'none');
-        if (requested !== 'none' && !xpEntry.ownedNameEffects?.[requested]) {
-            socket.emit('banana_error', { message: 'Effet non possédé' });
+        const level = getLevelFromXP(xpEntry.xp || 0).level;
+        if (requested !== 'none' && level < NAME_EFFECT_ITEMS[requested].minLevel) {
+            socket.emit('cosmetic_error', { message: `Niveau ${NAME_EFFECT_ITEMS[requested].minLevel} requis pour ${NAME_EFFECT_ITEMS[requested].label}.` });
             return;
         }
-
         xpEntry.activeNameEffect = requested;
         saveXPData();
         socket.emit('xp_data', buildXPDataPayload(user.username));
         updateUsersList();
         for (const [rName, rData] of Object.entries(voiceRooms)) {
-            if (rData.participants.has(socket.id)) {
-                io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
-            }
+            if (rData.participants.has(socket.id)) io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
         }
     });
 
-    // === ACHAT THÈME CUSTOM (200 bananes) ===
-    socket.on('buy_custom_theme', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-
-        const xpEntry = ensureXPEntry(user.username);
-        if (xpEntry.customThemeUnlocked) {
-            socket.emit('banana_reward', { type: 'custom_theme', title: '🎨 Thème custom', message: 'Déjà débloqué !' });
-            return;
-        }
-
-        const cost = 200;
-        const bananas = getBananaPoints(user.username);
-        if (bananas < cost) {
-            socket.emit('banana_error', { message: `Pas assez de bananes ! (${bananas}/${cost} 🍌)` });
-            return;
-        }
-
-        const ok = spendBananas(user.username, cost);
-        if (!ok) { socket.emit('banana_error', { message: 'Erreur lors du paiement' }); return; }
-
-        xpEntry.customThemeUnlocked = true;
-        xpEntry.customTheme = data?.theme || { colors: ['#5865F2', '#4752C4'], opacity: 0.9 };
-        saveXPData();
-        socket.emit('banana_reward', { type: 'custom_theme', title: '🎨 Thème custom débloqué !', message: 'Tu peux maintenant créer ton propre thème dégradé !' });
-        socket.emit('banana_updated', { bananaPoints: getBananaPoints(user.username) });
-        socket.emit('xp_data', buildXPDataPayload(user.username));
-        logActivity('SHOP', 'Thème custom acheté', { username: user.username, cost });
-    });
-
-    // === ACHAT AUTO-CLICKER (1000 bananes) ===
-    socket.on('buy_autoclicker', () => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-
-        const xpEntry = ensureXPEntry(user.username);
-        if (xpEntry.autoClickerUnlocked) {
-            socket.emit('banana_reward', { type: 'autoclicker', title: '🤖 Auto-Clicker', message: 'Déjà débloqué !' });
-            return;
-        }
-
-        const cost = CLICKER_AUTOCLICKER_COST;
-        const bananas = getBananaPoints(user.username);
-        if (bananas < cost) {
-            socket.emit('banana_error', { message: `Pas assez de bananes ! (${bananas}/${cost} 🍌)` });
-            return;
-        }
-
-        const ok = spendBananas(user.username, cost);
-        if (!ok) { socket.emit('banana_error', { message: 'Erreur lors du paiement' }); return; }
-
-        xpEntry.autoClickerUnlocked = true;
-        saveXPData();
-        socket.emit('banana_reward', { type: 'autoclicker', title: '🤖 Auto-Clicker débloqué !', message: 'Active-le dans le Cookie Clicker pour gagner du XP automatiquement !' });
-        socket.emit('banana_updated', { bananaPoints: getBananaPoints(user.username) });
-        socket.emit('xp_data', buildXPDataPayload(user.username));
-        logActivity('SHOP', 'Auto-clicker acheté', { username: user.username, cost });
-    });
-
-    // === AUTO-CLICKER TOGGLE ===
-    socket.on('autoclicker_toggle', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-
-        const xpEntry = ensureXPEntry(user.username);
-        if (!xpEntry.autoClickerUnlocked) {
-            socket.emit('banana_error', { message: 'Auto-clicker non débloqué' });
-            return;
-        }
-
-        const enable = !!data?.enable;
-
-        // Clear existing interval if any
-        if (socket._autoClickerInterval) {
-            clearInterval(socket._autoClickerInterval);
-            socket._autoClickerInterval = null;
-        }
-
-        if (enable) {
-            const speedLvl = xpEntry.clickerUpgrades?.speed || 0;
-            const intervalMs = Math.max(300, CLICKER_AUTOCLICKER_INTERVAL_MS - speedLvl * 80);
-            socket._autoClickerInterval = setInterval(() => {
-                const u = connectedUsers.get(socket.id);
-                if (!u) { clearInterval(socket._autoClickerInterval); socket._autoClickerInterval = null; return; }
-
-                const entry = ensureXPEntry(u.username);
-                entry.clicker.totalClicks = Math.max(0, Number(entry.clicker.totalClicks || 0)) + 1;
-                entry.clicker.sessionClicks = Math.max(0, Number(entry.clicker.sessionClicks || 0)) + 1;
-
-                const effLvl = entry.clickerUpgrades?.efficiency || 0;
-                const gainedXP = CLICKER_AUTOCLICKER_XP_PER_TICK + Math.floor(effLvl / 2);
-                addRawXP(u.username, gainedXP);
-
-                // Reduced lucky chance for auto-clicks (halved) + luck bonus
-                const luckLvl = entry.clickerUpgrades?.luck || 0;
-                let bananasWon = 0;
-                let jackpot = false;
-                let megaJackpot = false;
-                if (Math.random() < (CLICKER_LUCKY_BANANA_CHANCE + luckLvl * 0.01) * 0.5) {
-                    bananasWon = 1;
-                }
-                if (bananasWon > 0) {
-                    entry.bonusBananas = Math.max(0, Number(entry.bonusBananas || 0)) + bananasWon;
-                    entry.clicker.luckyDrops = Math.max(0, Number(entry.clicker.luckyDrops || 0)) + bananasWon;
-                }
-
-                applyMissionProgress(u.username, { clickerClicks: 1 });
-
-                socket.emit('clicker_tap_result', {
-                    gainedXP,
-                    bananasWon,
-                    jackpot: false,
-                    megaJackpot: false,
-                    totalClicks: entry.clicker.totalClicks,
-                    sessionClicks: entry.clicker.sessionClicks,
-                    luckyDrops: entry.clicker.luckyDrops,
-                    bananaPoints: getBananaPoints(u.username),
-                    autoClick: true
-                });
-            }, intervalMs);
-        }
-
-        socket.emit('autoclicker_state', { active: enable, unlocked: true });
-    });
-
-    // === CASINO ===
-    socket.on('casino_spin', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-        const bet = Math.max(1, Math.min(10000, parseInt(data?.bet) || 10));
-        const bananas = getBananaPoints(user.username);
-        if (bananas < bet) {
-            socket.emit('banana_error', { message: `Pas assez de bananes ! (${bananas}/${bet} 🍌)` });
-            return;
-        }
-        const ok = spendBananas(user.username, bet);
-        if (!ok) { socket.emit('banana_error', { message: 'Erreur paiement' }); return; }
-
-        const casinoSymbols = ['🍒', '🍋', '🍇', '🔔', '⭐', '💎', '7️⃣'];
-        const s1 = casinoSymbols[Math.floor(Math.random() * casinoSymbols.length)];
-        const s2 = casinoSymbols[Math.floor(Math.random() * casinoSymbols.length)];
-        const s3 = casinoSymbols[Math.floor(Math.random() * casinoSymbols.length)];
-
-        let multiplier = 0;
-        if (s1 === s2 && s2 === s3) {
-            // Triple
-            if (s1 === '💎') multiplier = 10;
-            else if (s1 === '7️⃣') multiplier = 8;
-            else if (s1 === '🍒') multiplier = 5;
-            else if (s1 === '🍇') multiplier = 4;
-            else if (s1 === '🍋') multiplier = 3;
-            else multiplier = 3;
-        } else if (s1 === s2 || s2 === s3 || s1 === s3) {
-            multiplier = 2;
-        }
-
-        const win = multiplier > 0;
-        const gain = win ? bet * multiplier : 0;
-        if (win) {
-            const entry = ensureXPEntry(user.username);
-            entry.bonusBananas = (entry.bonusBananas || 0) + gain;
-            saveXPData();
-        }
-
-        const newBalance = getBananaPoints(user.username);
-        socket.emit('casino_result', { symbols: [s1, s2, s3], win, multiplier, gain, bet, newBalance });
-        socket.emit('banana_updated', { bananaPoints: newBalance });
-        if (win) {
-            logActivity('CASINO', `Gain casino`, { username: user.username, bet, gain, multiplier, symbols: [s1, s2, s3].join('') });
-        }
-    });
-
-    // === CLICKER UPGRADES ===
-    socket.on('buy_clicker_upgrade', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-        const upgradeKey = data?.upgrade;
-        const upgradeDef = CLICKER_UPGRADES[upgradeKey];
-        if (!upgradeDef) { socket.emit('banana_error', { message: 'Amélioration inconnue' }); return; }
-
-        const xpEntry = ensureXPEntry(user.username);
-        if (!xpEntry.clickerUpgrades) xpEntry.clickerUpgrades = {};
-        const currentLevel = xpEntry.clickerUpgrades[upgradeKey] || 0;
-        if (currentLevel >= upgradeDef.maxLevel) { socket.emit('banana_error', { message: 'Niveau max atteint !' }); return; }
-
-        const cost = Math.round(upgradeDef.baseCost * Math.pow(upgradeDef.costMultiplier, currentLevel));
-        const bananas = getBananaPoints(user.username);
-        if (bananas < cost) { socket.emit('banana_error', { message: `Pas assez de bananes ! (${bananas}/${cost} 🍌)` }); return; }
-
-        const ok = spendBananas(user.username, cost);
-        if (!ok) { socket.emit('banana_error', { message: 'Erreur paiement' }); return; }
-
-        xpEntry.clickerUpgrades[upgradeKey] = currentLevel + 1;
-        saveXPData();
-
-        socket.emit('banana_reward', { type: 'clicker_upgrade', title: `${upgradeDef.label} Niv.${currentLevel + 1}`, message: upgradeDef.desc });
-        socket.emit('banana_updated', { bananaPoints: getBananaPoints(user.username) });
-        socket.emit('clicker_upgrades_state', { upgrades: xpEntry.clickerUpgrades });
-        logActivity('SHOP', 'Clicker upgrade', { username: user.username, upgrade: upgradeKey, level: currentLevel + 1, cost });
-    });
-
-    socket.on('get_clicker_upgrades', () => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-        const xpEntry = ensureXPEntry(user.username);
-        socket.emit('clicker_upgrades_state', { upgrades: xpEntry.clickerUpgrades || {} });
-    });
-
-    // === SAUVEGARDER THÈME CUSTOM ===
     socket.on('save_custom_theme', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-
         const xpEntry = ensureXPEntry(user.username);
-        if (!xpEntry.customThemeUnlocked) {
-            socket.emit('banana_error', { message: 'Thème custom non débloqué' });
+        const level = getLevelFromXP(xpEntry.xp || 0).level;
+        if (level < CUSTOM_THEME_MIN_LEVEL) {
+            socket.emit('cosmetic_error', { message: `Niveau ${CUSTOM_THEME_MIN_LEVEL} requis pour sauvegarder un thème personnalisé.` });
             return;
         }
-
         const colors = Array.isArray(data?.colors) ? data.colors.slice(0, 5).map(c => String(c).slice(0, 9)) : ['#5865F2'];
         const opacity = Math.min(1, Math.max(0.1, parseFloat(data?.opacity) || 0.9));
-        xpEntry.customTheme = { colors, opacity };
+        const textColor = String(data?.textColor || '#eef2ff').slice(0, 9);
+        const accentColor = String(data?.accentColor || '#5865F2').slice(0, 9);
+        const msgColor = String(data?.msgColor || '#5865F2').slice(0, 9);
+        xpEntry.customTheme = { colors, opacity, textColor, accentColor, msgColor };
         saveXPData();
-        socket.emit('custom_theme_saved', { colors, opacity });
+        socket.emit('custom_theme_saved', xpEntry.customTheme);
+        socket.emit('xp_data', buildXPDataPayload(user.username));
     });
 
     socket.on('get_leaderboard', () => {
         const leaderboard = Object.entries(userXP)
             .map(([username, data]) => {
-                const levelData = getLevelFromXP(data.xp);
-                return {
-                    username,
-                    xp: data.xp,
-                    ...levelData,
-                    role: getRoleForLevel(levelData.level),
-                    totalMessages: data.totalMessages,
-                    bananaPoints: getBananaPoints(username)
-                };
+                const levelData = getLevelFromXP(data.xp || 0);
+                return { username, xp: Number(data.xp || 0), ...levelData, role: getRoleForLevel(levelData.level), totalMessages: Number(data.totalMessages || 0) };
             })
             .sort((a, b) => b.xp - a.xp)
             .slice(0, 20);
         socket.emit('leaderboard_data', { leaderboard });
     });
 
-    socket.on('get_minigames_leaderboard', () => {
-        const leaderboard = Object.entries(miniGameStats)
-            .map(([username, data]) => ({
-                username,
-                points: Number(data.points || 0),
-                played: Number(data.played || 0),
-                wins: Number(data.wins || 0),
-                losses: Number(data.losses || 0),
-                draws: Number(data.draws || 0)
-            }))
-            .sort((a, b) => b.points - a.points)
-            .slice(0, 20);
-        socket.emit('minigames_leaderboard_data', { leaderboard });
-    });
 
-    socket.on('minigame_result', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-
-        const gameType = String(data?.gameType || '').toLowerCase();
-        const outcome = String(data?.outcome || 'played').toLowerCase();
-        const allowedGames = ['guess', 'memory', 'quiz', 'arena2d'];
-        const allowedOutcomes = ['win', 'draw', 'loss', 'played'];
-        if (!allowedGames.includes(gameType) || !allowedOutcomes.includes(outcome)) return;
-
-        const base = getMiniGameReward(gameType, outcome);
-        const claimedPoints = Number(data?.points);
-        const claimedXP = Number(data?.xp);
-        const safePoints = Number.isFinite(claimedPoints) ? Math.max(0, Math.min(base.points + 8, Math.floor(claimedPoints))) : base.points;
-        const safeXP = Number.isFinite(claimedXP) ? Math.max(0, Math.min(base.xp + 20, Math.floor(claimedXP))) : base.xp;
-
-        const result = recordMiniGameResult(user.username, gameType, outcome, { points: safePoints, xp: safeXP });
-        socket.emit('minigame_reward', {
-            gameType,
-            outcome,
-            points: result.points,
-            xp: result.xp,
-            bananas: result.bananas,
-            totalMiniGamePoints: result.totals.points
-        });
-        emitMissionRewardsToSocket(socket, user.username, result.missionRewards || []);
-        socket.emit('xp_data', buildXPDataPayload(user.username));
-    });
-
-    socket.on('banana_use', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-
-        const costs = {
-            confetti: 12,
-            shake: 9,
-            flash: 100,
-            rain: 16,
-            fireworks: 23,
-            xp_boost: 15,
-            streak_shield: 18,
-            reaction_boost: 13,
-            cooldown_reducer: 12,
-            name_glow: NAME_EFFECT_ITEMS.name_glow.cost,
-            name_gradient: NAME_EFFECT_ITEMS.name_gradient.cost,
-            name_neon: NAME_EFFECT_ITEMS.name_neon.cost
-        };
-        const effect = data.effect;
-        let cost = costs[effect];
-        if (!cost) {
-            socket.emit('banana_error', { message: 'Objet banane inconnu' });
-            return;
-        }
-
-        // Appliquer la réduction promo si active
-        if (shopPromotion.active && shopPromotion.endsAt > Date.now()) {
-            const eligible = !shopPromotion.itemFilter || shopPromotion.itemFilter.includes(effect);
-            if (eligible && shopPromotion.discount > 0) {
-                cost = Math.max(1, Math.round(cost * (1 - shopPromotion.discount / 100)));
-            }
-        }
-
-        const xpEntry = ensureXPEntry(user.username);
-        if (NAME_EFFECT_ITEMS[effect] && xpEntry.ownedNameEffects?.[effect]) {
-            xpEntry.activeNameEffect = effect;
-            saveXPData();
-            socket.emit('banana_reward', {
-                type: effect,
-                title: '✨ Effet activé',
-                message: `${NAME_EFFECT_ITEMS[effect].label} activé sur votre pseudo`
-            });
-            socket.emit('xp_data', buildXPDataPayload(user.username));
-            updateUsersList();
-            for (const [rName, rData] of Object.entries(voiceRooms)) {
-                if (rData.participants.has(socket.id)) {
-                    io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
-                }
-            }
-            return;
-        }
-
-        const bananas = getBananaPoints(user.username);
-        if (bananas < cost) {
-            socket.emit('banana_error', { message: `Pas assez de bananes ! (${bananas}/${cost} 🍌) · Utilise le convertisseur XP→🍌` });
-            return;
-        }
-
-        const utilityItems = ['xp_boost', 'streak_shield', 'reaction_boost', 'cooldown_reducer'];
-        if (utilityItems.includes(effect)) {
-            const now = Date.now();
-            if (!xpEntry.shopWindowStart || (now - xpEntry.shopWindowStart) > 60 * 60 * 1000) {
-                xpEntry.shopWindowStart = now;
-                xpEntry.shopWindowCount = 0;
-            }
-            if (xpEntry.shopWindowCount >= UTILITY_PURCHASES_LIMIT_PER_HOUR) {
-                socket.emit('banana_error', {
-                    message: `Limite anti-abus atteinte (${UTILITY_PURCHASES_LIMIT_PER_HOUR} achats utilitaires / heure)`
-                });
-                return;
-            }
-            xpEntry.shopWindowCount += 1;
-        }
-
-        const spendOk = spendBananas(user.username, cost);
-        if (!spendOk) {
-            socket.emit('banana_error', { message: 'Impossible de débiter les bananes, réessayez.' });
-            return;
-        }
-
-        if (effect === 'xp_boost') {
-            const now = Date.now();
-            const base = xpEntry.xpBoostUntil && xpEntry.xpBoostUntil > now ? xpEntry.xpBoostUntil : now;
-            xpEntry.xpBoostUntil = base + 20 * 60 * 1000; // +20 minutes
-            socket.emit('banana_reward', {
-                type: 'xp_boost',
-                title: '🚀 Boost XP',
-                message: 'XP x2 active pendant 20 minutes (cumulable)'
-            });
-        } else if (effect === 'streak_shield') {
-            xpEntry.streakShieldCharges = Math.min(3, (xpEntry.streakShieldCharges || 0) + 1);
-            socket.emit('banana_reward', {
-                type: 'streak_shield',
-                title: '🛡️ Protection de série',
-                message: `Charge active: ${xpEntry.streakShieldCharges}/3`
-            });
-        } else if (effect === 'reaction_boost') {
-            const now = Date.now();
-            const base = xpEntry.reactionBoostUntil && xpEntry.reactionBoostUntil > now ? xpEntry.reactionBoostUntil : now;
-            xpEntry.reactionBoostUntil = base + XP_UTILITY_DURATION_MS;
-            socket.emit('banana_reward', {
-                type: 'reaction_boost',
-                title: '✨ Boost réactions',
-                message: 'XP des réactions x2 pendant 15 minutes (cumulable)'
-            });
-        } else if (effect === 'cooldown_reducer') {
-            const now = Date.now();
-            const base = xpEntry.cooldownReducerUntil && xpEntry.cooldownReducerUntil > now ? xpEntry.cooldownReducerUntil : now;
-            xpEntry.cooldownReducerUntil = base + XP_UTILITY_DURATION_MS;
-            socket.emit('banana_reward', {
-                type: 'cooldown_reducer',
-                title: '⚡ Cadence XP',
-                message: 'Cooldown XP messages réduit à 20s pendant 15 minutes'
-            });
-        } else if (NAME_EFFECT_ITEMS[effect]) {
-            xpEntry.ownedNameEffects = xpEntry.ownedNameEffects || {};
-            xpEntry.ownedNameEffects[effect] = true;
-            xpEntry.activeNameEffect = effect;
-            socket.emit('banana_reward', {
-                type: effect,
-                title: '🌈 Effet pseudo débloqué',
-                message: `${NAME_EFFECT_ITEMS[effect].label} obtenu en permanent`
-            });
-        }
-
-        xpEntry.level = getLevelFromXP(xpEntry.xp).level;
-        saveXPData();
-
-        if (['confetti', 'shake', 'flash', 'rain', 'fireworks'].includes(effect)) {
-            io.emit('banana_effect', { effect, username: user.username });
-        }
-
-        socket.emit('banana_updated', { bananaPoints: getBananaPoints(user.username) });
-        socket.emit('xp_data', buildXPDataPayload(user.username));
-        updateUsersList();
-        broadcastLeaderboard();
-        for (const [rName, rData] of Object.entries(voiceRooms)) {
-            if (rData.participants.has(socket.id)) {
-                io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
-            }
-        }
-
-        logActivity('ADMIN', 'Achat boutique banane', {
-            username: user.username,
-            item: effect,
-            costBananas: cost,
-            bananasAfter: getBananaPoints(user.username),
-            utilityPurchasesInHour: xpEntry.shopWindowCount
-        });
-    });
 
     // =========================================
     // === REMINDERS ===
@@ -6856,173 +5656,6 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         }
     });
 
-    // =========================================
-    // === HANGMAN GAME ===
-    // =========================================
-    socket.on('start_hangman', () => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-        const picked = getRandomHangmanWord();
-        const word = picked.word;
-        const gameState = {
-            word,
-            hint: picked.hint,
-            guessed: [],
-            wrong: [],
-            maxErrors: 8,
-            display: word.split('').map(() => '_').join(' ')
-        };
-        socket.hangmanGame = gameState;
-        const hintState = getHangmanHintState(gameState);
-        socket.emit('hangman_state', {
-            display: gameState.display,
-            wrong: gameState.wrong,
-            remaining: gameState.maxErrors - gameState.wrong.length,
-            maxErrors: gameState.maxErrors,
-            hintVisible: hintState.visible,
-            hintText: hintState.text,
-            finished: false
-        });
-    });
-
-    socket.on('hangman_guess', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user || !socket.hangmanGame) return;
-        const game = socket.hangmanGame;
-        const letter = (data.letter || '').toUpperCase().charAt(0);
-        if (!letter || game.guessed.includes(letter) || game.wrong.includes(letter)) return;
-        
-        if (game.word.includes(letter)) {
-            game.guessed.push(letter);
-        } else {
-            game.wrong.push(letter);
-        }
-        
-        const display = game.word.split('').map(c => game.guessed.includes(c) ? c : '_').join(' ');
-        const won = !display.includes('_');
-        const lost = game.wrong.length >= game.maxErrors;
-        const hintState = getHangmanHintState(game);
-        
-        socket.emit('hangman_state', {
-            display,
-            wrong: game.wrong,
-            remaining: game.maxErrors - game.wrong.length,
-            maxErrors: game.maxErrors,
-            hintVisible: hintState.visible,
-            hintText: hintState.text,
-            finished: won || lost,
-            won,
-            word: (won || lost) ? game.word : undefined
-        });
-        
-        if (won) {
-            const xpResult = grantXP(user.username, 50);
-            const miniReward = recordMiniGameResult(user.username, 'hangman', 'win');
-            socket.emit('minigame_reward', {
-                gameType: 'hangman',
-                outcome: 'win',
-                points: miniReward.points,
-                xp: miniReward.xp,
-                bananas: miniReward.bananas || 0,
-                totalMiniGamePoints: miniReward.totals.points
-            });
-            emitMissionRewardsToSocket(socket, user.username, miniReward.missionRewards || []);
-            socket.emit('xp_data', buildXPDataPayload(user.username));
-            if (xpResult && xpResult.levelUp) {
-                io.emit('system_message', { type: 'system', message: `🎉 ${user.username} a atteint le niveau ${xpResult.newLevel} !`, timestamp: new Date(), id: messageId++ });
-            }
-            socket.hangmanGame = null;
-        } else if (lost) {
-            const miniReward = recordMiniGameResult(user.username, 'hangman', 'loss');
-            socket.emit('minigame_reward', {
-                gameType: 'hangman',
-                outcome: 'loss',
-                points: miniReward.points,
-                xp: miniReward.xp,
-                bananas: miniReward.bananas || 0,
-                totalMiniGamePoints: miniReward.totals.points
-            });
-            emitMissionRewardsToSocket(socket, user.username, miniReward.missionRewards || []);
-            socket.emit('xp_data', buildXPDataPayload(user.username));
-            socket.hangmanGame = null;
-        }
-    });
-
-    // =========================================
-    // === TRIVIA GAME ===
-    // =========================================
-    socket.on('start_trivia', () => {
-        const user = connectedUsers.get(socket.id);
-        if (!user) return;
-        // 10 questions choisies dans une banque de 50+ questions
-        const shuffled = getRandomTriviaQuestions(10);
-        socket.triviaGame = { questions: shuffled, current: 0, score: 0, total: shuffled.length };
-        
-        socket.emit('trivia_question', {
-            question: shuffled[0].q,
-            answers: shuffled[0].a,
-            current: 1,
-            total: shuffled.length,
-            score: 0
-        });
-    });
-
-    socket.on('trivia_answer', (data) => {
-        const user = connectedUsers.get(socket.id);
-        if (!user || !socket.triviaGame) return;
-        const game = socket.triviaGame;
-        const q = game.questions[game.current];
-        const correct = data.answer === q.correct;
-        if (correct) game.score++;
-        
-        game.current++;
-        
-        if (game.current >= game.total) {
-            // Game over
-            const xpGained = game.score * 20;
-            const xpResult = grantXP(user.username, xpGained);
-            const scoreRatio = game.total > 0 ? (game.score / game.total) : 0;
-            const outcome = scoreRatio >= 0.7 ? 'win' : (scoreRatio >= 0.4 ? 'draw' : 'loss');
-            const miniReward = recordMiniGameResult(user.username, 'trivia', outcome, {
-                points: Math.max(4, Math.floor(game.score * 2.5)),
-                xp: Math.max(10, Math.floor(game.score * 6))
-            });
-            socket.emit('trivia_result', {
-                correct,
-                correctAnswer: q.correct,
-                score: game.score,
-                total: game.total,
-                finished: true,
-                xpGained
-            });
-            socket.emit('minigame_reward', {
-                gameType: 'trivia',
-                outcome,
-                points: miniReward.points,
-                xp: miniReward.xp,
-                bananas: miniReward.bananas || 0,
-                totalMiniGamePoints: miniReward.totals.points
-            });
-            emitMissionRewardsToSocket(socket, user.username, miniReward.missionRewards || []);
-            socket.emit('xp_data', buildXPDataPayload(user.username));
-            if (xpResult && xpResult.levelUp) {
-                io.emit('system_message', { type: 'system', message: `🎉 ${user.username} a atteint le niveau ${xpResult.newLevel} !`, timestamp: new Date(), id: messageId++ });
-            }
-            socket.triviaGame = null;
-        } else {
-            const next = game.questions[game.current];
-            socket.emit('trivia_result', {
-                correct,
-                correctAnswer: q.correct,
-                score: game.score,
-                total: game.total,
-                finished: false,
-                nextQuestion: next.q,
-                nextAnswers: next.a,
-                current: game.current + 1
-            });
-        }
-    });
 
     // =========================================
     // === SOUNDBOARD ===
@@ -7047,398 +5680,6 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     });
 });
 
-// Initialiser l'état d'un jeu
-function initGameState(gameType) {
-    switch (gameType) {
-        case 'tictactoe':
-            return { board: ['', '', '', '', '', '', '', '', ''] };
-        case 'connect4':
-            return { board: Array(6).fill(null).map(() => Array(7).fill('')) };
-        case 'rps':
-            return { choices: [null, null], scores: [0, 0], round: 1, maxRounds: 5 };
-        case 'quiz': {
-            const allQuestions = [
-                { q: "Quelle est la capitale de la France?", a: ["Paris", "Lyon", "Marseille", "Nice"], c: 0 },
-                { q: "Combien font 7 × 8?", a: ["54", "56", "58", "64"], c: 1 },
-                { q: "Qui a peint La Joconde?", a: ["Picasso", "Van Gogh", "Léonard de Vinci", "Michel-Ange"], c: 2 },
-                { q: "Quel est le plus grand océan?", a: ["Atlantique", "Indien", "Pacifique", "Arctique"], c: 2 },
-                { q: "En quelle année la Révolution française?", a: ["1789", "1799", "1776", "1815"], c: 0 },
-                { q: "Quel gaz les plantes absorbent-elles?", a: ["Oxygène", "Azote", "CO2", "Hydrogène"], c: 2 },
-                { q: "Combien de pattes a une araignée?", a: ["6", "8", "10", "4"], c: 1 },
-                { q: "Quelle planète est la plus proche du Soleil?", a: ["Vénus", "Mars", "Mercure", "Terre"], c: 2 },
-                { q: "Qui a écrit 'Les Misérables'?", a: ["Zola", "Balzac", "Hugo", "Flaubert"], c: 2 },
-                { q: "Quelle est la monnaie du Japon?", a: ["Won", "Yuan", "Yen", "Ringgit"], c: 2 }
-            ];
-            const questions = allQuestions.sort(() => Math.random() - 0.5).slice(0, 5);
-            return { questions, current: 0, scores: [0, 0], answers: [null, null], total: questions.length };
-        }
-        case 'trivia': {
-            const questions = getRandomTriviaQuestions(10);
-            return { questions, current: 0, scores: [0, 0], answers: [null, null], total: questions.length };
-        }
-        case 'hangman': {
-            const picked = getRandomHangmanWord();
-            return { word: picked.word, hint: picked.hint, guessed: [], wrong: [], maxErrors: 8, currentGuesser: 0 };
-        }
-        case 'arena2d': {
-            return buildArenaState();
-        }
-        default:
-            return {};
-    }
-}
-
-// Appliquer un coup
-function applyGameMove(game, move, playerIndex) {
-    const symbols = ['X', 'O'];
-    const colors = ['red', 'yellow'];
-    
-    switch (game.type) {
-        case 'tictactoe': {
-            const { index } = move;
-            if (game.state.board[index]) {
-                return { valid: false };
-            }
-            
-            game.state.board[index] = symbols[playerIndex];
-            
-            const winner = checkTTTWinner(game.state.board);
-            const draw = !winner && !game.state.board.includes('');
-            
-            return {
-                valid: true,
-                state: game.state,
-                nextTurn: winner || draw ? -1 : (playerIndex + 1) % 2,
-                winner: winner ? game.players[playerIndex].username : null,
-                draw: draw
-            };
-        }
-        
-        case 'connect4': {
-            const { col } = move;
-            let row = -1;
-            for (let r = 5; r >= 0; r--) {
-                if (!game.state.board[r][col]) {
-                    row = r;
-                    break;
-                }
-            }
-            if (row === -1) return { valid: false };
-            
-            game.state.board[row][col] = colors[playerIndex];
-            
-            const winner = checkC4Winner(game.state.board, row, col, colors[playerIndex]);
-            const draw = !winner && game.state.board[0].every(cell => cell);
-            
-            return {
-                valid: true,
-                state: game.state,
-                nextTurn: winner || draw ? -1 : (playerIndex + 1) % 2,
-                winner: winner ? game.players[playerIndex].username : null,
-                draw: draw
-            };
-        }
-        
-        case 'rps': {
-            const { choice } = move; // 'rock', 'paper', 'scissors'
-            if (!['rock', 'paper', 'scissors'].includes(choice)) return { valid: false };
-            if (game.state.choices[playerIndex] !== null) return { valid: false };
-            
-            game.state.choices[playerIndex] = choice;
-            
-            // Les deux ont joué ?
-            if (game.state.choices[0] !== null && game.state.choices[1] !== null) {
-                const c0 = game.state.choices[0];
-                const c1 = game.state.choices[1];
-                let roundWinner = null;
-                
-                if (c0 !== c1) {
-                    if ((c0 === 'rock' && c1 === 'scissors') || (c0 === 'paper' && c1 === 'rock') || (c0 === 'scissors' && c1 === 'paper')) {
-                        game.state.scores[0]++;
-                        roundWinner = game.players[0].username;
-                    } else {
-                        game.state.scores[1]++;
-                        roundWinner = game.players[1].username;
-                    }
-                }
-                
-                const finished = game.state.round >= game.state.maxRounds;
-                const resultState = { ...game.state, roundResult: { choices: [c0, c1], roundWinner } };
-                
-                if (!finished) {
-                    game.state.choices = [null, null];
-                    game.state.round++;
-                }
-                
-                let finalWinner = null;
-                let finalDraw = false;
-                if (finished) {
-                    if (game.state.scores[0] > game.state.scores[1]) finalWinner = game.players[0].username;
-                    else if (game.state.scores[1] > game.state.scores[0]) finalWinner = game.players[1].username;
-                    else finalDraw = true;
-                }
-                
-                // Envoyer individuellement à chaque joueur (ils doivent voir les 2 choix)
-                game.players.forEach((p, idx) => {
-                    const sid = findCurrentSocketGlobal(p.username);
-                    if (sid) {
-                        global.io.to(sid).emit('game_update', {
-                            gameId: game.id,
-                            state: resultState,
-                            yourTurn: !finished,
-                            lastMove: move,
-                            lastMoveBy: null,
-                            winner: finalWinner,
-                            draw: finalDraw,
-                            rpsRound: { choices: [c0, c1], roundWinner, round: resultState.round, scores: resultState.scores, finished }
-                        });
-                    }
-                });
-                
-                return { valid: true, state: game.state, nextTurn: -1, winner: finalWinner, draw: finalDraw, customEmit: true };
-            }
-            
-            // Seulement 1 joueur a joué, attendre l'autre
-            return { valid: true, state: game.state, nextTurn: (playerIndex + 1) % 2, winner: null, draw: false, waiting: true, customEmit: true };
-        }
-        
-        case 'quiz':
-        case 'trivia': {
-            const { answer } = move;
-            if (game.state.answers[playerIndex] !== null) return { valid: false };
-            
-            game.state.answers[playerIndex] = answer;
-            
-            // Les deux ont répondu ?
-            if (game.state.answers[0] !== null && game.state.answers[1] !== null) {
-                const q = game.state.questions[game.state.current];
-                const correctIdx = game.type === 'quiz' ? q.c : q.correct;
-                
-                if (game.state.answers[0] === correctIdx) game.state.scores[0]++;
-                if (game.state.answers[1] === correctIdx) game.state.scores[1]++;
-                
-                const wasLast = game.state.current >= game.state.total - 1;
-                
-                const resultData = {
-                    correctAnswer: correctIdx,
-                    playerAnswers: [game.state.answers[0], game.state.answers[1]],
-                    scores: [...game.state.scores],
-                    current: game.state.current + 1,
-                    total: game.state.total,
-                    finished: wasLast
-                };
-                
-                let finalWinner = null;
-                let finalDraw = false;
-                if (wasLast) {
-                    if (game.state.scores[0] > game.state.scores[1]) finalWinner = game.players[0].username;
-                    else if (game.state.scores[1] > game.state.scores[0]) finalWinner = game.players[1].username;
-                    else finalDraw = true;
-                } else {
-                    // Prochaine question
-                    game.state.current++;
-                    game.state.answers = [null, null];
-                }
-                
-                // Envoyer à chaque joueur
-                game.players.forEach((p, idx) => {
-                    const sid = findCurrentSocketGlobal(p.username);
-                    if (sid) {
-                        const nextQ = !wasLast ? game.state.questions[game.state.current] : null;
-                        global.io.to(sid).emit('game_update', {
-                            gameId: game.id,
-                            state: game.state,
-                            yourTurn: !wasLast,
-                            winner: finalWinner,
-                            draw: finalDraw,
-                            quizRound: {
-                                ...resultData,
-                                nextQuestion: nextQ ? (game.type === 'quiz' ? { q: nextQ.q, a: nextQ.a } : { q: nextQ.q, a: nextQ.a }) : null
-                            }
-                        });
-                    }
-                });
-                
-                return { valid: true, state: game.state, nextTurn: -1, winner: finalWinner, draw: finalDraw, customEmit: true };
-            }
-            
-            // Seulement 1 joueur a répondu
-            const sid = findCurrentSocketGlobal(game.players[playerIndex].username);
-            if (sid) {
-                global.io.to(sid).emit('game_update', {
-                    gameId: game.id,
-                    state: {},
-                    yourTurn: false,
-                    quizWaiting: true
-                });
-            }
-            return { valid: true, state: game.state, nextTurn: -1, winner: null, draw: false, customEmit: true };
-        }
-        
-        case 'hangman': {
-            const letter = (move.letter || '').toUpperCase().charAt(0);
-            if (!letter) return { valid: false };
-            if (game.state.guessed.includes(letter) || game.state.wrong.includes(letter)) return { valid: false };
-            
-            if (game.state.word.includes(letter)) {
-                game.state.guessed.push(letter);
-            } else {
-                game.state.wrong.push(letter);
-            }
-            
-            const display = game.state.word.split('').map(c => game.state.guessed.includes(c) ? c : '_').join(' ');
-            const won = !display.includes('_');
-            const lost = game.state.wrong.length >= game.state.maxErrors;
-            const hintState = getHangmanHintState(game.state);
-            
-            // Alterner qui devine ou les deux devinent ensemble (co-op style)
-            return {
-                valid: true,
-                state: game.state,
-                nextTurn: (won || lost) ? -1 : (playerIndex + 1) % 2,
-                winner: won ? 'COOP_WIN' : (lost ? 'COOP_LOSE' : null),
-                draw: false,
-                hangmanState: {
-                    display,
-                    wrong: game.state.wrong,
-                    remaining: game.state.maxErrors - game.state.wrong.length,
-                    maxErrors: game.state.maxErrors,
-                    finished: won || lost,
-                    won,
-                    word: (won || lost) ? game.state.word : undefined,
-                    hintVisible: hintState.visible,
-                    hintText: hintState.text
-                }
-            };
-        }
-
-        case 'arena2d': {
-            const dir = move?.dir;
-            if (!['up', 'down', 'left', 'right'].includes(dir)) return { valid: false };
-
-            const now = Date.now();
-            const lastMove = game.state.lastMoveAt[playerIndex] || 0;
-            if (now - lastMove < game.state.moveCooldownMs) return { valid: false };
-            game.state.lastMoveAt[playerIndex] = now;
-
-            const p = game.state.players[playerIndex];
-            if (!p) return { valid: false };
-            const otherIndex = playerIndex === 0 ? 1 : 0;
-            const other = game.state.players[otherIndex];
-
-            const nextX = dir === 'left' ? Math.max(0, p.x - 1)
-                : dir === 'right' ? Math.min(game.state.width - 1, p.x + 1)
-                : p.x;
-            const nextY = dir === 'up' ? Math.max(0, p.y - 1)
-                : dir === 'down' ? Math.min(game.state.height - 1, p.y + 1)
-                : p.y;
-
-            const wallHit = (game.state.walls || []).some(w => w.x === nextX && w.y === nextY);
-            if (!wallHit) {
-                p.x = nextX;
-                p.y = nextY;
-            }
-
-            const jumpPad = (game.state.jumpPads || []).find(j => j.x === p.x && j.y === p.y);
-            if (jumpPad) {
-                const jx = Math.min(game.state.width - 1, Math.max(0, p.x + (jumpPad.dx || 0)));
-                const jy = Math.min(game.state.height - 1, Math.max(0, p.y + (jumpPad.dy || 0)));
-                if (!(game.state.walls || []).some(w => w.x === jx && w.y === jy)) {
-                    p.x = jx;
-                    p.y = jy;
-                }
-            }
-
-            const pipe = (game.state.pipes || []).find(pp => pp.a.x === p.x && pp.a.y === p.y);
-            if (pipe) {
-                p.x = pipe.b.x;
-                p.y = pipe.b.y;
-            } else {
-                const pipeRev = (game.state.pipes || []).find(pp => pp.b.x === p.x && pp.b.y === p.y);
-                if (pipeRev) {
-                    p.x = pipeRev.a.x;
-                    p.y = pipeRev.a.y;
-                }
-            }
-
-            const hazardHit = (game.state.hazards || []).some(h => h.x === p.x && h.y === p.y);
-            if (hazardHit) {
-                p.score = Math.max(0, p.score - 1);
-                const spawn = (game.state.spawns && game.state.spawns[playerIndex]) || { x: playerIndex === 0 ? 2 : game.state.width - 3, y: Math.floor(game.state.height / 2) };
-                p.x = spawn.x;
-                p.y = spawn.y;
-            }
-
-            if (game.state.mode === 'sword_duel' && other && p.x === other.x && p.y === other.y) {
-                p.score += 1;
-                other.score = Math.max(0, other.score - 1);
-                const otherSpawn = (game.state.spawns && game.state.spawns[otherIndex]) || { x: otherIndex === 0 ? 2 : game.state.width - 3, y: Math.floor(game.state.height / 2) };
-                other.x = otherSpawn.x;
-                other.y = otherSpawn.y;
-            }
-
-            const coinIndex = game.state.coins.findIndex(c => c.x === p.x && c.y === p.y);
-            if (coinIndex >= 0) {
-                game.state.coins.splice(coinIndex, 1);
-                p.score += Math.max(1, Number(game.state.coinValue || 1));
-                game.state.coins.push(spawnArenaCoin(game.state.width, game.state.height, game.state.players, game.state.coins, getArenaBlockedPositions(game.state)));
-            }
-
-            let winner = null;
-            if (p.score >= game.state.targetScore) {
-                winner = game.players[playerIndex].username;
-            }
-
-            return {
-                valid: true,
-                state: game.state,
-                winner,
-                draw: false
-            };
-        }
-        
-        default:
-            return { valid: false };
-    }
-}
-
-// Helper global pour trouver un socket par username (utilisé par applyGameMove)
-function findCurrentSocketGlobal(username) {
-    let sid = null;
-    connectedUsers.forEach((u, socketId) => {
-        if (u.username === username) sid = socketId;
-    });
-    return sid;
-}
-
-function checkTTTWinner(board) {
-    const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    for (const [a, b, c] of lines) {
-        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-            return board[a];
-        }
-    }
-    return null;
-}
-
-function checkC4Winner(board, row, col, player) {
-    const directions = [[0,1], [1,0], [1,1], [1,-1]];
-    
-    for (const [dr, dc] of directions) {
-        let count = 1;
-        for (let dir = -1; dir <= 1; dir += 2) {
-            for (let i = 1; i < 4; i++) {
-                const r = row + dr * i * dir;
-                const c = col + dc * i * dir;
-                if (r >= 0 && r < 6 && c >= 0 && c < 7 && board[r][c] === player) {
-                    count++;
-                } else break;
-            }
-        }
-        if (count >= 4) return player;
-    }
-    return null;
-}
 
 // Fonctions utilitaires
 function addToHistory(message) {
@@ -7483,9 +5724,12 @@ function getVoiceParticipants(room) {
     if (!voiceRooms[room]) return [];
     const participants = [];
     voiceRooms[room].participants.forEach((data, socketId) => {
+        const liveUser = connectedUsers.get(socketId);
+        const savedProfile = userProfiles.get(data.username) || {};
         participants.push({
             socketId,
             username: data.username,
+            avatar: (liveUser && liveUser.avatar) || savedProfile.avatar || '',
             nameEffect: getActiveNameEffect(data.username),
             muted: data.muted,
             deafened: data.deafened,
@@ -7599,8 +5843,7 @@ function broadcastLeaderboard() {
                 xp: data.xp,
                 ...levelData,
                 role: getRoleForLevel(levelData.level),
-                totalMessages: data.totalMessages,
-                bananaPoints: getBananaPoints(username)
+                totalMessages: data.totalMessages
             };
         })
         .sort((a, b) => b.xp - a.xp)
@@ -7610,333 +5853,25 @@ function broadcastLeaderboard() {
 
 function updateTypingIndicator() {
     const now = Date.now();
-    // Supprimer les utilisateurs qui tapent depuis plus de 5 secondes
-    const activeTypers = [];
-    
     typingUsers.forEach((data, socketId) => {
-        if (now - data.timestamp < 5000 && connectedUsers.has(socketId)) {
-            activeTypers.push(data.username);
-        } else {
-            typingUsers.delete(socketId);
-        }
+        if (now - data.timestamp >= 5000 || !connectedUsers.has(socketId)) typingUsers.delete(socketId);
     });
-    
-    io.emit('typing_update', { users: activeTypers });
-    
-    if (activeTypers.length > 0) {
-        logActivity('TYPING', `Indicateur de frappe mis à jour`, {
-            activeTypers: activeTypers
+
+    // Chaque client ne reçoit que les personnes qui écrivent dans son salon courant.
+    connectedUsers.forEach((viewer, viewerSocketId) => {
+        const active = [];
+        typingUsers.forEach((data, typerSocketId) => {
+            if (typerSocketId === viewerSocketId) return;
+            if ((data.channel || 'général') !== (viewer.currentChannel || 'général')) return;
+            const typer = connectedUsers.get(typerSocketId);
+            if (!typer) return;
+            active.push(data.username);
         });
-    }
+        io.to(viewerSocketId).emit('typing_update', { users: [...new Set(active)] });
+    });
+    io.emit('channel_typing_update', getChannelTypingUsers());
 }
 
-const TRIVIA_QUESTION_BANK = [
-    { q: "Quelle est la capitale de la France ?", a: ["Paris", "Lyon", "Marseille", "Toulouse"], correct: 0 },
-    { q: "Combien de continents y a-t-il ?", a: ["5", "6", "7", "8"], correct: 2 },
-    { q: "Quel est le plus grand ocean ?", a: ["Atlantique", "Pacifique", "Indien", "Arctique"], correct: 1 },
-    { q: "En quelle annee ARPANET est-il lance ?", a: ["1965", "1969", "1975", "1983"], correct: 1 },
-    { q: "Quel element chimique a le symbole Au ?", a: ["Argent", "Or", "Aluminium", "Argon"], correct: 1 },
-    { q: "Combien de pattes a une araignee ?", a: ["6", "8", "10", "12"], correct: 1 },
-    { q: "Quelle planete est la plus proche du Soleil ?", a: ["Venus", "Mercure", "Terre", "Mars"], correct: 1 },
-    { q: "Qui a peint la Joconde ?", a: ["Raphael", "Michel-Ange", "Leonard de Vinci", "Monet"], correct: 2 },
-    { q: "Combien d'os a le corps humain adulte ?", a: ["186", "206", "226", "246"], correct: 1 },
-    { q: "Quelle est la monnaie du Japon ?", a: ["Yuan", "Won", "Yen", "Dollar"], correct: 2 },
-    { q: "En quelle annee le mur de Berlin est-il tombe ?", a: ["1987", "1989", "1991", "1993"], correct: 1 },
-    { q: "Combien de couleurs dans un arc-en-ciel ?", a: ["5", "6", "7", "8"], correct: 2 },
-    { q: "Quel est le plus petit pays du monde ?", a: ["Monaco", "Vatican", "Malte", "Andorre"], correct: 1 },
-    { q: "Qui a ecrit Les Miserables ?", a: ["Zola", "Hugo", "Balzac", "Dumas"], correct: 1 },
-    { q: "Quel gaz les plantes absorbent-elles ?", a: ["Oxygene", "Azote", "CO2", "Hydrogene"], correct: 2 },
-    { q: "Combien de touches sur un piano standard ?", a: ["76", "82", "88", "96"], correct: 2 },
-    { q: "Quelle est la vitesse de la lumiere (approx.) ?", a: ["150 000 km/s", "300 000 km/s", "450 000 km/s", "1 000 000 km/s"], correct: 1 },
-    { q: "Quel est l'ocean a l'ouest de l'Europe ?", a: ["Pacifique", "Atlantique", "Indien", "Arctique"], correct: 1 },
-    { q: "Combien de joueurs sur le terrain dans une equipe de foot ?", a: ["9", "10", "11", "12"], correct: 2 },
-    { q: "Quelle est la capitale de l'Espagne ?", a: ["Barcelone", "Seville", "Madrid", "Valence"], correct: 2 },
-    { q: "Quel est le plus grand desert chaud ?", a: ["Sahara", "Gobi", "Kalahari", "Namib"], correct: 0 },
-    { q: "Combien de jours dans une annee bissextile ?", a: ["365", "366", "364", "360"], correct: 1 },
-    { q: "Quel instrument mesure les seismes ?", a: ["Barometre", "Sismographe", "Anemometre", "Altimetre"], correct: 1 },
-    { q: "Qui a formule la theorie de la relativite ?", a: ["Newton", "Einstein", "Galilee", "Tesla"], correct: 1 },
-    { q: "Quelle est la capitale de l'Italie ?", a: ["Milan", "Rome", "Naples", "Turin"], correct: 1 },
-    { q: "Quel est le plus grand organe du corps humain ?", a: ["Foie", "Peau", "Poumon", "Rein"], correct: 1 },
-    { q: "Quel est le symbole chimique du sodium ?", a: ["So", "Sn", "Na", "Sd"], correct: 2 },
-    { q: "Combien de faces a un de classique ?", a: ["4", "6", "8", "10"], correct: 1 },
-    { q: "Quelle est la langue officielle du Bresil ?", a: ["Espagnol", "Portugais", "Francais", "Anglais"], correct: 1 },
-    { q: "Quel est le plus haut sommet du monde ?", a: ["K2", "Everest", "Mont Blanc", "Kilimandjaro"], correct: 1 },
-    { q: "Combien de cordes a une guitare standard ?", a: ["4", "5", "6", "7"], correct: 2 },
-    { q: "Quel est l'element principal du Soleil ?", a: ["Oxygene", "Hydrogene", "Fer", "Helium"], correct: 1 },
-    { q: "Quel continent abrite l'Egypte ?", a: ["Asie", "Afrique", "Europe", "Amerique"], correct: 1 },
-    { q: "Quelle est la capitale de l'Allemagne ?", a: ["Munich", "Hambourg", "Berlin", "Francfort"], correct: 2 },
-    { q: "Combien de minutes dans 2 heures ?", a: ["90", "100", "110", "120"], correct: 3 },
-    { q: "Quel est le plus long fleuve d'Afrique ?", a: ["Niger", "Congo", "Nil", "Zambeze"], correct: 2 },
-    { q: "Quel est le nom de la galaxie de la Terre ?", a: ["Andromede", "Voie lactee", "Magellan", "Orion"], correct: 1 },
-    { q: "Quel est le contraire de solide ?", a: ["Lisse", "Liquide", "Dur", "Stable"], correct: 1 },
-    { q: "Combien y a-t-il de mois dans une annee ?", a: ["10", "11", "12", "13"], correct: 2 },
-    { q: "Quel est l'animal terrestre le plus rapide ?", a: ["Lion", "Guepard", "Antilope", "Lievre"], correct: 1 },
-    { q: "Quelle est la capitale du Canada ?", a: ["Toronto", "Ottawa", "Vancouver", "Montreal"], correct: 1 },
-    { q: "Quel est le resultat de 9 x 9 ?", a: ["72", "81", "90", "99"], correct: 1 },
-    { q: "Quel est le metal liquide a temperature ambiante ?", a: ["Mercure", "Aluminium", "Cuivre", "Zinc"], correct: 0 },
-    { q: "Combien de cartes dans un jeu standard ?", a: ["32", "40", "52", "54"], correct: 2 },
-    { q: "Quel est le principal gaz de l'air ?", a: ["Oxygene", "Dioxyde de carbone", "Azote", "Argon"], correct: 2 },
-    { q: "Quel est le pluriel de cheval ?", a: ["Chevals", "Chevaux", "Chevales", "Chevauxs"], correct: 1 },
-    { q: "Quelle est la capitale du Portugal ?", a: ["Porto", "Lisbonne", "Braga", "Coimbra"], correct: 1 },
-    { q: "Combien de cotes a un hexagone ?", a: ["5", "6", "7", "8"], correct: 1 },
-    { q: "Quel instrument a des touches noires et blanches ?", a: ["Violon", "Piano", "Flute", "Batterie"], correct: 1 },
-    { q: "Quel est l'etat de l'eau a 0 degre C ?", a: ["Gaz", "Plasma", "Solide ou liquide", "Toujours liquide"], correct: 2 },
-    { q: "Quelle est la capitale de la Grece ?", a: ["Athenes", "Sparte", "Patras", "Heraklion"], correct: 0 },
-    { q: "Quel est le resultat de 15 + 27 ?", a: ["32", "42", "52", "62"], correct: 1 },
-    { q: "Quel est le plus grand mammifere du monde ?", a: ["Elephant", "Baleine bleue", "Requin-baleine", "Girafe"], correct: 1 },
-    { q: "Quel est l'organe qui pompe le sang ?", a: ["Foie", "Cerveau", "Coeur", "Estomac"], correct: 2 },
-    { q: "Quelle est la capitale de la Belgique ?", a: ["Bruxelles", "Anvers", "Liege", "Gand"], correct: 0 },
-    { q: "Quel est le nombre premier parmi ces choix ?", a: ["21", "25", "29", "33"], correct: 2 },
-    { q: "Quel est le principal composant du sable ?", a: ["Sel", "Silice", "Charbon", "Calcium"], correct: 1 },
-    { q: "Quelle est la capitale de l'Australie ?", a: ["Sydney", "Melbourne", "Canberra", "Perth"], correct: 2 },
-    { q: "Quelle unite mesure la frequence ?", a: ["Newton", "Watt", "Hertz", "Pascal"], correct: 2 },
-    { q: "Quel est le resultat de 144 / 12 ?", a: ["10", "11", "12", "13"], correct: 2 }
-];
-
-const HANGMAN_WORD_BANK = [
-    { word: 'JAVASCRIPT', hint: 'Langage web tres populaire' },
-    { word: 'PYTHON', hint: 'Langage connu pour sa simplicite' },
-    { word: 'SERVEUR', hint: 'Machine qui fournit des services reseau' },
-    { word: 'DISCORD', hint: 'Application de chat vocal et texte' },
-    { word: 'ORDINATEUR', hint: 'Machine electronique programmable' },
-    { word: 'INTERNET', hint: 'Reseau mondial' },
-    { word: 'CLAVIER', hint: 'Peripherique pour taper du texte' },
-    { word: 'ECRAN', hint: 'Affichage visuel' },
-    { word: 'PROGRAMME', hint: 'Suite d instructions executees par une machine' },
-    { word: 'FONCTION', hint: 'Bloc de code reutilisable' },
-    { word: 'VARIABLE', hint: 'Conteneur de valeur en programmation' },
-    { word: 'TABLEAU', hint: 'Structure de donnees indexee' },
-    { word: 'BOUCLE', hint: 'Permet de repeter des instructions' },
-    { word: 'CONDITION', hint: 'Execute selon vrai ou faux' },
-    { word: 'MUSIQUE', hint: 'Art des sons' },
-    { word: 'CINEMA', hint: 'Art du film' },
-    { word: 'GALAXIE', hint: 'Immense ensemble d etoiles' },
-    { word: 'PLANETE', hint: 'Corps celeste en orbite autour d une etoile' },
-    { word: 'ETOILE', hint: 'Astre lumineux' },
-    { word: 'LICORNE', hint: 'Creature mythique avec une corne' },
-    { word: 'DRAGON', hint: 'Creature legendaire souvent cracheuse de feu' },
-    { word: 'CHATEAU', hint: 'Grande forteresse medievale' },
-    { word: 'PIRATE', hint: 'Marin hors-la-loi' },
-    { word: 'ROBOT', hint: 'Machine autonome ou semi-autonome' },
-    { word: 'ESPACE', hint: 'Au-dela de l atmosphere terrestre' },
-    { word: 'AVENTURE', hint: 'Experience pleine de rebondissements' },
-    { word: 'MONTAGNE', hint: 'Relief naturel eleve' },
-    { word: 'RIVIERE', hint: 'Cours d eau naturel' },
-    { word: 'FORET', hint: 'Zone dense d arbres' },
-    { word: 'DESERT', hint: 'Region tres seche' },
-    { word: 'ORAGE', hint: 'Pluie, eclairs et tonnerre' },
-    { word: 'NUAGE', hint: 'Masse visible de gouttelettes dans le ciel' },
-    { word: 'SOLEIL', hint: 'Etoile de notre systeme' },
-    { word: 'LUNE', hint: 'Satellite naturel de la Terre' },
-    { word: 'COMETE', hint: 'Petit corps celeste a queue lumineuse' },
-    { word: 'ASTEROIDE', hint: 'Petit corps rocheux dans l espace' },
-    { word: 'SATELLITE', hint: 'Objet en orbite autour d une planete' },
-    { word: 'GRAVITE', hint: 'Force qui attire les corps' },
-    { word: 'ELECTRON', hint: 'Particule elementaire negative' },
-    { word: 'MOLECULE', hint: 'Assemblage d atomes' },
-    { word: 'OXYGENE', hint: 'Gaz indispensable a la respiration' },
-    { word: 'HYDROGENE', hint: 'Element le plus abondant de l univers' },
-    { word: 'BIBLIOTHEQUE', hint: 'Lieu ou l on emprunte des livres' },
-    { word: 'ROMAN', hint: 'Recit litteraire long' },
-    { word: 'POESIE', hint: 'Art du langage rythme' },
-    { word: 'THEATRE', hint: 'Art de la scene' },
-    { word: 'PEINTURE', hint: 'Art visuel avec couleurs' },
-    { word: 'SCULPTURE', hint: 'Art en volume' },
-    { word: 'GUITARE', hint: 'Instrument a cordes' },
-    { word: 'PIANO', hint: 'Instrument a clavier' },
-    { word: 'TROMPETTE', hint: 'Instrument a vent en cuivre' },
-    { word: 'BASKET', hint: 'Sport avec panier' },
-    { word: 'FOOTBALL', hint: 'Sport au ballon rond' },
-    { word: 'TENNIS', hint: 'Sport de raquette' },
-    { word: 'VOLLEY', hint: 'Sport avec filet' },
-    { word: 'NATATION', hint: 'Sport aquatique' },
-    { word: 'MARATHON', hint: 'Course de longue distance' },
-    { word: 'VOITURE', hint: 'Vehicule a moteur' },
-    { word: 'AVION', hint: 'Transport aerien' },
-    { word: 'BATEAU', hint: 'Transport maritime' },
-    { word: 'TRAIN', hint: 'Transport ferroviaire' },
-    { word: 'VELO', hint: 'Transport a deux roues sans moteur' },
-    { word: 'MOTEUR', hint: 'Piece qui transforme une energie en mouvement' },
-    { word: 'BATTERIE', hint: 'Stockage d energie electrique' },
-    { word: 'CASQUE', hint: 'Protection de la tete' },
-    { word: 'LANTERNE', hint: 'Source de lumiere portable' },
-    { word: 'HORIZON', hint: 'Ligne apparente entre ciel et terre' },
-    { word: 'PARACHUTE', hint: 'Permet de ralentir une chute' },
-    { word: 'BANANE', hint: 'Fruit jaune riche en potassium' },
-    { word: 'CERISE', hint: 'Petit fruit rouge a noyau' },
-    { word: 'CHOCOLAT', hint: 'Gourmandise issue du cacao' },
-    { word: 'FROMAGE', hint: 'Produit laitier affine' },
-    { word: 'PATISSERIE', hint: 'Art des desserts' },
-    { word: 'CROISSANT', hint: 'Viennoiserie en forme de lune' },
-    { word: 'BAGUETTE', hint: 'Pain francais long et fin' },
-    { word: 'FESTIVAL', hint: 'Evenement culturel' },
-    { word: 'VACANCES', hint: 'Periode de repos' },
-    { word: 'VOYAGE', hint: 'Deplacement vers un autre lieu' },
-    { word: 'CARTE', hint: 'Representation geographique' },
-    { word: 'BOUSSOLE', hint: 'Outil d orientation' },
-    { word: 'PHARE', hint: 'Tour lumineuse pour guider les bateaux' },
-    { word: 'TRIANGLE', hint: 'Forme a trois cotes' },
-    { word: 'RECTANGLE', hint: 'Forme a quatre angles droits' },
-    { word: 'CERCLE', hint: 'Forme ronde' },
-    { word: 'PYRAMIDE', hint: 'Monument celebre d Egypte' },
-    { word: 'SEMAPHORE', hint: 'Signalisation lumineuse routiere' }
-];
-
-function getRandomTriviaQuestions(count) {
-    return [...TRIVIA_QUESTION_BANK].sort(() => Math.random() - 0.5).slice(0, Math.min(count, TRIVIA_QUESTION_BANK.length));
-}
-
-function getRandomHangmanWord() {
-    return HANGMAN_WORD_BANK[Math.floor(Math.random() * HANGMAN_WORD_BANK.length)];
-}
-
-function getHangmanHintState(game) {
-    const wrongCount = game.wrong.length;
-    const reveal = wrongCount >= 3;
-    let text = '';
-    if (reveal) {
-        text = game.hint || '';
-        if (!text && wrongCount >= 5) {
-            text = `Le mot commence par ${game.word.charAt(0)} et contient ${game.word.length} lettres`;
-        }
-    }
-    return { visible: reveal, text };
-}
-
-const ARENA2D_MODE_POOL = [
-    { key: 'coin_rush', label: 'Coin Rush', coinValue: 1, targetScore: 12, moveCooldownMs: 70, coinCount: 8 },
-    { key: 'turbo_rush', label: 'Turbo Rush', coinValue: 2, targetScore: 18, moveCooldownMs: 55, coinCount: 10 },
-    { key: 'spike_storm', label: 'Spike Storm', coinValue: 1, targetScore: 11, moveCooldownMs: 72, coinCount: 8, hazardsCount: 20 },
-    { key: 'sword_duel', label: 'Sword Duel', coinValue: 1, targetScore: 9, moveCooldownMs: 68, coinCount: 6 },
-    { key: 'mario_pipes', label: 'Mario Pipes', coinValue: 1, targetScore: 12, moveCooldownMs: 66, coinCount: 8, pipesPairs: 3, jumpPadsCount: 6, wallsCount: 18 }
-];
-
-function pickArena2DMode() {
-    const idx = Math.floor(Math.random() * ARENA2D_MODE_POOL.length);
-    return { ...ARENA2D_MODE_POOL[idx], modeIndex: idx + 1 };
-}
-
-function getArenaBlockedPositions(state) {
-    const blocked = [];
-    (state.walls || []).forEach((w) => blocked.push({ x: w.x, y: w.y }));
-    return blocked;
-}
-
-function spawnArenaCell(width, height, used, avoid = []) {
-    const localUsed = used || new Set();
-    const avoidSet = new Set((avoid || []).map((p) => `${p.x},${p.y}`));
-    for (let i = 0; i < 400; i++) {
-        const x = Math.floor(Math.random() * width);
-        const y = Math.floor(Math.random() * height);
-        const key = `${x},${y}`;
-        if (!localUsed.has(key) && !avoidSet.has(key)) {
-            localUsed.add(key);
-            return { x, y };
-        }
-    }
-    return null;
-}
-
-function spawnArenaFeatures(width, height, players, mode) {
-    const used = new Set(players.map((p) => `${p.x},${p.y}`));
-    const hazards = [];
-    const walls = [];
-    const jumpPads = [];
-    const pipes = [];
-
-    const hazardsCount = Number(mode.hazardsCount || 0);
-    for (let i = 0; i < hazardsCount; i++) {
-        const cell = spawnArenaCell(width, height, used);
-        if (!cell) break;
-        hazards.push(cell);
-    }
-
-    const wallsCount = Number(mode.wallsCount || 0);
-    for (let i = 0; i < wallsCount; i++) {
-        const cell = spawnArenaCell(width, height, used);
-        if (!cell) break;
-        walls.push(cell);
-    }
-
-    const jumpPadsCount = Number(mode.jumpPadsCount || 0);
-    const vectors = [
-        { dx: 2, dy: 0 },
-        { dx: -2, dy: 0 },
-        { dx: 0, dy: 2 },
-        { dx: 0, dy: -2 }
-    ];
-    for (let i = 0; i < jumpPadsCount; i++) {
-        const cell = spawnArenaCell(width, height, used);
-        if (!cell) break;
-        const vec = vectors[Math.floor(Math.random() * vectors.length)];
-        jumpPads.push({ ...cell, dx: vec.dx, dy: vec.dy });
-    }
-
-    const pipesPairs = Number(mode.pipesPairs || 0);
-    for (let i = 0; i < pipesPairs; i++) {
-        const a = spawnArenaCell(width, height, used);
-        const b = spawnArenaCell(width, height, used);
-        if (!a || !b) break;
-        pipes.push({ a, b });
-    }
-
-    return { hazards, walls, jumpPads, pipes, used };
-}
-
-function spawnArenaCoin(width, height, players, existingCoins, blockedPositions = []) {
-    const occupied = new Set();
-    players.forEach((p) => occupied.add(`${p.x},${p.y}`));
-    (existingCoins || []).forEach((c) => occupied.add(`${c.x},${c.y}`));
-    (blockedPositions || []).forEach((b) => occupied.add(`${b.x},${b.y}`));
-    let tries = 0;
-    while (tries < 200) {
-        const x = Math.floor(Math.random() * width);
-        const y = Math.floor(Math.random() * height);
-        const key = `${x},${y}`;
-        if (!occupied.has(key)) return { x, y };
-        tries += 1;
-    }
-    return { x: Math.floor(width / 2), y: Math.floor(height / 2) };
-}
-
-function buildArenaState() {
-    const width = 24;
-    const height = 14;
-    const mode = pickArena2DMode();
-    const spawns = [
-        { x: 2, y: Math.floor(height / 2) },
-        { x: width - 3, y: Math.floor(height / 2) }
-    ];
-    const players = [
-        { x: spawns[0].x, y: spawns[0].y, score: 0 },
-        { x: spawns[1].x, y: spawns[1].y, score: 0 }
-    ];
-    const features = spawnArenaFeatures(width, height, players, mode);
-    const blocked = [...getArenaBlockedPositions({ walls: features.walls })];
-    const coins = [];
-    for (let i = 0; i < Number(mode.coinCount || 8); i++) {
-        const c = spawnArenaCoin(width, height, players, coins, blocked);
-        if (c) coins.push(c);
-    }
-    return {
-        width,
-        height,
-        players,
-        coins,
-        mode: mode.key,
-        modeLabel: mode.label,
-        modeIndex: Number(mode.modeIndex || 1),
-        coinValue: Number(mode.coinValue || 1),
-        targetScore: Number(mode.targetScore || 12),
-        moveCooldownMs: Number(mode.moveCooldownMs || 70),
-        lastMoveAt: [0, 0],
-        spawns,
-        hazards: features.hazards,
-        walls: features.walls,
-        jumpPads: features.jumpPads,
-        pipes: features.pipes
-    };
-}
 
 // Tâches de maintenance périodiques
 setInterval(() => {
@@ -8000,8 +5935,7 @@ setInterval(() => {
                 io.to(socketId).emit('daily_mission_reward', {
                     missionKey: reward.key,
                     missionLabel: reward.label,
-                    rewardXP: reward.rewardXP,
-                    rewardBananas: reward.rewardBananas || 0
+                    rewardXP: reward.rewardXP
                 });
                 if (reward.levelUp) {
                     io.emit('system_message', {
@@ -8049,6 +5983,111 @@ setInterval(() => {
 setInterval(() => {
     saveServerRuntimeStats({ includeCurrentSession: true });
 }, 30000);
+
+// === R5.1.0 ARCADE: Tetris Versus + Neon Maze 3D ===
+const arcadeTetrisRooms = new Map();
+const arcadeMazeRooms = new Map();
+const ARCADE_MAZE_ORBS = [
+    { id:'o0', x:2.5, y:2.5 }, { id:'o1', x:7.5, y:2.5 }, { id:'o2', x:11.5, y:3.5 },
+    { id:'o3', x:4.5, y:6.5 }, { id:'o4', x:9.5, y:7.5 }, { id:'o5', x:13.5, y:8.5 }
+];
+function arcadeRoomCode(value, fallback='PUBLIC') {
+    const code = String(value || fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,16);
+    return code || fallback;
+}
+function arcadeUsername(socket) {
+    return connectedUsers.get(socket.id)?.username || `Guest-${socket.id.slice(0,4)}`;
+}
+function emitTetrisRoom(code) {
+    const room = arcadeTetrisRooms.get(code); if (!room) return;
+    io.to(`arcade:tetris:${code}`).emit('arcade_tetris_room', {
+        code,
+        started: room.started,
+        seed: room.seed,
+        players: [...room.players.values()].map(p => ({ username:p.username, socketId:p.socketId, score:p.score||0, lines:p.lines||0, level:p.level||1, alive:p.alive!==false }))
+    });
+}
+function cleanupTetrisSocket(socketId) {
+    for (const [code, room] of arcadeTetrisRooms) {
+        if (!room.players.has(socketId)) continue;
+        room.players.delete(socketId);
+        io.to(`arcade:tetris:${code}`).emit('arcade_tetris_peer_left', { socketId });
+        if (!room.players.size) arcadeTetrisRooms.delete(code); else { room.started=false; emitTetrisRoom(code); }
+    }
+}
+function mazeSnapshot(code) {
+    const room = arcadeMazeRooms.get(code);
+    if (!room) return null;
+    return {
+        code,
+        players:[...room.players.values()],
+        orbs: ARCADE_MAZE_ORBS.map(o => ({...o, active: !room.collected.has(o.id)}))
+    };
+}
+function cleanupMazeSocket(socketId) {
+    for (const [code, room] of arcadeMazeRooms) {
+        if (!room.players.has(socketId)) continue;
+        room.players.delete(socketId);
+        io.to(`arcade:maze:${code}`).emit('arcade_maze_peer_left', { socketId });
+        if (!room.players.size) arcadeMazeRooms.delete(code);
+    }
+}
+io.on('connection', (socket) => {
+    socket.on('arcade_tetris_join', data => {
+        cleanupTetrisSocket(socket.id);
+        const code=arcadeRoomCode(data?.code);
+        let room=arcadeTetrisRooms.get(code);
+        if (!room) { room={players:new Map(),started:false,seed:Math.floor(Math.random()*2147483647)}; arcadeTetrisRooms.set(code,room); }
+        if (room.players.size>=2 && !room.players.has(socket.id)) return socket.emit('arcade_error',{game:'tetris',message:'Cette partie Tetris est pleine.'});
+        socket.join(`arcade:tetris:${code}`);
+        room.players.set(socket.id,{socketId:socket.id,username:arcadeUsername(socket),score:0,lines:0,level:1,alive:true});
+        emitTetrisRoom(code);
+        if (room.players.size===2) {
+            room.started=true; room.seed=Math.floor(Math.random()*2147483647);
+            for (const p of room.players.values()) { p.score=0;p.lines=0;p.level=1;p.alive=true; }
+            io.to(`arcade:tetris:${code}`).emit('arcade_tetris_start',{code,seed:room.seed,startedAt:Date.now()+800});
+            emitTetrisRoom(code);
+        }
+    });
+    socket.on('arcade_tetris_state', data => {
+        const code=arcadeRoomCode(data?.code); const room=arcadeTetrisRooms.get(code); const p=room?.players.get(socket.id); if(!p)return;
+        p.score=Math.max(0,Math.min(99999999,Number(data.score)||0)); p.lines=Math.max(0,Math.min(9999,Number(data.lines)||0)); p.level=Math.max(1,Math.min(99,Number(data.level)||1));
+        socket.to(`arcade:tetris:${code}`).emit('arcade_tetris_peer_state',{socketId:socket.id,username:p.username,score:p.score,lines:p.lines,level:p.level,board:Array.isArray(data.board)?data.board.slice(0,20):null});
+    });
+    socket.on('arcade_tetris_attack', data => {
+        const code=arcadeRoomCode(data?.code); const room=arcadeTetrisRooms.get(code); if(!room?.players.has(socket.id))return;
+        const lines=Math.max(1,Math.min(4,Number(data.lines)||1)); socket.to(`arcade:tetris:${code}`).emit('arcade_tetris_garbage',{from:arcadeUsername(socket),lines});
+    });
+    socket.on('arcade_tetris_gameover', data => {
+        const code=arcadeRoomCode(data?.code); const room=arcadeTetrisRooms.get(code); const p=room?.players.get(socket.id); if(!p)return;
+        p.alive=false; socket.to(`arcade:tetris:${code}`).emit('arcade_tetris_win',{winner:[...room.players.values()].find(x=>x.socketId!==socket.id)?.username||null,loser:p.username}); emitTetrisRoom(code);
+    });
+    socket.on('arcade_tetris_leave', data => { const code=arcadeRoomCode(data?.code); socket.leave(`arcade:tetris:${code}`); cleanupTetrisSocket(socket.id); });
+
+    socket.on('arcade_maze_join', data => {
+        cleanupMazeSocket(socket.id);
+        const code=arcadeRoomCode(data?.code,'MAZE'); let room=arcadeMazeRooms.get(code);
+        if(!room){room={players:new Map(),collected:new Set()};arcadeMazeRooms.set(code,room);}
+        if(room.players.size>=8&&!room.players.has(socket.id))return socket.emit('arcade_error',{game:'maze',message:'Cette arène est pleine.'});
+        socket.join(`arcade:maze:${code}`);
+        room.players.set(socket.id,{socketId:socket.id,username:arcadeUsername(socket),x:1.5,y:1.5,a:0,score:0});
+        socket.emit('arcade_maze_snapshot',mazeSnapshot(code));
+        socket.to(`arcade:maze:${code}`).emit('arcade_maze_peer_join',room.players.get(socket.id));
+    });
+    socket.on('arcade_maze_move', data => {
+        const code=arcadeRoomCode(data?.code,'MAZE'); const room=arcadeMazeRooms.get(code); const p=room?.players.get(socket.id); if(!p)return;
+        p.x=Math.max(1.05,Math.min(14.95,Number(data.x)||p.x));p.y=Math.max(1.05,Math.min(9.95,Number(data.y)||p.y));p.a=Number(data.a)||0;
+        socket.to(`arcade:maze:${code}`).volatile.emit('arcade_maze_peer_move',{socketId:socket.id,x:p.x,y:p.y,a:p.a,score:p.score});
+    });
+    socket.on('arcade_maze_collect', data => {
+        const code=arcadeRoomCode(data?.code,'MAZE'); const room=arcadeMazeRooms.get(code); const p=room?.players.get(socket.id); const orb=ARCADE_MAZE_ORBS.find(o=>o.id===String(data?.orbId||'')); if(!room||!p||!orb||room.collected.has(orb.id))return;
+        const dx=p.x-orb.x,dy=p.y-orb.y;if(dx*dx+dy*dy>1.5)return;
+        room.collected.add(orb.id);p.score=(p.score||0)+1;io.to(`arcade:maze:${code}`).emit('arcade_maze_orb',{orbId:orb.id,by:p.username,score:p.score,active:false});
+        setTimeout(()=>{const r=arcadeMazeRooms.get(code);if(!r)return;r.collected.delete(orb.id);io.to(`arcade:maze:${code}`).emit('arcade_maze_orb',{orbId:orb.id,active:true});},7000);
+    });
+    socket.on('arcade_maze_leave', data => { const code=arcadeRoomCode(data?.code,'MAZE');socket.leave(`arcade:maze:${code}`);cleanupMazeSocket(socket.id); });
+    socket.on('disconnect',()=>{cleanupTetrisSocket(socket.id);cleanupMazeSocket(socket.id);});
+});
 
 // Démarrer le serveur
 const PORT = process.env.PORT || 8080;
@@ -8121,7 +6160,6 @@ function gracefulShutdown(signal) {
 
     // Flush explicite des buffers de persistance avant fermeture
     saveXPDataImmediate();
-    saveMiniGameStatsImmediate();
     
     // Fermer le serveur
     server.close(() => {
@@ -8176,34 +6214,6 @@ setInterval(() => {
     }
 }, 2000);
 
-// === AUTO PROMOTIONS BOUTIQUE ===
-setInterval(() => {
-    const now = Date.now();
-    // Expirer la promo active
-    if (shopPromotion.active && shopPromotion.endsAt > 0 && now >= shopPromotion.endsAt) {
-        shopPromotion.active = false;
-        shopPromotion.discount = 0;
-        shopPromotion.endsAt = 0;
-        shopPromotion.label = '';
-        io.emit('shop_promotion_state', shopPromotion);
-        logActivity('SYSTEM', 'Promotion boutique expirée automatiquement');
-    }
-    // Lancer une auto-promo si configurée
-    if (shopPromotion.autoMode && !shopPromotion.active && shopPromotion.nextAutoAt > 0 && now >= shopPromotion.nextAutoAt) {
-        shopPromotion.active = true;
-        shopPromotion.discount = shopPromotion.autoDiscountPercent;
-        shopPromotion.label = `🔥 Promo auto -${shopPromotion.discount}%`;
-        // Random 2-5 items for auto promo
-        const allItems = ['confetti', 'shake', 'flash', 'rain', 'fireworks', 'xp_boost', 'streak_shield', 'reaction_boost', 'cooldown_reducer', 'name_glow', 'name_gradient', 'name_neon'];
-        const shuffled = allItems.sort(() => Math.random() - 0.5);
-        shopPromotion.itemFilter = shuffled.slice(0, Math.min(5, Math.max(2, Math.floor(Math.random() * 4) + 2)));
-        shopPromotion.endsAt = now + shopPromotion.autoDurationMinutes * 60 * 1000;
-        shopPromotion.nextAutoAt = shopPromotion.endsAt + shopPromotion.autoIntervalMinutes * 60 * 1000;
-        io.emit('shop_promotion_state', shopPromotion);
-        logActivity('SYSTEM', `Promotion auto lancée: -${shopPromotion.discount}%`, { items: shopPromotion.itemFilter });
-    }
-}, 30000);
-
 // === KEEP-ALIVE POUR FLY.IO ===
 // Fly.io peut arrêter les machines inactives
 // On fait des pings réguliers pour maintenir le serveur actif
@@ -8253,11 +6263,16 @@ function keepAlive() {
     }
 }
 
-// Démarrer le keep-alive
-setInterval(keepAlive, KEEP_ALIVE_INTERVAL);
-keepAlive(); // Premier ping immédiat
-
-console.log(`⏰ Keep-alive configuré: ping toutes les 4 minutes`);
+// Le self-ping est désactivé par défaut sur Fly.io : une Machine toujours active
+// est plus stable pour Socket.IO/WebRTC et évite du trafic artificiel.
+const SELF_KEEPALIVE_ENABLED = String(process.env.DOCSPACE_SELF_KEEPALIVE || 'false').toLowerCase() === 'true' && !IS_FLY;
+if (SELF_KEEPALIVE_ENABLED) {
+    setInterval(keepAlive, KEEP_ALIVE_INTERVAL);
+    keepAlive();
+    console.log(`⏰ Self keep-alive activé (${Math.round(KEEP_ALIVE_INTERVAL / 1000)} s)`);
+} else {
+    console.log(`⏰ Self keep-alive désactivé (recommandé sur Fly.io)`);
+}
 console.log(`🌐 Route /health disponible pour monitoring`);
 console.log(`🌐 Route /api/server/dashboard disponible pour supervision externe`);
 

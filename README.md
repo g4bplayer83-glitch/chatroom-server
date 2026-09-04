@@ -1,132 +1,34 @@
-# DocSpace - Realtime Chat Platform (v3.2.0 Official)
+# DocSpace — v3.3.0 Beta
 
-DocSpace is a realtime web chat app built with Node.js, Express and Socket.IO.
-It includes text channels, voice channels, DMs, mini-games, XP progression,
-admin tools, file sharing, and a modern Discord-like UI.
+DocSpace est un chat temps réel inspiré de Discord, avec salons texte/vocaux, messages privés, profils, fichiers, sondages, soundboard, présence et progression XP.
 
-## Version
+## Progression XP
+L’XP est la seule ressource de progression. Elle se gagne via les messages, les réactions, le vocal, le bonus quotidien et les missions. Les niveaux débloquent automatiquement des thèmes et styles de pseudo.
 
-- Official version: `3.2.0`
-- Last update: `2026-03-27`
+## Cosmétiques
+- Thèmes de base dès le niveau 0.
+- Bleu Nuit niveau 2.
+- Pseudo Glow niveau 3.
+- Rouge / Jaune / Deep Purple niveau 4.
+- Pseudo Gradient + thèmes roses niveau 7.
+- Orange / Forest niveau 10.
+- Pseudo Néon niveau 12.
+- Theme Lab personnalisé niveau 20.
 
-## Main Features
-
-### Core Chat
-
-- Realtime messaging with Socket.IO
-- Multi-channel chat (general, jeux, musique, films, random, aide, ia...)
-- Message reactions, replies, edits, deletes
-- Link previews and media support
-- Date separators, unread counters, and scroll-to-bottom helper
-
-### Voice and Social
-
-- Voice rooms with participant state sync
-- DM conversations with typing indicator and attachments
-- Friends system (requests, accept, remove)
-- User status and custom status text
-- User blocking / unblocking
-
-### Progression and Economy
-
-- XP and level system
-- Daily login bonus and streaks
-- Daily missions (messages, reactions, voice time)
-- Banana shop with utility boosts
-- Anti-abuse limits on utility purchases
-
-### Mini-Games
-
-- Tic-Tac-Toe
-- Connect 4
-- Rock-Paper-Scissors
-- Quiz / Trivia
-- Hangman
-- Guess the Number
-- Memory
-- Arena 2D (multiplayer + solo bot)
-
-### Admin and Moderation
-
-- Admin panel with advanced actions
-- Chat moderation tools
-- Voice moderation tools (kick, mute, deafen, move)
-- Broadcast and server control actions
-- Automoderation options (spam, links, caps, blocked words)
-
-## Mini-Game Ranking (v3.2.0)
-
-DocSpace now includes a persistent mini-game leaderboard:
-
-- Global points by player
-- Wins / draws / losses / total matches
-- Rewards after matches (points + XP)
-- Dedicated leaderboard block in the ranking modal
-
-## Project Structure
-
-- `index.html`: Main frontend (UI + client logic)
-- `server.js`: Backend server and realtime events
-- `patchnotes.json`: In-app patch notes data
-- `data/`: Persisted runtime data (history, XP, reminders, stats...)
-- `uploads/`: Uploaded files
-
-## Requirements
-
-- Node.js 18+ (recommended: latest LTS)
-- npm
-
-## Installation
-
-1. Install dependencies:
-
+## Lancer
 ```bash
 npm install
-```
-
-2. Start the server:
-
-```bash
 npm start
 ```
+Puis ouvrir `http://localhost:8080`.
 
-3. Open your browser:
+## Build
+Cette version consolide les correctifs UI, login et stabilité des révisions précédentes de la branche 3.3.0 Beta.
 
-```text
-http://localhost:3000
-```
-
-## Development
-
-Run directly with Node:
-
-```bash
-node server.js
-```
-
-## Data and Persistence
-
-DocSpace saves runtime data in JSON files under `data/`.
-
-If needed, you can set a custom persistent path with:
-
-```bash
-RENDER_DISK_PATH=/var/data
-```
-
-## Security Notes
-
-- Keep admin credentials private
-- Keep API keys outside public repositories
-- Review file upload limits and allowed types before production deployment
-
-## Roadmap Ideas
-
-- Per-user mini-game profile page
-- Better anti-cheat validations for client-driven mini-game events
-- Match history viewer
-- Optional seasonal ranking resets
-
-## License
-
-Private project / internal use unless specified otherwise.
+## R5.1.0 — Arcade + Vocal + Fly.io
+- Arcade accessible via le bouton 🎮 dans la barre de gauche ou `Arcade DocSpace` sous le salon `jeux`.
+- Tetris Versus : solo + code de room 1v1.
+- Neon Maze 3D : raycasting local + room jusqu'à 8 joueurs.
+- Pulse Pong : bonus solo.
+- Vocal adaptatif : audio/camera/screen share ajustés automatiquement selon le nombre de peers.
+- Pour Fly.io : voir `FLY_PERFORMANCE_GUIDE.md` et `fly.toml`.

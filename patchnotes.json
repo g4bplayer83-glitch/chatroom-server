@@ -1,7 +1,116 @@
 {
-  "currentVersion": "3.2.9",
-  "lastUpdate": "2026-04-07",
+  "currentVersion": "3.3.0-beta R5.1.0",
+  "build": "R5.0.3",
+  "lastUpdate": "26/08/2026",
   "versions": [
+    {
+      "version": "3.3.0-beta R5.1.0",
+      "title": "3.3.0 Bêta R5.1.0 — Arcade, Vocal adaptatif & Fly.io",
+      "date": "04/09/2026",
+      "changes": [
+        "🎮 Nouvelle page Arcade DocSpace avec Tetris Versus, Neon Maze 3D et Pulse Pong.",
+        "🧱 Tetris : solo + duel 1v1 synchronisé avec attaques de lignes et état adversaire.",
+        "🌌 Neon Maze : moteur 3D raycasting local, orbes et positions multijoueur synchronisés.",
+        "⚡ Bonus Pulse Pong : duel néon contre une IA locale.",
+        "🎙️ Vocal remanié : grille média plus lisible, participants compacts, profils audio/caméra/écran adaptatifs.",
+        "🛰️ TURN configurable et diagnostic vocal P2P/SFU/region directement depuis le serveur.",
+        "🚀 Configuration Fly.io fournie pour Paris (cdg), volume persistant, health checks et Machine toujours active.",
+        "🧰 Self-ping Fly supprimé par défaut et nouvel endpoint /api/runtime/fly pour les diagnostics."
+      ]
+    },
+    {
+      "version": "3.3.0-beta R5.0.4",
+      "title": "R5.0.4 — DM Reliability, Text Composer & Voice Controls",
+      "date": "26/08/2026",
+      "changes": [
+        "💬 Clic et ouverture des conversations privées renforcés avec resynchronisation d'historique serveur",
+        "⌨️ La barre d’écriture reste masquée dans la vue vocal et revient correctement dans les salons texte",
+        "🎙️ Choix direct du microphone, de la caméra et de la sortie audio dans les paramètres",
+        "🔊 Push-to-Talk optionnel avec touche configurable, désactivé par défaut",
+        "🛡️ Aucun changement du login/handshake stable et aucun nouvel observer global au démarrage"
+      ]
+    },
+    {
+      "version": "3.3.0-beta R5.0.3",
+      "date": "26/08/2026",
+      "title": "💬 3.3.0 Bêta R5.0.3 — DM Home & Navigation Cleanup",
+      "changes": [
+        "🔊 La vue vocal redevient dédiée au vocal : pas de barre d’écriture tant que la vue appel est ouverte",
+        "💬 Accueil MP propre sans composer : champ pour écrire directement à un pseudo et raccourcis vers les personnes en ligne",
+        "📨 Après sélection d’un MP, l’accueil disparaît et laisse tout l’espace à l’historique et au composer",
+        "👥 Navigation Amis → Messages privés réparée : le bouton Home/DM revient toujours à l’accueil MP",
+        "✕ Fermer Amis renvoie à l’accueil MP et la croix reste près du contenu utile",
+        "🌍 Nouveaux libellés DM disponibles dans les 8 langues existantes",
+        "🧊 Aucun changement au login, handshake Socket.IO ou server.js stable"
+      ]
+    },
+    {
+      "version": "3.3.0-beta R5.0.2",
+      "date": "26/08/2026",
+      "title": "🧩 3.3.0 Bêta R5.0.2 — DM, Amis, Vocal & UI Polish",
+      "changes": [
+        "✉️ DM resynchronisés après chaque envoi/réception avec l’historique serveur comme source de vérité et conservation des IDs de messages",
+        "👥 Page Amis recentrée et limitée en largeur : formulaire, onglets et listes ne débordent plus sur les grands écrans",
+        "🔊 La barre de message reste utilisable pendant un appel vocal pour continuer à écrire dans le salon texte actif",
+        "🔔 Notifications déplacées en bas à droite avec une animation plus discrète et compatible mobile",
+        "🌍 Les 8 langues déjà disponibles traduisent maintenant aussi les nouvelles zones Home, DM, Amis et plusieurs libellés du vocal",
+        "✨ Animations Home/DM/Amis/vocal allégées, avec respect de prefers-reduced-motion",
+        "🧊 Aucun changement au handshake/login stable de R5.0.1 et aucun nouvel observer global avant connexion"
+      ]
+    },
+    {
+      "version": "3.3.0-beta R5",
+      "date": "26/08/2026",
+      "title": "🔄 3.3.0 Bêta R5 — Discord Home, Sync, Overlay & Stable Boot",
+      "changes": [
+        "🧭 Messages privés et Amis deviennent de vraies pages Home façon Discord au lieu de fenêtres posées sur le serveur",
+        "🪟 Nouveau gestionnaire de couches : images, profils, menus et sous-fenêtres s’ouvrent toujours au-dessus de leur panneau parent",
+        "✉️ DMs fiabilisés côté serveur : confirmation expéditeur, réception temps réel, resynchronisation et historique compatible avec les anciennes conversations",
+        "👥 Demandes d’ami rendues insensibles à la casse avec resynchronisation immédiate des deux comptes",
+        "🟢 Présence restaurée avec requête de resynchronisation explicite et notifications join/leave hors du chat",
+        "⌨️ Indicateur “est en train d’écrire” refait façon Discord avec avatar, pseudo et animation, filtré par salon",
+        "🔖 Sauvegarde de messages réparée : le serveur retrouve désormais le vrai message et renvoie la liste autoritative des favoris",
+        "⭐ Récompenses XP réparées : déblocages de thèmes/styles synchronisés depuis le serveur et cartes de récompenses réellement utilisables",
+        "🔊 Vocal renforcé : snapshot de resynchronisation, nettoyage des anciens peers lors des changements de salon et récupération des connexions manquantes",
+        "📜 Historique des patch notes restauré depuis les anciennes versions de DocSpace et présenté comme archive",
+        "🧊 Démarrage stabilisé : aucun MutationObserver R3/R4/R5 ni reconnexion automatique avant validation du login, sans retirer les fonctions Home/DM/XP/vocal."
+      ]
+    },
+    {
+      "version": "3.3.0-beta R4",
+      "date": "26/08/2026",
+      "title": "💬 3.3.0 Bêta R4 — Discord UI Remake",
+      "changes": [
+        "⌨️ Barre d’écriture réparée au niveau structurel et ancrée en permanence en bas du chat",
+        "💬 Messages remaniés façon Discord avec actions compactes au survol",
+        "⇧ Maintenir Shift sur un message révèle les actions avancées sans supprimer le bouton •••",
+        "🧭 Barre gauche simplifiée : Accueil/DM + unique serveur DocSpace + paramètres",
+        "✉️ Messages privés transformés en véritable espace 2 colonnes avec conversations + discussion",
+        "👥 Fenêtre Amis agrandie, recentrée et ajout direct d’un ami par pseudo",
+        "🖼️ Galerie, progression, paramètres et autres fenêtres recentrés légèrement vers le haut",
+        "🔐 Panneau Admin transformé en centre de commande à navigation latérale avec vue d’ensemble, accès serveur et gestion XP rapide",
+        "⋯ Menus de message et menu global protégés par une couche supérieure pour ne plus se mélanger",
+        "📱 Structure du panneau outils mobile réparée après suppression des mini-jeux"
+      ]
+    },
+    {
+      "version": "3.3.0-beta",
+      "date": "25/08/2026",
+      "title": "⭐ 3.3.0 Bêta — Consolidated Discord + XP Rebuild",
+      "changes": [
+        "🧩 Toutes les révisions R2/R3/R3.1/R3.2 sont regroupées dans une seule base consolidée",
+        "🧱 Les correctifs de timeline, login, F12/redimensionnement, sidebar et interface Discord sont conservés",
+        "⭐ Refonte complète de la progression : une seule ressource, l’XP",
+        "🗑️ Suppression de la monnaie banane, de sa boutique, de la conversion XP→bananes et des promotions boutique",
+        "🎮 Retrait des mini-jeux intégrés, Cookie Clicker, casino et classements mini-jeux",
+        "🎯 Missions quotidiennes simplifiées : messages, réactions et temps en vocal, récompenses uniquement en XP",
+        "🎨 Les thèmes se débloquent automatiquement selon le niveau XP",
+        "✨ Styles de pseudo : Glow niveau 3, Gradient niveau 7, Néon niveau 12",
+        "🧪 Theme Lab personnalisé débloqué automatiquement au niveau 20",
+        "🏆 Classement basé uniquement sur l’XP totale",
+        "💾 L’XP, les niveaux, séries et thèmes personnalisés existants restent persistants"
+      ]
+    },
     {
       "version": "3.2.9",
       "date": "2026-04-07",
@@ -319,7 +428,7 @@
       "date": "2026-01-14",
       "title": "� Panel Admin Renforcé & Apps Natives",
       "changes": [
-      "🔐 Panel Admin considérablement amélioré",
+        "🔐 Panel Admin considérablement amélioré",
         "📢 Système d'annonces épinglées pour tous",
         "🎨 Personnalisation du nom du serveur",
         "👋 Message de bienvenue personnalisable",

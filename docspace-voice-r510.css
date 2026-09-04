@@ -1,0 +1,25 @@
+/* DocSpace R5.1.0 — Voice / Video / Screen Share Rebuild */
+body.ds-r5-ready #voiceChannelView{background:radial-gradient(circle at 50% 20%,rgba(88,101,242,.08),transparent 34%),#0c1119!important}
+body.ds-r5-ready #voiceChannelView .voice-view-header{height:58px!important;min-height:58px!important;padding:0 18px!important;background:rgba(14,19,29,.96)!important;border-bottom:1px solid rgba(255,255,255,.07)!important;backdrop-filter:blur(10px)!important}
+body.ds-r5-ready #voiceChannelView .voice-view-title{font-size:15px!important;gap:9px!important}.voice-view-icon{animation:none!important}
+body.ds-r5-ready #voiceChannelView .voice-view-status{font-size:10px!important;color:#63dca7!important;background:rgba(35,209,139,.08);padding:6px 8px;border-radius:999px}
+.ds-voice-perf-badge{font-size:9px;letter-spacing:.03em;color:#9fb0c9;background:#0d131d;border:1px solid rgba(255,255,255,.08);padding:6px 8px;border-radius:999px;white-space:nowrap}
+body.ds-r5-ready #voiceScreenArea{flex:1 1 auto!important;min-height:0!important;padding:14px!important;gap:10px!important;background:#090d14!important}
+body.ds-r5-ready #voiceScreenArea .voice-screen-tile{border-radius:12px!important;border:1px solid rgba(255,255,255,.08)!important;background:#06090e!important;box-shadow:none!important;min-height:180px!important}
+body.ds-r5-ready #voiceScreenArea .voice-screen-tile video{object-fit:contain!important;background:#05070b!important}
+body.ds-r5-ready #voiceScreenArea .voice-screen-tile.camera-tile video{object-fit:cover!important}
+body.ds-r5-ready #voiceUsersGrid{padding:18px!important;gap:12px!important;align-content:center!important;grid-template-columns:repeat(auto-fit,minmax(180px,260px))!important;justify-content:center!important;overflow:auto!important}
+body.ds-r5-ready #voiceChannelView.has-video-tiles #voiceUsersGrid{flex:0 0 128px!important;min-height:128px!important;max-height:150px!important;padding:10px 14px!important;grid-template-columns:repeat(auto-fit,minmax(120px,170px))!important;align-content:stretch!important;background:#0a0f17!important;border-top:1px solid rgba(255,255,255,.05)!important}
+body.ds-r5-ready #voiceUsersGrid .voice-user-card{min-height:150px!important;border-radius:14px!important;background:linear-gradient(145deg,#151c2a,#101620)!important;border:1px solid rgba(255,255,255,.075)!important;box-shadow:none!important}
+body.ds-r5-ready #voiceChannelView.has-video-tiles #voiceUsersGrid .voice-user-card{min-height:104px!important;height:104px!important;padding:8px!important}
+body.ds-r5-ready #voiceUsersGrid .voice-user-card.speaking{border-color:#23d18b!important;box-shadow:0 0 0 1px rgba(35,209,139,.35)!important}
+body.ds-r5-ready #voiceUsersGrid .voice-user-card-avatar{width:62px!important;height:62px!important;font-size:28px!important}
+body.ds-r5-ready #voiceChannelView.has-video-tiles #voiceUsersGrid .voice-user-card-avatar{width:42px!important;height:42px!important;font-size:18px!important}
+body.ds-r5-ready #voiceViewControls{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;transform:none!important;flex:0 0 76px!important;min-height:76px!important;padding:10px 14px!important;background:#111827!important;border-top:1px solid rgba(255,255,255,.06)!important;border-radius:0!important;box-shadow:none!important;gap:8px!important}
+body.ds-r5-ready #voiceViewControls .vc-btn{width:62px!important;height:54px!important;border-radius:12px!important;background:#202838!important;border:1px solid rgba(255,255,255,.06)!important;transition:transform .14s ease,background .14s ease,border-color .14s ease!important}
+body.ds-r5-ready #voiceViewControls .vc-btn:hover{transform:translateY(-1px)!important;background:#293249!important;border-color:rgba(255,255,255,.12)!important}
+body.ds-r5-ready #voiceViewControls .vc-btn-disconnect{background:#e5484d!important;width:68px!important}
+body.ds-r5-ready #voiceRtcPanel{background:#0b111a!important;border-bottom:1px solid rgba(255,255,255,.06)!important}
+body.ds-r5-ready #voiceRtcPanel .voice-rtc-grid{max-width:950px!important;margin:0 auto!important}
+.ds-voice-fly-panel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px}.ds-voice-fly-item{background:#0b111a;border:1px solid rgba(255,255,255,.07);padding:8px;border-radius:8px;font-size:10px;color:#94a3b8}.ds-voice-fly-item strong{display:block;color:#e4e9f3;margin-top:3px;font-size:12px}
+@media(max-width:900px){.ds-voice-perf-badge{display:none}.ds-voice-fly-panel{grid-template-columns:1fr 1fr}body.ds-r5-ready #voiceUsersGrid{grid-template-columns:1fr!important;padding:10px!important}body.ds-r5-ready #voiceViewControls{overflow-x:auto!important;justify-content:flex-start!important}body.ds-r5-ready #voiceViewControls .vc-btn{flex:0 0 58px!important}}

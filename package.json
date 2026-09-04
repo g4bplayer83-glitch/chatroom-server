@@ -1,7 +1,7 @@
 {
   "name": "docspace-server",
-  "version": "3.2.8-alpha",
-  "description": "Serveur de chat DocSpace en temps réel avec panneau admin renforcé, bans temporaires, mode privé et menu contextuel",
+  "version": "3.3.0-beta",
+  "description": "Serveur de chat DocSpace en temps réel — interface Retro Discord, vocal, salons, profils, progression et outils sociaux",
   "main": "server.js",
   "engines": {
     "node": ">=16.0.0",

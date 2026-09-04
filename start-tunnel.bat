@@ -5,8 +5,8 @@ title DocSpace — Tunnel Cloudflare
 REM ============================================================
 REM  CONFIGURATION — modifie ces valeurs
 REM ============================================================
-set LOCAL_PORT=3000
-set RENDER_URL=https://docspace-redirect.onrender.com
+set LOCAL_PORT=8080
+set RENDER_URL=https://docspace.fly.dev
 set UPDATE_SECRET=IndieGabVR2024
 REM ============================================================
 
