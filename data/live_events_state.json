@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "season": {
+    "number": 1,
+    "label": "Saison 1 - Genesis",
+    "year": 2026,
+    "startedAt": "2026-04-01T19:12:55.950Z",
+    "xpMultiplier": 2.3
+  },
+  "activeEvent": null,
+  "autoModeEnabled": false,
+  "autoRotationHours": 1,
+  "bannerDisplayMode": "dismissible",
+  "eventRotationMinutes": 60,
+  "nextRotationAt": 0,
+  "updatedAt": "2026-04-08T11:53:34.059Z"
+}
