@@ -106,8 +106,17 @@ const storage = multer.diskStorage({
     }
 });
 
+const BLOCKED_UPLOAD_EXTENSIONS = new Set([
+    '.html', '.htm', '.xhtml', '.svg', '.xml', '.js', '.mjs', '.cjs',
+    '.exe', '.dll', '.bat', '.cmd', '.ps1', '.sh', '.php', '.jar'
+]);
+const SAFE_AVATAR_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif']);
+
 const fileFilter = (req, file, cb) => {
-    // Autoriser tous les types de fichiers
+    const extension = path.extname(String(file.originalname || '')).toLowerCase();
+    if (BLOCKED_UPLOAD_EXTENSIONS.has(extension)) {
+        return cb(new Error('Ce type de fichier n’est pas autorisé'), false);
+    }
     cb(null, true);
 };
 
@@ -127,10 +136,11 @@ const avatarUpload = multer({
         files: 1
     },
     fileFilter: (req, file, cb) => {
-        if (file.mimetype.startsWith('image/')) {
+        const extension = path.extname(String(file.originalname || '')).toLowerCase();
+        if (SAFE_AVATAR_MIMES.has(file.mimetype) && !BLOCKED_UPLOAD_EXTENSIONS.has(extension)) {
             cb(null, true);
         } else {
-            cb(new Error('Seules les images sont autorisées pour les avatars'), false);
+            cb(new Error('Image PNG, JPG, GIF, WEBP ou AVIF requise pour l’avatar'), false);
         }
     }
 });
@@ -138,6 +148,14 @@ const avatarUpload = multer({
 // Middleware
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), display-capture=(self), geolocation=()');
+    next();
+});
 
 app.use((req, res, next) => {
     const start = Date.now();
@@ -166,13 +184,38 @@ app.use((req, res, next) => {
     next();
 });
 
-// Servir les fichiers statiques
+// Bloquer les fichiers internes avant le serveur statique. L'ancienne version
+// exposait notamment server.js, package.json et data/accounts.json.
+const PRIVATE_WEB_PATH = /^(?:\/(?:data|main|\.git|\.qodo)(?:\/|$)|\/(?:server(?:_dashboard)?\.py|server\.js|package(?:-lock)?\.json|Dockerfile|fly\.toml|start-tunnel\.bat|ouvrir_dashboard_python\.bat|FLY_PERFORMANCE_GUIDE\.md|README\.md)$)/i;
+app.use((req, res, next) => {
+    const requestPath = decodeURIComponent(String(req.path || '/'));
+    if (PRIVATE_WEB_PATH.test(requestPath) || /\.(?:env|log|bak|sqlite|db)$/i.test(requestPath)) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    next();
+});
+
+// Les uploads utilisent une route dédiée et le navigateur n'a pas le droit de
+// deviner un type exécutable à partir du contenu d'un fichier.
+app.use('/uploads', express.static(uploadDir, {
+    setHeaders(res, filePath) {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        const inlineExtensions = new Set(['.png','.jpg','.jpeg','.gif','.webp','.avif','.mp4','.webm','.mp3','.ogg','.wav','.m4a','.pdf','.txt']);
+        if (!inlineExtensions.has(path.extname(filePath).toLowerCase())) {
+            res.setHeader('Content-Disposition', 'attachment');
+        }
+    }
+}));
+
+// Servir les fichiers publics historiques. Les chemins sensibles sont filtrés
+// ci-dessus afin de conserver la compatibilité avec l'interface monofichier.
 app.use(express.static(__dirname));
-app.use('/uploads', express.static(uploadDir));
 
 // Variables pour stocker les données
 let connectedUsers = new Map(); // socketId -> userData
 let authenticatedSockets = new Set(); // socketIds that completed account auth
+let authenticatedAccountKeys = new Map(); // socketId -> canonical account key
+const accountAuthBuckets = new Map(); // IP -> { attempts, resetAt }
 let chatHistory = []; // Historique des messages (général - rétrocompatibilité)
 const MAX_HISTORY = 500; // Limite de l'historique (augmentée pour persistance)
 let typingUsers = new Map(); // socketId -> {username, timestamp}
@@ -675,6 +718,8 @@ const BOOKMARKS_FILE = path.join(DATA_DIR, 'bookmarks.json');
 const REMINDERS_FILE = path.join(DATA_DIR, 'reminders.json');
 const AUTOMOD_FILE = path.join(DATA_DIR, 'automod.json');
 const ACCOUNTS_FILE = path.join(DATA_DIR, 'accounts.json');
+const PLUS_STATE_FILE = path.join(DATA_DIR, 'plus_codes.json');
+const CUSTOM_EMOJIS_FILE = path.join(DATA_DIR, 'custom_emojis.json');
 const CHANNEL_CONFIG_FILE = path.join(DATA_DIR, 'channel_config.json');
 const SERVER_RUNTIME_FILE = path.join(DATA_DIR, 'server_runtime_stats.json');
 const LIVE_EVENTS_FILE = path.join(DATA_DIR, 'live_events_state.json');
@@ -936,6 +981,7 @@ function evictSocketConnection(socketId, options = {}) {
 
     connectedUsers.delete(socketId);
     authenticatedSockets.delete(socketId);
+    authenticatedAccountKeys.delete(socketId);
     unregisterUserSocket(user.username, socketId);
     removeE2EEPublicKey(user.username, user.deviceId);
 
@@ -1719,8 +1765,125 @@ function saveAutoMod() {
 }
 
 // === COMPTES ===
-function hashPassword(password, salt) {
-    return crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+const CURRENT_PASSWORD_ITERATIONS = 210000;
+let plusCodeUsage = {};
+let customEmojis = [];
+
+function hashPassword(password, salt, iterations = CURRENT_PASSWORD_ITERATIONS) {
+    return crypto.pbkdf2Sync(password, salt, iterations, 64, 'sha512').toString('hex');
+}
+
+function normalizeEmail(value) {
+    return String(value || '').trim().toLowerCase().substring(0, 160);
+}
+
+function isValidEmail(value) {
+    const email = normalizeEmail(value);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+}
+
+function findAccountEntry(identifier) {
+    const needle = String(identifier || '').trim().toLowerCase();
+    if (!needle) return null;
+    if (accounts[needle]) return { key: needle, account: accounts[needle] };
+    for (const [key, account] of Object.entries(accounts)) {
+        if (normalizeEmail(account?.email) === needle) return { key, account };
+    }
+    return null;
+}
+
+function isEmailUsed(email, exceptKey = '') {
+    const normalized = normalizeEmail(email);
+    if (!normalized) return false;
+    return Object.entries(accounts).some(([key, account]) => key !== exceptKey && normalizeEmail(account?.email) === normalized);
+}
+
+function getAuthenticatedAccount(socket) {
+    const authKey = authenticatedAccountKeys.get(socket.id);
+    if (!authKey || !authenticatedSockets.has(socket.id)) return null;
+    const account = accounts[authKey];
+    return account ? { key: authKey, account } : null;
+}
+
+function publicAccountData(account) {
+    return {
+        username: String(account?.username || ''),
+        email: normalizeEmail(account?.email),
+        plusActive: !!account?.plus?.active,
+        plusActivatedAt: account?.plus?.activatedAt || null,
+        createdAt: account?.createdAt || null
+    };
+}
+
+function authBucketKey(socket) {
+    return String(socket.handshake?.address || socket.conn?.remoteAddress || 'unknown').slice(0, 100);
+}
+
+function allowAccountAuth(socket) {
+    const now = Date.now();
+    const key = authBucketKey(socket);
+    const current = accountAuthBuckets.get(key);
+    if (!current || current.resetAt <= now) {
+        accountAuthBuckets.set(key, { attempts: 0, resetAt: now + 15 * 60 * 1000 });
+        return true;
+    }
+    return current.attempts < 12;
+}
+
+function recordFailedAccountAuth(socket) {
+    const now = Date.now();
+    const key = authBucketKey(socket);
+    const current = accountAuthBuckets.get(key);
+    const bucket = !current || current.resetAt <= now
+        ? { attempts: 0, resetAt: now + 15 * 60 * 1000 }
+        : current;
+    bucket.attempts += 1;
+    accountAuthBuckets.set(key, bucket);
+}
+
+function clearAccountAuthFailures(socket) {
+    accountAuthBuckets.delete(authBucketKey(socket));
+}
+
+function configuredPlusCodeHashes() {
+    return String(process.env.DOCSPACE_PLUS_CODES || '')
+        .split(',')
+        .map(code => code.trim().toUpperCase())
+        .filter(Boolean)
+        .map(code => crypto.createHash('sha256').update(code).digest('hex'));
+}
+
+function loadPlusState() {
+    try {
+        plusCodeUsage = fs.existsSync(PLUS_STATE_FILE)
+            ? (JSON.parse(fs.readFileSync(PLUS_STATE_FILE, 'utf8')) || {})
+            : {};
+    } catch (error) {
+        console.error('❌ Erreur chargement codes Plus:', error.message);
+        plusCodeUsage = {};
+    }
+}
+
+function savePlusState() {
+    try { fs.writeFileSync(PLUS_STATE_FILE, JSON.stringify(plusCodeUsage, null, 2)); }
+    catch (error) { console.error('❌ Erreur sauvegarde codes Plus:', error.message); }
+}
+
+function loadCustomEmojis() {
+    try {
+        const raw = fs.existsSync(CUSTOM_EMOJIS_FILE)
+            ? JSON.parse(fs.readFileSync(CUSTOM_EMOJIS_FILE, 'utf8'))
+            : [];
+        customEmojis = Array.isArray(raw) ? raw.slice(-250) : [];
+    } catch (error) {
+        console.error('❌ Erreur chargement emojis custom:', error.message);
+        customEmojis = [];
+    }
+}
+
+function saveCustomEmojis() {
+    try { fs.writeFileSync(CUSTOM_EMOJIS_FILE, JSON.stringify(customEmojis, null, 2)); }
+    catch (error) { console.error('❌ Erreur sauvegarde emojis custom:', error.message); }
 }
 function loadAccounts() {
     try {
@@ -1755,6 +1918,10 @@ function saveProfiles() {
 async function loadAllData() {
     console.log('📦 Chargement des données...');
     const fbStart = Date.now();
+    // Ces deux collections restent sur le volume Fly pour éviter qu'un code
+    // d'activation ou un emoji soit perdu lors d'un redémarrage.
+    loadPlusState();
+    loadCustomEmojis();
 
     if (useFirebase) {
         console.log('☁️ Tentative de chargement depuis Firebase...');
@@ -2169,11 +2336,45 @@ app.get('/admin/reset', (req, res) => {
 });
 
 // === GEMINI AI API ===
-const GEMINI_API_KEY = 'AIzaSyBlf5GI0LHIX82Itz6_18gOFgfIm3_nSqM';
+const GEMINI_API_KEY = String(process.env.GEMINI_API_KEY || '').trim();
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+
+// Le navigateur ne reçoit jamais la clé Giphy. Sans secret configuré, le
+// client utilise simplement sa petite sélection de GIFs de secours.
+const GIPHY_API_KEY = String(process.env.GIPHY_API_KEY || '').trim();
+app.get('/api/gifs', async (req, res) => {
+    if (!GIPHY_API_KEY) return res.status(503).json({ error: 'Recherche GIF non configurée', gifs: [] });
+    const query = String(req.query.q || 'trending').trim().slice(0, 64);
+    const isSearch = req.query.search === '1';
+    const categoryQueries = {
+        happy: 'happy excited', sad: 'sad crying', love: 'love heart', funny: 'funny lol',
+        reaction: 'reaction face', anime: 'anime reaction', gaming: 'gaming', dance: 'dance', cat: 'funny cat'
+    };
+    const effectiveQuery = isSearch ? query : categoryQueries[query];
+    const endpoint = effectiveQuery ? 'search' : 'trending';
+    const params = new URLSearchParams({ api_key: GIPHY_API_KEY, limit: '20', rating: 'pg-13' });
+    if (effectiveQuery) {
+        params.set('q', effectiveQuery);
+        params.set('lang', 'fr');
+    }
+    try {
+        const response = await fetch(`https://api.giphy.com/v1/gifs/${endpoint}?${params}`);
+        if (!response.ok) return res.status(502).json({ error: 'Service GIF indisponible', gifs: [] });
+        const payload = await response.json();
+        const gifs = (Array.isArray(payload?.data) ? payload.data : []).slice(0, 20).map(gif => ({
+            preview: gif?.images?.fixed_height_small?.url || gif?.images?.fixed_height?.url || '',
+            full: gif?.images?.original?.url || '',
+            title: String(gif?.title || 'GIF').slice(0, 120)
+        })).filter(gif => gif.preview && gif.full);
+        res.json({ gifs });
+    } catch (error) {
+        res.status(502).json({ error: 'Service GIF indisponible', gifs: [] });
+    }
+});
 
 app.post('/api/gemini', express.json(), async (req, res) => {
     try {
+        if (!GEMINI_API_KEY) return res.status(503).json({ error: 'Gemini n’est pas configuré sur ce serveur' });
         const { prompt, history } = req.body;
         
         if (!prompt) {
@@ -2806,7 +3007,7 @@ io.on('connection', (socket) => {
     // === ACTIONS ADMIN ===
     socket.on('admin_action', (data) => {
         const { password, action, target, value } = data;
-        const adminPassword = process.env.ADMIN_PASSWORD || 'IndieGabVR2024';
+        const adminPassword = process.env.ADMIN_PASSWORD || '';
         
         if (password !== adminPassword) {
             socket.emit('admin_response', { success: false, message: 'Mot de passe incorrect' });
@@ -3514,7 +3715,7 @@ io.on('connection', (socket) => {
     // === LOGIN ADMIN ===
     socket.on('admin_login', (data) => {
         const { password, username } = data;
-        const adminPassword = process.env.ADMIN_PASSWORD || 'IndieGabVR2024';
+        const adminPassword = process.env.ADMIN_PASSWORD || '';
         
         if (password === adminPassword && username) {
             // Ajouter à la liste des admins
@@ -3525,6 +3726,12 @@ io.on('connection', (socket) => {
             
             // Broadcaster la liste des admins à tout le monde
             io.emit('admin_list_update', { admins: adminUsersList });
+            socket.emit('admin_login_result', { success: true });
+        } else {
+            socket.emit('admin_login_result', {
+                success: false,
+                message: adminPassword ? 'Mot de passe admin incorrect' : 'ADMIN_PASSWORD n’est pas configuré sur le serveur'
+            });
         }
     });
 
@@ -3542,13 +3749,13 @@ io.on('connection', (socket) => {
 
     // === ADMIN CHANNEL MANAGEMENT ===
     socket.on('admin_get_channel_config', (data) => {
-        const adminPassword = process.env.ADMIN_PASSWORD || 'IndieGabVR2024';
+        const adminPassword = process.env.ADMIN_PASSWORD || '';
         if (data?.password !== adminPassword) return;
         socket.emit('channel_config', channelConfig);
     });
 
     socket.on('admin_channel_action', (data) => {
-        const adminPassword = process.env.ADMIN_PASSWORD || 'IndieGabVR2024';
+        const adminPassword = process.env.ADMIN_PASSWORD || '';
         if (data?.password !== adminPassword) {
             socket.emit('admin_response', { success: false, message: 'Non autorisé' });
             return;
@@ -3730,7 +3937,7 @@ io.on('connection', (socket) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
         
-        const adminPassword = process.env.ADMIN_PASSWORD || 'IndieGabVR2024';
+        const adminPassword = process.env.ADMIN_PASSWORD || '';
         const isAdmin = password === adminPassword;
         
         // Trouver le message dans l'historique
@@ -3864,7 +4071,7 @@ io.on('connection', (socket) => {
             
             // === VÉRIFICATION COMPTE PROTÉGÉ ===
             const accountKey = cleanUsername.toLowerCase();
-            if (accounts[accountKey] && !authenticatedSockets.has(socket.id)) {
+            if (accounts[accountKey] && authenticatedAccountKeys.get(socket.id) !== accountKey) {
                 socket.emit('account_required', { message: 'Ce pseudo est protégé par un mot de passe. Entrez votre mot de passe.' });
                 return;
             }
@@ -3907,7 +4114,7 @@ io.on('connection', (socket) => {
                 }
             }
             
-            const allowMultiDevice = !!accounts[accountKey] && authenticatedSockets.has(socket.id);
+            const allowMultiDevice = !!accounts[accountKey] && authenticatedAccountKeys.get(socket.id) === accountKey;
             const hadPresenceBeforeCleanup = getSocketsForUsername(cleanUsername).length > 0;
 
             // Reconnexion même compte/même appareil: remplace les sockets obsolètes.
@@ -4127,6 +4334,7 @@ io.on('connection', (socket) => {
 
     let lastAIResponse = 0;
     async function generateAIResponse(userMessage, username, channel) {
+        if (!GEMINI_API_KEY) return;
         const now = Date.now();
         if (now - lastAIResponse < 3000) return;
         lastAIResponse = now;
@@ -4934,6 +5142,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             // Retirer l'utilisateur
             connectedUsers.delete(socket.id);
             authenticatedSockets.delete(socket.id);
+            authenticatedAccountKeys.delete(socket.id);
             unregisterUserSocket(user.username, socket.id);
             removeE2EEPublicKey(user.username, user.deviceId);
 
@@ -5218,62 +5427,213 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     // === ACCOUNT SYSTEM ===
     // =========================================
     socket.on('register_account', (data) => {
+        if (!allowAccountAuth(socket)) {
+            return socket.emit('account_error', { message: 'Trop de tentatives. Réessayez dans quelques minutes.' });
+        }
         const { username, password } = data;
+        const email = normalizeEmail(data?.email);
         if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
             socket.emit('account_error', { message: 'Données invalides' });
             return;
         }
         const cleanName = username.trim().substring(0, 20);
         const key = cleanName.toLowerCase();
-        if (password.length < 4) {
-            socket.emit('account_error', { message: 'Mot de passe trop court (min 4 caractères)' });
+        if (!/^[a-zA-Z0-9_.-]{2,20}$/.test(cleanName)) {
+            socket.emit('account_error', { message: 'Pseudo invalide (2-20 caractères, lettres, chiffres, _ . -)' });
+            return;
+        }
+        if (password.length < 8 || password.length > 128) {
+            socket.emit('account_error', { message: 'Le mot de passe doit contenir au moins 8 caractères' });
             return;
         }
         if (accounts[key]) {
             socket.emit('account_error', { message: 'Ce pseudo est déjà enregistré. Connectez-vous.' });
             return;
         }
+        if (email && !isValidEmail(email)) {
+            socket.emit('account_error', { message: 'Adresse email invalide' });
+            return;
+        }
+        if (email && isEmailUsed(email)) {
+            socket.emit('account_error', { message: 'Cette adresse email est déjà utilisée' });
+            return;
+        }
         const salt = crypto.randomBytes(16).toString('hex');
         accounts[key] = {
             username: cleanName,
-            passwordHash: hashPassword(password, salt),
+            email,
+            passwordHash: hashPassword(password, salt, CURRENT_PASSWORD_ITERATIONS),
+            passwordIterations: CURRENT_PASSWORD_ITERATIONS,
             salt,
             createdAt: new Date().toISOString(),
             lastLogin: new Date().toISOString()
         };
         saveAccounts();
+        clearAccountAuthFailures(socket);
         authenticatedSockets.add(socket.id);
-        socket.emit('account_registered', { username: cleanName });
+        authenticatedAccountKeys.set(socket.id, key);
+        socket.emit('account_registered', publicAccountData(accounts[key]));
     });
 
     socket.on('login_account', (data) => {
-        const { username, password } = data;
-        if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
+        if (!allowAccountAuth(socket)) {
+            return socket.emit('account_error', { message: 'Trop de tentatives. Réessayez dans quelques minutes.' });
+        }
+        const identifier = String(data?.identifier || data?.username || '').trim();
+        const password = data?.password;
+        if (!identifier || !password || typeof password !== 'string') {
             socket.emit('account_error', { message: 'Données invalides' });
             return;
         }
-        const key = username.trim().toLowerCase();
-        const account = accounts[key];
-        if (!account) {
+        const entry = findAccountEntry(identifier);
+        if (!entry) {
+            recordFailedAccountAuth(socket);
             socket.emit('account_error', { message: 'Compte inexistant. Créez un compte.' });
             return;
         }
-        const hash = hashPassword(password, account.salt);
-        if (hash !== account.passwordHash) {
+        const { key, account } = entry;
+        const iterations = Number(account.passwordIterations || 10000);
+        const hash = hashPassword(password, account.salt, iterations);
+        const expected = Buffer.from(String(account.passwordHash || ''), 'hex');
+        const received = Buffer.from(hash, 'hex');
+        if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+            recordFailedAccountAuth(socket);
             socket.emit('account_error', { message: 'Mot de passe incorrect' });
             return;
         }
+        // Migration transparente des anciens hashes PBKDF2 (10 000 itérations).
+        if (iterations < CURRENT_PASSWORD_ITERATIONS) {
+            const newSalt = crypto.randomBytes(16).toString('hex');
+            account.salt = newSalt;
+            account.passwordHash = hashPassword(password, newSalt, CURRENT_PASSWORD_ITERATIONS);
+            account.passwordIterations = CURRENT_PASSWORD_ITERATIONS;
+        }
         account.lastLogin = new Date().toISOString();
         saveAccounts();
+        clearAccountAuthFailures(socket);
         authenticatedSockets.add(socket.id);
-        socket.emit('account_logged_in', { username: account.username });
+        authenticatedAccountKeys.set(socket.id, key);
+        socket.emit('account_logged_in', publicAccountData(account));
     });
 
     socket.on('check_account', (data) => {
-        const { username } = data;
-        if (!username) return;
-        const key = username.trim().toLowerCase();
-        socket.emit('account_check_result', { exists: !!accounts[key] });
+        const identifier = String(data?.identifier || data?.username || '').trim();
+        if (!identifier) return;
+        const entry = findAccountEntry(identifier);
+        socket.emit('account_check_result', {
+            exists: !!entry,
+            username: entry?.account?.username || null,
+            byEmail: identifier.includes('@')
+        });
+    });
+
+    socket.on('get_account_self', () => {
+        const entry = getAuthenticatedAccount(socket);
+        if (!entry) return socket.emit('account_self', { authenticated: false });
+        socket.emit('account_self', { authenticated: true, ...publicAccountData(entry.account) });
+    });
+
+    socket.on('update_account_email', (data) => {
+        const entry = getAuthenticatedAccount(socket);
+        if (!entry) return socket.emit('account_settings_error', { message: 'Compte connecté requis' });
+        const email = normalizeEmail(data?.email);
+        const currentPassword = String(data?.currentPassword || '');
+        const currentHash = hashPassword(currentPassword, entry.account.salt, Number(entry.account.passwordIterations || 10000));
+        const expected = Buffer.from(String(entry.account.passwordHash || ''), 'hex');
+        const received = Buffer.from(currentHash, 'hex');
+        if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+            return socket.emit('account_settings_error', { message: 'Mot de passe actuel incorrect' });
+        }
+        if (!isValidEmail(email)) return socket.emit('account_settings_error', { message: 'Adresse email invalide' });
+        if (isEmailUsed(email, entry.key)) return socket.emit('account_settings_error', { message: 'Cette adresse email est déjà utilisée' });
+        entry.account.email = email;
+        saveAccounts();
+        socket.emit('account_settings_saved', { type: 'email', ...publicAccountData(entry.account) });
+    });
+
+    socket.on('change_account_password', (data) => {
+        const entry = getAuthenticatedAccount(socket);
+        if (!entry) return socket.emit('account_settings_error', { message: 'Compte connecté requis' });
+        const currentPassword = String(data?.currentPassword || '');
+        const newPassword = String(data?.newPassword || '');
+        if (newPassword.length < 8 || newPassword.length > 128) {
+            return socket.emit('account_settings_error', { message: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
+        }
+        const currentHash = hashPassword(currentPassword, entry.account.salt, Number(entry.account.passwordIterations || 10000));
+        const expected = Buffer.from(String(entry.account.passwordHash || ''), 'hex');
+        const received = Buffer.from(currentHash, 'hex');
+        if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+            return socket.emit('account_settings_error', { message: 'Mot de passe actuel incorrect' });
+        }
+        const salt = crypto.randomBytes(16).toString('hex');
+        entry.account.salt = salt;
+        entry.account.passwordHash = hashPassword(newPassword, salt, CURRENT_PASSWORD_ITERATIONS);
+        entry.account.passwordIterations = CURRENT_PASSWORD_ITERATIONS;
+        entry.account.passwordChangedAt = new Date().toISOString();
+        saveAccounts();
+        socket.emit('account_settings_saved', { type: 'password', ...publicAccountData(entry.account) });
+    });
+
+    socket.on('redeem_plus_code', (data) => {
+        const entry = getAuthenticatedAccount(socket);
+        if (!entry) return socket.emit('plus_error', { message: 'Créez ou connectez un compte avant d’activer Plus' });
+        if (entry.account.plus?.active) return socket.emit('plus_status', { ...publicAccountData(entry.account), alreadyActive: true });
+        const code = String(data?.code || '').trim().toUpperCase().substring(0, 80);
+        const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+        if (!code || !configuredPlusCodeHashes().includes(codeHash)) {
+            return socket.emit('plus_error', { message: 'Code DocSpace Plus invalide' });
+        }
+        if (plusCodeUsage[codeHash]) {
+            return socket.emit('plus_error', { message: 'Ce code a déjà été utilisé' });
+        }
+        plusCodeUsage[codeHash] = { usedBy: entry.account.username, usedAt: new Date().toISOString() };
+        entry.account.plus = { active: true, activatedAt: new Date().toISOString(), codeFingerprint: codeHash.slice(0, 12) };
+        savePlusState();
+        saveAccounts();
+        socket.emit('plus_status', { ...publicAccountData(entry.account), activated: true });
+    });
+
+    socket.on('get_plus_status', () => {
+        const entry = getAuthenticatedAccount(socket);
+        socket.emit('plus_status', entry ? publicAccountData(entry.account) : { plusActive: false, authenticated: false });
+    });
+
+    socket.on('get_custom_emojis', () => {
+        socket.emit('custom_emojis_list', customEmojis.map(({ id, name, url, owner, createdAt }) => ({ id, name, url, owner, createdAt })));
+    });
+
+    socket.on('create_custom_emoji', (data) => {
+        const entry = getAuthenticatedAccount(socket);
+        if (!entry?.account?.plus?.active) return socket.emit('custom_emoji_error', { message: 'DocSpace Plus est requis pour créer un emoji' });
+        const name = String(data?.name || '').trim().toLowerCase();
+        if (!/^[a-z0-9_]{2,24}$/.test(name)) return socket.emit('custom_emoji_error', { message: 'Nom invalide : 2-24 caractères, lettres, chiffres ou _' });
+        if (customEmojis.some(emoji => emoji.name === name)) return socket.emit('custom_emoji_error', { message: 'Ce nom d’emoji existe déjà' });
+        const match = String(data?.dataUrl || '').match(/^data:image\/(png|jpeg|webp|gif);base64,([a-zA-Z0-9+/=]+)$/);
+        if (!match) return socket.emit('custom_emoji_error', { message: 'Image PNG, JPG, WEBP ou GIF requise' });
+        const buffer = Buffer.from(match[2], 'base64');
+        if (!buffer.length || buffer.length > 512 * 1024) return socket.emit('custom_emoji_error', { message: 'Emoji trop lourd (512 Ko maximum)' });
+        const emojiDir = path.join(uploadDir, 'custom-emojis');
+        fs.mkdirSync(emojiDir, { recursive: true });
+        const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+        const id = crypto.randomBytes(9).toString('hex');
+        const filename = `${id}.${ext}`;
+        fs.writeFileSync(path.join(emojiDir, filename), buffer);
+        const emoji = { id, name, url: `/uploads/custom-emojis/${filename}`, owner: entry.account.username, createdAt: new Date().toISOString() };
+        customEmojis.push(emoji);
+        customEmojis = customEmojis.slice(-250);
+        saveCustomEmojis();
+        io.emit('custom_emojis_list', customEmojis.map(({ id, name, url, owner, createdAt }) => ({ id, name, url, owner, createdAt })));
+    });
+
+    socket.on('delete_custom_emoji', (data) => {
+        const entry = getAuthenticatedAccount(socket);
+        if (!entry) return;
+        const index = customEmojis.findIndex(emoji => emoji.id === String(data?.id || '') && normalizeUsernameKey(emoji.owner) === entry.key);
+        if (index < 0) return socket.emit('custom_emoji_error', { message: 'Emoji introuvable ou non autorisé' });
+        const [emoji] = customEmojis.splice(index, 1);
+        try { fs.unlinkSync(path.join(uploadDir, 'custom-emojis', path.basename(emoji.url))); } catch (_) {}
+        saveCustomEmojis();
+        io.emit('custom_emojis_list', customEmojis);
     });
 
     // =========================================
@@ -6032,7 +6392,74 @@ function cleanupMazeSocket(socketId) {
         if (!room.players.size) arcadeMazeRooms.delete(code);
     }
 }
+// === WATCH TOGETHER — lecteur YouTube officiel, état synchronisé ===
+const watchRooms = new Map();
+function normalizeWatchCode(value) {
+    return String(value || 'WATCH').toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 16) || 'WATCH';
+}
+function normalizeYouTubeId(value) {
+    const raw = String(value || '').trim();
+    const direct = raw.match(/^[a-zA-Z0-9_-]{11}$/);
+    if (direct) return direct[0];
+    const match = raw.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/i);
+    return match ? match[1] : '';
+}
+
 io.on('connection', (socket) => {
+    socket.on('watch_join', data => {
+        const user = connectedUsers.get(socket.id);
+        if (!user) return;
+        const code = normalizeWatchCode(data?.code);
+        let room = watchRooms.get(code);
+        if (!room) room = { hostId: socket.id, participants: new Map(), videoId: '', playing: false, position: 0, updatedAt: Date.now() };
+        room.participants.set(socket.id, user.username);
+        watchRooms.set(code, room);
+        socket.join(`watch:${code}`);
+        socket.data.watchCode = code;
+        socket.emit('watch_snapshot', {
+            code,
+            videoId: room.videoId,
+            playing: room.playing,
+            position: room.position,
+            updatedAt: room.updatedAt,
+            isHost: room.hostId === socket.id,
+            participants: Array.from(room.participants.values())
+        });
+        io.to(`watch:${code}`).emit('watch_participants', { code, participants: Array.from(room.participants.values()) });
+    });
+
+    socket.on('watch_control', data => {
+        const code = normalizeWatchCode(data?.code || socket.data.watchCode);
+        const room = watchRooms.get(code);
+        if (!room || !room.participants.has(socket.id)) return;
+        const incomingId = normalizeYouTubeId(data?.videoId);
+        if (data?.videoId && !incomingId) return socket.emit('watch_error', { message: 'Lien YouTube invalide' });
+        if (incomingId) room.videoId = incomingId;
+        if (typeof data?.playing === 'boolean') room.playing = data.playing;
+        if (Number.isFinite(Number(data?.position))) room.position = Math.max(0, Math.min(86400, Number(data.position)));
+        room.updatedAt = Date.now();
+        io.to(`watch:${code}`).emit('watch_state', {
+            code,
+            videoId: room.videoId,
+            playing: room.playing,
+            position: room.position,
+            updatedAt: room.updatedAt,
+            changedBy: room.participants.get(socket.id)
+        });
+    });
+
+    socket.on('watch_leave', () => {
+        const code = normalizeWatchCode(socket.data.watchCode);
+        const room = watchRooms.get(code);
+        if (!room) return;
+        socket.leave(`watch:${code}`);
+        room.participants.delete(socket.id);
+        if (room.hostId === socket.id) room.hostId = room.participants.keys().next().value || null;
+        if (!room.participants.size) watchRooms.delete(code);
+        else io.to(`watch:${code}`).emit('watch_participants', { code, participants: Array.from(room.participants.values()) });
+        socket.data.watchCode = null;
+    });
+
     socket.on('arcade_tetris_join', data => {
         cleanupTetrisSocket(socket.id);
         const code=arcadeRoomCode(data?.code);
@@ -6086,7 +6513,17 @@ io.on('connection', (socket) => {
         setTimeout(()=>{const r=arcadeMazeRooms.get(code);if(!r)return;r.collected.delete(orb.id);io.to(`arcade:maze:${code}`).emit('arcade_maze_orb',{orbId:orb.id,active:true});},7000);
     });
     socket.on('arcade_maze_leave', data => { const code=arcadeRoomCode(data?.code,'MAZE');socket.leave(`arcade:maze:${code}`);cleanupMazeSocket(socket.id); });
-    socket.on('disconnect',()=>{cleanupTetrisSocket(socket.id);cleanupMazeSocket(socket.id);});
+    socket.on('disconnect',()=>{
+        cleanupTetrisSocket(socket.id);cleanupMazeSocket(socket.id);
+        const code = socket.data.watchCode;
+        const room = code ? watchRooms.get(code) : null;
+        if (room) {
+            room.participants.delete(socket.id);
+            if (room.hostId === socket.id) room.hostId = room.participants.keys().next().value || null;
+            if (!room.participants.size) watchRooms.delete(code);
+            else io.to(`watch:${code}`).emit('watch_participants', { code, participants: Array.from(room.participants.values()) });
+        }
+    });
 });
 
 // Démarrer le serveur

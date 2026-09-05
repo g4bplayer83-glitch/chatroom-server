@@ -8563,6 +8563,7 @@
     <link rel="stylesheet" href="/docspace-v330-r504.css?v=3.3.0-beta-r5.0.4-dm-composer-voice">
     <link rel="stylesheet" href="/docspace-games-r510.css?v=3.3.0-beta-r5.1.0-arcade">
     <link rel="stylesheet" href="/docspace-voice-r510.css?v=3.3.0-beta-r5.1.0-voice">
+    <link rel="stylesheet" href="/docspace-v340.css?v=3.4.0-beta">
 </head>
 <body>
     <div class="chat-container">
@@ -8577,9 +8578,10 @@
                     <div class="access-gate-hint">Code requis pour accéder à DocSpace</div>
                     <div class="error-message" id="accessGateError"></div>
                 </div>
-                <input type="text" id="usernameInput" data-i18n-placeholder="username_placeholder" placeholder="Votre pseudo" maxlength="20">
-                <input type="password" id="passwordInput" placeholder="Mot de passe (pour sauvegarder le compte)" maxlength="50">
-                <div style="font-size: 11px; color: var(--text-secondary); margin: -6px 0 4px; opacity: 0.7;">Laissez vide pour se connecter en invité</div>
+                <input type="text" id="usernameInput" data-i18n-placeholder="username_placeholder" placeholder="Pseudo ou email" maxlength="160" autocomplete="username">
+                <input type="email" id="emailInput" placeholder="Email (uniquement pour créer un compte)" maxlength="160" autocomplete="email">
+                <input type="password" id="passwordInput" placeholder="Mot de passe" maxlength="128" autocomplete="current-password">
+                <div class="login-account-hint">Entre ton pseudo ou ton email pour te connecter. Laisse le mot de passe vide pour le mode invité.</div>
                 <div class="account-toggle" id="accountToggle" style="display:none; margin: -4px 0 8px; font-size: 12px; text-align: center;">
                     <span id="accountToggleText" style="color: var(--text-secondary);"></span>
                     <a href="#" id="accountToggleLink" style="color: var(--accent-color); cursor: pointer;" onclick="toggleAccountMode(event)"></a>
@@ -9580,7 +9582,7 @@
             <div class="patchnotes-header">
                 <div class="patchnotes-logo">📋</div>
                 <h2>Quoi de neuf ?</h2>
-                <span class="patchnotes-version">v<span id="patchVersion">3.3.0-beta</span></span>
+                <span class="patchnotes-version">v<span id="patchVersion">3.4.0-beta</span></span>
             </div>
             <div class="patchnotes-content" id="patchNotesContent">
                 <!-- Contenu dynamique -->
@@ -10052,7 +10054,7 @@
             <button class="admin-close" onclick="closeAdminPanel()">×</button>
             <div class="admin-header-bar">
                 <h2>🔐 Panneau Admin</h2>
-                <span class="admin-version-badge">v3.3.0-beta</span>
+                <span class="admin-version-badge">v3.4.0-beta</span>
             </div>
             
             <!-- Login -->
@@ -12165,10 +12167,9 @@
                     if (acc.username && usernameInput) {
                         usernameInput.value = acc.username;
                     }
-                    if (acc.pwd && document.getElementById('passwordInput')) {
-                        try {
-                            document.getElementById('passwordInput').value = atob(acc.pwd);
-                        } catch (e) {}
+                    const tabPassword = sessionStorage.getItem('docspace_session_password');
+                    if (tabPassword && document.getElementById('passwordInput')) {
+                        document.getElementById('passwordInput').value = tabPassword;
                     }
                     if (acc.server && document.getElementById('serverInput')) {
                         document.getElementById('serverInput').value = acc.server;
@@ -12279,6 +12280,7 @@
             let serverUrl = document.getElementById('serverInput').value.trim();
             const avatarFile = document.getElementById('avatarInput').files[0];
             const password = document.getElementById('passwordInput').value;
+            const email = document.getElementById('emailInput')?.value.trim() || '';
             
             if (!username) {
                 const msg = translateText('username_placeholder');
@@ -12309,7 +12311,7 @@
 
             const startSocketConnection = (avatarUrl = '') => {
                 try {
-                    initializeSocket(serverUrl, username, avatarUrl, password);
+                    initializeSocket(serverUrl, username, avatarUrl, password, email);
                 } catch (error) {
                     console.error('❌ Initialisation Socket.IO impossible:', error);
                     const msg = 'Impossible d’initialiser la connexion. Rechargez la page puis réessayez.';
@@ -12350,7 +12352,7 @@
             });
         }
 
-        function initializeSocket(serverUrl, username, avatar, password) {
+        function initializeSocket(serverUrl, username, avatar, password, email = '') {
             // BOOT STABILITY: never keep an older socket alive in parallel.
             if (socket) {
                 try { socket.removeAllListeners(); socket.disconnect(); } catch (_) {}
@@ -12404,7 +12406,7 @@
                 if (password) {
                     // Authentification avec mot de passe
                     // D'abord vérifier si le compte existe
-                    socket.emit('check_account', { username });
+                    socket.emit('check_account', { username, identifier: username });
                 } else {
                     // Mode invité - connexion directe
                     localStorage.setItem('docspace_account', JSON.stringify({ username, server: serverUrl || '' }));
@@ -12417,11 +12419,11 @@
                 if (data.exists) {
                     // Compte existant → login
                     accountMode = 'login';
-                    socket.emit('login_account', { username, password });
+                    socket.emit('login_account', { identifier: username, password });
                 } else {
                     // Nouveau compte → register
                     accountMode = 'register';
-                    socket.emit('register_account', { username, password });
+                    socket.emit('register_account', { username, email, password });
                 }
             });
 
@@ -12429,7 +12431,7 @@
                 console.log('✅ Compte créé:', data.username);
                 showNotification('✅ Compte créé', `Compte "${data.username}" enregistré avec succès !`, 'success');
                 const saveData = { username: data.username };
-                if (password) saveData.pwd = btoa(password);
+                if (password) sessionStorage.setItem('docspace_session_password', password);
                 if (serverUrl) saveData.server = serverUrl;
                 localStorage.setItem('docspace_account', JSON.stringify(saveData));
                 username = data.username;
@@ -12440,7 +12442,7 @@
                 console.log('✅ Connecté au compte:', data.username);
                 showNotification('✅ Connecté', `Bienvenue, ${data.username} !`, 'success');
                 const saveData = { username: data.username };
-                if (password) saveData.pwd = btoa(password);
+                if (password) sessionStorage.setItem('docspace_session_password', password);
                 if (serverUrl) saveData.server = serverUrl;
                 localStorage.setItem('docspace_account', JSON.stringify(saveData));
                 username = data.username;
@@ -15351,9 +15353,10 @@ window.addEmojiReaction = addEmojiReaction;
                 savedAt: Date.now(),
                 lastActivity: Date.now()
             };
-            // Sauvegarder le mot de passe encodé si fourni
+            // Le mot de passe reste dans l'onglet courant uniquement. Il n'est
+            // plus écrit dans localStorage en base64.
             if (password) {
-                session.pwd = btoa(password);
+                sessionStorage.setItem('docspace_session_password', password);
             }
             localStorage.setItem('chatSession', JSON.stringify(session));
             startActivityTracking();
@@ -15410,6 +15413,8 @@ window.addEmojiReaction = addEmojiReaction;
                 if (!sessionData) return null;
                 
                 const session = JSON.parse(sessionData);
+                const tabPassword = sessionStorage.getItem('docspace_session_password');
+                if (tabPassword) session.pwd = btoa(tabPassword);
                 const now = Date.now();
                 const elapsed = now - session.savedAt;
                 
@@ -15429,6 +15434,7 @@ window.addEmojiReaction = addEmojiReaction;
         
         function clearSession() {
             localStorage.removeItem('chatSession');
+            sessionStorage.removeItem('docspace_session_password');
         }
         
         function clearSavedCredentials() {
@@ -15441,6 +15447,7 @@ window.addEmojiReaction = addEmojiReaction;
                     localStorage.setItem('docspace_account', JSON.stringify(acc));
                 }
             } catch (e) {}
+            sessionStorage.removeItem('docspace_session_password');
         }
         
         function tryAutoReconnect() {
@@ -17951,11 +17958,8 @@ window.addEmojiReaction = addEmojiReaction;
             updateMobileShortcutBadges();
         }
 
-        // === GIFs INTÉGRÉS (TENOR API) ===
-        // Clé API Tenor (gratuite, limite de 50 req/jour pour tests)
-        const TENOR_API_KEY = 'AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ';
-        // Clé API Giphy (gratuite, meilleure pour la production)
-        const GIPHY_API_KEY = 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65';
+        // === GIFs INTÉGRÉS ===
+        // La clé API reste côté serveur ; le navigateur appelle uniquement DocSpace.
         let currentGifCategory = 'trending';
         let gifSearchTimeout = null;
 
@@ -18025,36 +18029,12 @@ window.addEmojiReaction = addEmojiReaction;
         async function fetchGifsFromAPI(query, isSearch = false) {
             // Utiliser Giphy API (plus fiable et meilleure qualité)
             try {
-                const endpoint = isSearch 
-                    ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=20&rating=pg-13&lang=fr`
-                    : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=20&rating=pg-13`;
-                
-                // Pour les catégories prédéfinies, faire une recherche
-                const categoryQueries = {
-                    'trending': null, // Utiliser l'endpoint trending
-                    'happy': 'happy excited',
-                    'sad': 'sad crying',
-                    'love': 'love heart',
-                    'funny': 'funny lol',
-                    'reaction': 'reaction face'
-                };
-                
-                let url = endpoint;
-                if (!isSearch && categoryQueries[query]) {
-                    url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(categoryQueries[query])}&limit=20&rating=pg-13&lang=fr`;
-                }
-                
+                const url = `/api/gifs?q=${encodeURIComponent(query)}&search=${isSearch ? '1' : '0'}`;
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('API Error');
                 
                 const data = await response.json();
-                
-                // Extraire les URLs des GIFs (format optimisé)
-                return data.data.map(gif => ({
-                    preview: gif.images.fixed_height_small.url,
-                    full: gif.images.original.url,
-                    title: gif.title
-                }));
+                return Array.isArray(data.gifs) ? data.gifs : [];
             } catch (error) {
                 console.error('Giphy API error:', error);
                 throw error;
@@ -18129,7 +18109,7 @@ window.addEmojiReaction = addEmojiReaction;
         // === PANNEAU ADMIN SECRET ===
         let isAdmin = false;
         let adminUsers = []; // Liste des admins connectés
-        const ADMIN_PASSWORD = 'IndieGabVR2024';
+        let ADMIN_PASSWORD = sessionStorage.getItem('docspace_admin_password') || '';
         const ADMIN_OWNER_NAME = 'gabriel';
         const ADMIN_IDENTITY_KEY = 'docspace_admin_identity';
         const ADMIN_TRUSTED_KEY = 'docspace_admin_trusted';
@@ -18148,8 +18128,8 @@ window.addEmojiReaction = addEmojiReaction;
             document.getElementById('adminLogin').style.display = 'none';
             document.getElementById('adminControls').style.display = 'block';
             setAdminBadgeVisibility(true);
-            localStorage.setItem(ADMIN_IDENTITY_KEY, 'Gabriel');
-            localStorage.setItem(ADMIN_TRUSTED_KEY, '1');
+            sessionStorage.setItem(ADMIN_IDENTITY_KEY, 'Gabriel');
+            sessionStorage.setItem(ADMIN_TRUSTED_KEY, '1');
             if (socket && isConnected && currentUsername) {
                 socket.emit('admin_login', { password: ADMIN_PASSWORD, username: currentUsername });
                 socket.emit('admin_action', { password: ADMIN_PASSWORD, action: 'live_ops_get' });
@@ -18164,8 +18144,10 @@ window.addEmojiReaction = addEmojiReaction;
                 socket.emit('admin_logout', { username: currentUsername });
             }
             isAdmin = false;
-            localStorage.removeItem(ADMIN_TRUSTED_KEY);
-            localStorage.removeItem(ADMIN_IDENTITY_KEY);
+            sessionStorage.removeItem(ADMIN_TRUSTED_KEY);
+            sessionStorage.removeItem(ADMIN_IDENTITY_KEY);
+            sessionStorage.removeItem('docspace_admin_password');
+            ADMIN_PASSWORD = '';
             document.getElementById('adminLogin').style.display = 'flex';
             document.getElementById('adminControls').style.display = 'none';
             document.getElementById('adminPassword').value = '';
@@ -18175,32 +18157,23 @@ window.addEmojiReaction = addEmojiReaction;
         }
 
         function openAdminFromSettings() {
-            const answer = prompt('Qui êtes vous ?');
-            const normalized = (answer || '').trim().toLowerCase();
-            if (!normalized) return;
-            if (normalized !== ADMIN_OWNER_NAME) {
-                showNotification('❌ Admin', 'Identité refusée', 'error');
+            const password = prompt('Mot de passe administrateur');
+            if (!password) return;
+            ADMIN_PASSWORD = password;
+            sessionStorage.setItem('docspace_admin_password', password);
+            if (!socket || !isConnected) {
+                showNotification('❌ Admin', 'Connecte-toi au serveur avant d’ouvrir l’administration.', 'error');
                 return;
             }
-
-            const trusted = localStorage.getItem(ADMIN_TRUSTED_KEY) === '1';
-            if (!trusted) {
-                const password = prompt('Mot de passe admin (première fois)');
-                if (password !== ADMIN_PASSWORD) {
-                    showNotification('❌ Erreur', 'Mot de passe incorrect', 'error');
-                    return;
-                }
-            }
-
-            enableAdminMode(true);
-            showAdminLogin();
+            socket.emit('admin_login', { password, username: currentUsername });
         }
 
         function tryRestoreAdminSession() {
-            const identity = (localStorage.getItem(ADMIN_IDENTITY_KEY) || '').trim().toLowerCase();
-            const trusted = localStorage.getItem(ADMIN_TRUSTED_KEY) === '1';
-            if (identity === ADMIN_OWNER_NAME && trusted) {
-                enableAdminMode(false);
+            const trusted = sessionStorage.getItem(ADMIN_TRUSTED_KEY) === '1';
+            const password = sessionStorage.getItem('docspace_admin_password') || '';
+            if (trusted && password && socket && isConnected) {
+                ADMIN_PASSWORD = password;
+                socket.emit('admin_login', { password, username: currentUsername });
             }
         }
         
@@ -18440,12 +18413,10 @@ window.addEmojiReaction = addEmojiReaction;
         
         function checkAdminPassword() {
             const password = document.getElementById('adminPassword').value;
-            if (password === ADMIN_PASSWORD) {
-                enableAdminMode(true);
-            } else {
-                showNotification('❌ Erreur', 'Mot de passe incorrect', 'error');
-                document.getElementById('adminPassword').value = '';
-            }
+            if (!password || !socket || !isConnected) return;
+            ADMIN_PASSWORD = password;
+            sessionStorage.setItem('docspace_admin_password', password);
+            socket.emit('admin_login', { password, username: currentUsername });
         }
         
         function updateAdminUsersList() {
@@ -22999,5 +22970,6 @@ function adminEndAllGames() {
     <script src="/docspace-v330-r504.js?v=3.3.0-beta-r5.0.4-dm-composer-voice"></script>
     <script src="/docspace-games-r510.js?v=3.3.0-beta-r5.1.0-arcade"></script>
     <script src="/docspace-voice-r510.js?v=3.3.0-beta-r5.1.0-voice"></script>
+    <script src="/docspace-v340.js?v=3.4.0-beta"></script>
 </body>
 </html>

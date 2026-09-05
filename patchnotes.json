@@ -1,8 +1,23 @@
 {
-  "currentVersion": "3.3.0-beta R5.1.0",
-  "build": "R5.0.3",
-  "lastUpdate": "26/08/2026",
+  "currentVersion": "3.4.0-beta",
+  "build": "3.4.0-beta-20260905",
+  "lastUpdate": "05/09/2026",
   "versions": [
+    {
+      "version": "3.4.0-beta",
+      "title": "DocSpace 3.4 — DMs, comptes, Plus et interface fluide",
+      "date": "05/09/2026",
+      "changes": [
+        "💬 Messages privés en trois colonnes avec vrai fil de discussion et fiche profil.",
+        "✨ Refonte visuelle sombre, responsive et plus fluide sur l’ensemble de l’application.",
+        "📧 Connexion par pseudo ou email, email modifiable et changement de mot de passe.",
+        "◇ DocSpace Plus activable avec un code unique, sans achat intégré.",
+        "😀 Emojis personnalisés Plus avec insertion et affichage via :nom:.",
+        "▶ Regarder ensemble avec le lecteur YouTube officiel synchronisé par salle.",
+        "🎮 Arcade améliorée et pause Tetris réparée avec la touche P.",
+        "🔐 Données privées, code serveur et secret administrateur mieux protégés."
+      ]
+    },
     {
       "version": "3.3.0-beta R5.1.0",
       "title": "3.3.0 Bêta R5.1.0 — Arcade, Vocal adaptatif & Fly.io",
