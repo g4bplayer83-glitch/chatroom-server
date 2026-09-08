@@ -1,0 +1,46 @@
+DOCSPACE 3.5.1 — CORRECTIF GIPHY
+
+À appliquer APRÈS le patch 3.5.1.
+
+1. Arrête DocSpace (Ctrl+C dans le terminal).
+2. Copie les dossiers lib, public et tests de ce ZIP dans ton projet,
+   à côté de server.js. Fusionne les dossiers et remplace les fichiers proposés.
+   Ne supprime pas les dossiers entiers.
+3. Relance DEMARRER-DOCSPACE.bat. Ferme les anciens onglets DocSpace,
+   rouvre le site et fais Ctrl+F5.
+   Sur Fly.io, redéploie le projet complet avec ces fichiers modifiés.
+
+MODIFICATIONS
+- La galerie utilise maintenant les 14 liens de GIFs GIPHY présents dans
+  le getFallbackGifs de l'ancien DocSpace, sans clé API.
+- Les GIFs animés textuels DocSpace ne sont plus la sélection par défaut.
+- Catégories : découverte, heureux, rire, amour, triste et réactions.
+- Le bouton « Rechercher sur GIPHY » ouvre la page fournie, puis une recherche
+  correspondant au texte saisi.
+- Sur GIPHY, ouvre un GIF et copie le lien de SA PAGE (giphy.com/gifs/...).
+  Colle-le dans « Coller un GIF depuis GIPHY », clique sur « Insérer le lien »
+  puis sur Envoyer dans le chat. Le GIF est également ajouté aux favoris.
+- Les liens directs media.giphy.com et media.tenor.com restent acceptés.
+- Si une image ne charge pas, un message indique le problème d'accès.
+
+IMPORTANT
+La page https://giphy.com/explore/gratuit est une page de navigation,
+pas le lien d'un GIF individuel. Le bouton l'ouvre dans un nouvel onglet.
+Sans clé, la recherche dans DocSpace filtre la sélection historique : ce
+n'est pas une recherche dans tout GIPHY ni une copie automatique de cette page.
+La recherche complète intégrée existante nécessite toujours GIPHY_API_KEY.
+Documentation : https://developers.giphy.com/docs/api/endpoint/
+
+Les images sont chargées directement depuis GIPHY : elles nécessitent l'accès
+à ce domaine et restent soumises à la disponibilité des GIFs chez GIPHY.
+Les liens ont été repris des sources de ton ancien projet ; leur chargement
+réel sur ton réseau n'a pas pu être vérifié ici.
+
+VÉRIFICATION
+35 tests automatisés réussis : catalogue renvoyé sans clé, conversion des
+liens GIPHY, rejet des faux domaines, insertion et favoris, plus les tests
+existants de messages, jeux et vocal. Le chargement réseau des images GIPHY
+n'est pas simulé comme étant une validation réelle dans ces tests.
+
+Seuls lib/catalog.js, public/social.js, public/sw.js et les deux fichiers
+actualisés de tests sont remplacés. Les données et comptes sont conservés.

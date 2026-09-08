@@ -1,140 +1,46 @@
 {
   "IndieGabVR": {
-    "customTheme": {
-      "colors": [
-        "#ff0000",
-        "#885d8e"
-      ],
-      "opacity": 1
+    "xp": 202,
+    "level": 1,
+    "totalMessages": 8,
+    "lastXpGain": 1788895628766,
+    "streakDays": 1,
+    "lastLoginDay": "2026-09-08",
+    "lastReactionXpAt": 0,
+    "activeNameEffect": "name_neon",
+    "customTheme": null,
+    "dailyMissionDay": "2026-09-08",
+    "dailyMissionProgress": {
+      "messages": 8,
+      "reactions": 0,
+      "voiceMinutes": 4
     },
-    "totalMessages": 39,
-    "lastLoginDay": "2026-04-09",
-    "dailyMissionDay": "2026-04-09",
     "dailyMissionCompleted": {
       "messages": false,
       "reactions": false,
       "voiceMinutes": false
-    },
-    "lastReactionXpAt": 1775402068062,
-    "activeNameEffect": "none",
-    "lastXpGain": 1775564903163,
-    "level": 7,
-    "xp": 3353,
-    "streakDays": 3,
-    "dailyMissionProgress": {
-      "messages": 0,
-      "reactions": 0,
-      "voiceMinutes": 0
     }
   },
-  "IndieGabVR2": {
-    "totalMessages": 2,
-    "lastLoginDay": "2026-04-05",
-    "dailyMissionDay": "2026-04-05",
-    "dailyMissionCompleted": {
-      "messages": false,
-      "reactions": false,
-      "voiceMinutes": false
-    },
-    "lastReactionXpAt": 0,
-    "activeNameEffect": "none",
-    "lastXpGain": 1775158947117,
-    "level": 2,
-    "xp": 260,
+  "AAAA": {
+    "xp": 96,
+    "level": 0,
+    "totalMessages": 4,
+    "lastXpGain": 1788895643542,
     "streakDays": 1,
-    "dailyMissionProgress": {
-      "messages": 0,
-      "reactions": 0,
-      "voiceMinutes": 0
-    },
-    "customTheme": null
-  },
-  "dgfh": {
-    "totalMessages": 3,
-    "lastLoginDay": "2026-04-09",
-    "dailyMissionDay": "2026-04-09",
-    "dailyMissionCompleted": {
-      "messages": false,
-      "reactions": false,
-      "voiceMinutes": false
-    },
-    "lastReactionXpAt": 0,
+    "lastLoginDay": "2026-09-08",
+    "lastReactionXpAt": 1788895643542,
     "activeNameEffect": "none",
-    "lastXpGain": 1775565109254,
-    "level": 10,
-    "xp": 13944,
-    "streakDays": 3,
-    "dailyMissionProgress": {
-      "messages": 0,
-      "reactions": 0,
-      "voiceMinutes": 0
-    },
-    "customTheme": null
-  },
-  "Indie": {
-    "totalMessages": 5,
-    "lastLoginDay": "2026-04-08",
-    "dailyMissionDay": "2026-04-08",
-    "dailyMissionCompleted": {
-      "messages": false,
-      "reactions": false,
-      "voiceMinutes": false
-    },
-    "lastReactionXpAt": 0,
-    "activeNameEffect": "none",
-    "lastXpGain": 1775640405843,
-    "level": 1,
-    "xp": 128,
-    "streakDays": 1,
+    "customTheme": null,
+    "dailyMissionDay": "2026-09-08",
     "dailyMissionProgress": {
       "messages": 4,
-      "reactions": 0,
-      "voiceMinutes": 0
+      "reactions": 1,
+      "voiceMinutes": 2
     },
-    "customTheme": null
-  },
-  "xdfh": {
-    "totalMessages": 0,
-    "lastLoginDay": "2026-04-07",
-    "dailyMissionDay": "2026-04-07",
     "dailyMissionCompleted": {
       "messages": false,
       "reactions": false,
       "voiceMinutes": false
-    },
-    "lastReactionXpAt": 0,
-    "activeNameEffect": "none",
-    "lastXpGain": 0,
-    "level": 0,
-    "xp": 60,
-    "streakDays": 1,
-    "dailyMissionProgress": {
-      "messages": 0,
-      "reactions": 0,
-      "voiceMinutes": 0
-    },
-    "customTheme": null
-  },
-  "sdfgsdfg": {
-    "totalMessages": 0,
-    "lastLoginDay": "2026-04-07",
-    "dailyMissionDay": "2026-04-07",
-    "dailyMissionCompleted": {
-      "messages": false,
-      "reactions": false,
-      "voiceMinutes": false
-    },
-    "lastReactionXpAt": 0,
-    "activeNameEffect": "none",
-    "lastXpGain": 0,
-    "level": 1,
-    "xp": 112,
-    "streakDays": 1,
-    "dailyMissionProgress": {
-      "messages": 0,
-      "reactions": 0,
-      "voiceMinutes": 0
-    },
-    "customTheme": null
+    }
   }
 }

@@ -1,0 +1,24 @@
+{
+    "params": [
+        {
+            "name": "Angle (Degres)",
+            "type": "Float(-3600, 3600, 1, 0)",
+            "defaultValue": 0.0
+        },
+        {
+            "name": "Camera ciblee (toutes, game, hud)",
+            "type": "String",
+            "defaultValue": "toutes"
+        },
+        {
+            "name": "Duree (Secondes)",
+            "type": "Float(0, 20, 0.1, 1)",
+            "defaultValue": 0.0
+        },
+        {
+            "name": "Fluidite (linear, cubeOut, cubeInOut, backOut, elasticOut)",
+            "type": "String",
+            "defaultValue": "cubeOut"
+        }
+    ]
+}

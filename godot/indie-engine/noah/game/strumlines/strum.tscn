@@ -1,0 +1,55 @@
+[gd_scene format=3 uid="uid://bbyq5kxppcvc8"]
+
+[ext_resource type="Script" uid="uid://cvn8o3a2v55bt" path="res://noah/game/strumlines/strum.gd" id="1_ixlu2"]
+[ext_resource type="Resource" uid="uid://buly8rgmgrrnm" path="res://noah/assets/game/developer/developer_note_skin.tres" id="2_aqqtq"]
+[ext_resource type="SpriteFrames" uid="uid://chk3joc6hfc23" path="res://noah/assets/game/developer/arrow/strums.tres" id="3_cik2r"]
+[ext_resource type="Script" uid="uid://d17yv6wfgl74w" path="res://noah/offset_sprite.gd" id="4_kjy2w"]
+
+[node name="Arrow Strum" type="Node2D" unique_id=1054225201]
+script = ExtResource("1_ixlu2")
+note_skin = ExtResource("2_aqqtq")
+
+[node name="OffsetSprite" type="AnimatedSprite2D" parent="." unique_id=1929831036]
+use_parent_material = true
+scale = Vector2(0.2, 0.2)
+sprite_frames = ExtResource("3_cik2r")
+animation = &"left_strum"
+offset = Vector2(1, 1)
+script = ExtResource("4_kjy2w")
+animation_names = Dictionary[StringName, StringName]({
+&"down_strum": &"down_strum",
+&"glow_down_strum": &"glow_down_strum",
+&"glow_left_strum": &"glow_left_strum",
+&"glow_right_strum": &"glow_right_strum",
+&"glow_up_strum": &"glow_up_strum",
+&"left_strum": &"left_strum",
+&"press_down_strum": &"press_down_strum",
+&"press_left_strum": &"press_left_strum",
+&"press_right_strum": &"press_right_strum",
+&"press_up_strum": &"press_up_strum",
+&"right_strum": &"right_strum",
+&"up_strum": &"up_strum"
+})
+
+[node name="Hold Cover" type="AnimatedSprite2D" parent="." unique_id=225515688]
+visible = false
+z_index = 10
+position = Vector2(12, 21)
+script = ExtResource("4_kjy2w")
+animation_names = Dictionary[StringName, StringName]({
+&"down_cover": &"down_cover",
+&"end_down_cover": &"end_down_cover",
+&"end_left_cover": &"end_left_cover",
+&"end_right_cover": &"cover_right_end",
+&"end_up_cover": &"end_up_cover",
+&"left_cover": &"left_cover",
+&"right_cover": &"right_cover",
+&"start_down_cover": &"start_down_cover",
+&"start_left_cover": &"start_left_cover",
+&"start_right_cover": &"cover right_start",
+&"start_up_cover": &"start_up_cover",
+&"up_cover": &"up_cover"
+})
+
+[connection signal="animation_finished" from="OffsetSprite" to="." method="_on_offset_sprite_animation_finished"]
+[connection signal="animation_finished" from="Hold Cover" to="." method="_on_hold_cover_animation_finished"]

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # DocSpace — v3.4.0 Beta
 
 DocSpace est un espace de travail et de discussion temps réel inspiré de Discord, avec salons texte/vocaux, messages privés, profils, fichiers, sondages, soundboard, présence, progression XP et jeux.
@@ -13,27 +14,49 @@ DocSpace est un espace de travail et de discussion temps réel inspiré de Disco
 - Regarder ensemble avec le lecteur YouTube officiel et synchronisation de salle.
 - Pause Tetris réellement fonctionnelle avec la touche `P`.
 - Fichiers serveur, données privées et configuration bloqués côté HTTP.
+=======
+# DocSpace 3.5.0
 
-## Progression XP
-L’XP est la seule ressource de progression. Elle se gagne via les messages, les réactions, le vocal, le bonus quotidien et les missions. Les niveaux débloquent automatiquement des thèmes et styles de pseudo.
+Discuter, partager des fichiers et jouer ensemble. Cette archive contient le serveur, l’interface pour ordinateur et téléphone, les sources des jeux et les deux exports Godot déjà compilés.
+>>>>>>> a4ba223 (Patch 3.5.2)
 
-## Cosmétiques
-- Thèmes de base dès le niveau 0.
-- Bleu Nuit niveau 2.
-- Pseudo Glow niveau 3.
-- Rouge / Jaune / Deep Purple niveau 4.
-- Pseudo Gradient + thèmes roses niveau 7.
-- Orange / Forest niveau 10.
-- Pseudo Néon niveau 12.
-- Theme Lab personnalisé niveau 20.
+## Démarrage sur Windows
 
+1. Extrais **tout le ZIP** dans un nouveau dossier.
+2. Installe **Node.js 22 ou une version compatible plus récente** si nécessaire.
+3. Lance **DEMARRER-DOCSPACE.bat**. Le premier lancement installe les dépendances et demande Internet.
+4. Ouvre **http://localhost:8080** dans ton navigateur. Garde la fenêtre du serveur ouverte.
+
+<<<<<<< HEAD
 ## Lancer en local
 ```bash
 npm install
+=======
+Aucun export Godot ni pull request n’est nécessaire pour essayer ce ZIP. La connexion utilise un **pseudo et un mot de passe**, sans email. Une nouvelle installation locale ne contient pas les comptes de ton serveur Fly.io.
+
+**[Guide de configuration et de mise à jour](DEMARRER.md)** · **[Nouveautés](NOUVEAUTES-3.5.0.md)** · **[Vérifications effectuées](VALIDATION.md)**
+
+## Ce qui est inclus
+
+- Interface compacte, navigation mobile, liste des membres avec ton propre compte et salons vocaux avec avatars.
+- Treize ambiances, dont un thème personnalisé, et effets de pseudo disponibles sans niveau requis. L’XP indique seulement la participation.
+- MP avec historique, réactions, édition, suppression, épingles, lecture et notifications.
+- Menu de message par clic droit, Ctrl + clic ou appui long ; réponses, transfert, copie du texte, lien et identifiant.
+- Menu **+** : fichiers, images/screenshots, sondages et messages vocaux avec écoute avant envoi. Images collables avec Ctrl + V et déposables dans la conversation.
+- Plus de 900 émojis classés, GIFs, personnalisation du profil et changement du mot de passe.
+- Menu **…** : amis, MP, fichiers, présence, soundboard, classement, statistiques, nouveautés, thèmes, paramètres et administration.
+- Tetris Versus, Neon Maze, Pulse Pong, Orbit Garden 3D et Indie Engine 1.0.7 adapté au web.
+
+## Développement
+
+```sh
+npm ci
+npm test
+>>>>>>> a4ba223 (Patch 3.5.2)
 npm start
 ```
-Puis ouvrir `http://localhost:8080`.
 
+<<<<<<< HEAD
 ## Déployer sur Fly.io
 
 Le volume `docspace_data` doit exister dans la région `cdg` :
@@ -73,3 +96,8 @@ fly secrets set GEMINI_API_KEY="..." GIPHY_API_KEY="..." -a docspace
 ## Regarder ensemble
 
 La fonction utilise `youtube-nocookie.com` et l’API du lecteur intégré. Elle ne fait pas proxy du trafic vidéo et n’est pas conçue pour contourner le filtrage d’un réseau ou d’un établissement.
+=======
+L’interface active se trouve dans `public/`, le serveur dans `server.js` et les ajouts de la 3.5.0 dans `lib/features.js`. Les anciens fichiers d’interface à la racine sont conservés comme historique ; le lanceur utilise `public/`.
+
+Les 20 tests automatisés passent. Les exports Godot sont compilés ; une chanson d’Indie Engine a été lancée dans le moteur. Les canvas et périphériques audio sont simulés dans les tests d’interface. Le rendu sur un téléphone physique et les appels entre deux appareils restent à vérifier. Aucun APK signé ni déploiement Fly.io de cette version n’a été effectué.
+>>>>>>> a4ba223 (Patch 3.5.2)

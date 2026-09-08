@@ -1,0 +1,257 @@
+[gd_scene format=3 uid="uid://cq6xqods6w7lw"]
+
+[ext_resource type="Script" uid="uid://uso5pge8x5lf" path="res://noah/tools/chart_editor/event_editor/event_editor.gd" id="1_06aqy"]
+[ext_resource type="Script" uid="uid://b1blhjns06ilt" path="res://noah/conductor.gd" id="2_mcaef"]
+[ext_resource type="PackedScene" uid="uid://bx3kdd0dt1kkw" path="res://noah/tools/chart_editor/lower_ui.tscn" id="5_xqtoq"]
+[ext_resource type="PackedScene" uid="uid://b6b2d2kloq60j" path="res://noah/tools/chart_editor/upper_ui.tscn" id="6_ud782"]
+[ext_resource type="PackedScene" uid="uid://dmjgk2qf3nl2i" path="res://noah/tools/chart_editor/grid.tscn" id="14_srmuw"]
+[ext_resource type="Theme" uid="uid://b1gv0wfdmojbx" path="res://noah/themes/tool.res" id="15_ue8jl"]
+[ext_resource type="Texture2D" uid="uid://o8cl6odqirwp" path="res://noah/assets/images/menus/genericBG.png" id="19_5evum"]
+[ext_resource type="Script" uid="uid://mrj70uiannhy" path="res://noah/tools/chart_editor/tool_tip.gd" id="19_64086"]
+[ext_resource type="Material" uid="uid://b87ibevalpejo" path="res://noah/shaders/generic_big_mat.tres" id="19_ea7xq"]
+
+[sub_resource type="AudioStreamPolyphonic" id="AudioStreamPolyphonic_4188h"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_tjeh3"]
+outline_size = 4
+outline_color = Color(0, 0, 0, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_64086"]
+font_size = 18
+font_color = Color(1, 0, 0, 1)
+
+[node name="Event Editor" type="Node2D" unique_id=677401117]
+script = ExtResource("1_06aqy")
+divider_color = Color(0.71484375, 0.71484375, 0.71484375, 1)
+current_time_color = Color(0.75668746, 0, 1, 0.8)
+muted_color = Color(0.16, 0.16, 0.16, 0.502)
+box_color = Color(0.151337, 0.445313, 0.17072, 0.287)
+selected_color = Color(0.404297, 0.75, 0.442108, 0.734)
+time_change_color = Color(0.5526029, 0.5802685, 0.9920456, 1)
+
+[node name="Conductor" type="Node" parent="." unique_id=484917149 node_paths=PackedStringArray("stream_player")]
+script = ExtResource("2_mcaef")
+stream_player = NodePath("../Audio/Instrumental")
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=490706665]
+position = Vector2(640, 360)
+
+[node name="Audio" type="Node" parent="." unique_id=1749276345]
+
+[node name="Vocals" type="AudioStreamPlayer" parent="Audio" unique_id=1999048532]
+unique_name_in_owner = true
+stream = SubResource("AudioStreamPolyphonic_4188h")
+bus = &"Music"
+
+[node name="Instrumental" type="AudioStreamPlayer" parent="Audio" unique_id=818661272]
+unique_name_in_owner = true
+bus = &"Music"
+
+[node name="Grid Layer" type="CanvasLayer" parent="." unique_id=35060227]
+layer = -2
+offset = Vector2(144, 360)
+transform = Transform2D(1, 0, 0, 1, 144, 360)
+
+[node name="Parallax2D" type="Parallax2D" parent="Grid Layer" unique_id=1621966626]
+repeat_times = 9
+follow_viewport = false
+
+[node name="Grid" parent="Grid Layer/Parallax2D" unique_id=100409728 instance=ExtResource("14_srmuw")]
+unique_name_in_owner = true
+event_grid = true
+grid_size = Vector2(36, 36)
+grid_color = Color(0.11372549, 0.13333334, 0.16078432, 1)
+event_column_color = Color(0.2071459, 0.23626423, 0.2815594, 0.26666668)
+position_column_color = Color(0.20784314, 0.23529412, 0.28235295, 0.26666668)
+
+[node name="Waveform Layer" type="CanvasLayer" parent="." unique_id=1474105227]
+layer = 2
+offset = Vector2(144, 360)
+transform = Transform2D(1, 0, 0, 1, 144, 360)
+follow_viewport_enabled = true
+
+[node name="Notes Layer" type="CanvasLayer" parent="." unique_id=2024624303]
+layer = 2
+follow_viewport_enabled = true
+
+[node name="UI Borders" type="CanvasLayer" parent="." unique_id=421977824]
+layer = 9
+offset = Vector2(640, 360)
+transform = Transform2D(1, 0, 0, 1, 640, 360)
+
+[node name="Upper Border" type="ColorRect" parent="UI Borders" unique_id=1500037608]
+offset_left = -640.0
+offset_top = -360.0
+offset_right = 640.0
+offset_bottom = -328.0
+color = Color(0.14509805, 0.16862746, 0.20392157, 1)
+metadata/_edit_lock_ = true
+
+[node name="Lower Border" type="ColorRect" parent="UI Borders" unique_id=460730177]
+offset_left = -640.0
+offset_top = 312.0
+offset_right = 640.0
+offset_bottom = 360.0
+color = Color(0.14509805, 0.16862746, 0.20392157, 1)
+metadata/_edit_lock_ = true
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=1474381674]
+layer = 10
+offset = Vector2(640, 360)
+transform = Transform2D(1, 0, 0, 1, 640, 360)
+
+[node name="Song Slider" type="HSlider" parent="UI" unique_id=861583703]
+unique_name_in_owner = true
+offset_left = -640.0
+offset_top = 296.0
+offset_right = 640.0
+offset_bottom = 312.0
+focus_mode = 1
+mouse_default_cursor_shape = 2
+theme = ExtResource("15_ue8jl")
+step = 0.001
+metadata/_edit_lock_ = true
+
+[node name="Event Tracks" type="VBoxContainer" parent="UI" unique_id=1436545723]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 0)
+offset_left = -640.0
+offset_right = -512.0
+offset_bottom = 33.0
+theme = ExtResource("15_ue8jl")
+theme_override_constants/separation = 0
+
+[node name="Add Track" type="Button" parent="UI/Event Tracks" unique_id=1192962343]
+layout_mode = 2
+size_flags_vertical = 3
+text = "+"
+
+[node name="Event Creator" type="PopupPanel" parent="UI" unique_id=1125385941 groups=["windows"]]
+unique_name_in_owner = true
+title = "Event Creator"
+initial_position = 1
+size = Vector2i(480, 240)
+unresizable = false
+always_on_top = true
+theme = ExtResource("15_ue8jl")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/Event Creator" unique_id=433626644]
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 468.0
+offset_bottom = 228.0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="UI/Event Creator/VBoxContainer" unique_id=1183572488]
+layout_mode = 2
+
+[node name="Event Name" type="Label" parent="UI/Event Creator/VBoxContainer/HBoxContainer" unique_id=1405813159]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Event Name"
+
+[node name="HSeparator" type="HSeparator" parent="UI/Event Creator/VBoxContainer/HBoxContainer" unique_id=493039542]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Event Parameters" type="VBoxContainer" parent="UI/Event Creator/VBoxContainer" unique_id=1517675429]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HSeparator" type="HSeparator" parent="UI/Event Creator/VBoxContainer" unique_id=238436190]
+layout_mode = 2
+
+[node name="Place Event" type="Button" parent="UI/Event Creator/VBoxContainer" unique_id=231017783]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Place Event"
+
+[node name="Add Track Window" type="Window" parent="UI" unique_id=433443772 groups=["windows"]]
+unique_name_in_owner = true
+transparent_bg = true
+oversampling_override = 1.0
+title = "Add Event Track"
+initial_position = 4
+size = Vector2i(320, 80)
+visible = false
+transparent = true
+theme = ExtResource("15_ue8jl")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/Add Track Window" unique_id=209499940]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Event Option" type="OptionButton" parent="UI/Add Track Window/VBoxContainer" unique_id=424543112]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 2
+expand_icon = true
+
+[node name="HSeparator" type="HSeparator" parent="UI/Add Track Window/VBoxContainer" unique_id=1356450858]
+layout_mode = 2
+
+[node name="Add Event Track" type="Button" parent="UI/Add Track Window/VBoxContainer" unique_id=619767980]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+text = "Add Track"
+
+[node name="Lower UI" parent="UI" unique_id=1056915829 instance=ExtResource("5_xqtoq")]
+unique_name_in_owner = true
+
+[node name="Upper UI" parent="UI" unique_id=415464568 instance=ExtResource("6_ud782")]
+unique_name_in_owner = true
+
+[node name="Tool Tip" type="Label" parent="UI" unique_id=2030407488]
+z_index = 100
+offset_left = -144.0
+offset_top = -328.0
+offset_right = -143.0
+offset_bottom = -305.0
+text = "hello"
+label_settings = SubResource("LabelSettings_tjeh3")
+script = ExtResource("19_64086")
+
+[node name="LoadedSong error" type="Label" parent="UI" unique_id=346969889]
+offset_left = -640.0
+offset_top = 266.223
+offset_right = 640.0
+offset_bottom = 292.22308
+text = "Error: There is no loaded Song"
+label_settings = SubResource("LabelSettings_64086")
+horizontal_alignment = 1
+
+[node name="Background" type="CanvasLayer" parent="." unique_id=1662721984]
+layer = -128
+offset = Vector2(640, 360)
+transform = Transform2D(1, 0, 0, 1, 640, 360)
+
+[node name="genericBG" type="Sprite2D" parent="Background" unique_id=650173941]
+modulate = Color(0.56078434, 0.6431373, 0.7490196, 1)
+material = ExtResource("19_ea7xq")
+texture = ExtResource("19_5evum")
+metadata/_edit_lock_ = true
+
+[connection signal="new_beat" from="Conductor" to="." method="_on_conductor_new_beat"]
+[connection signal="new_denominator" from="Conductor" to="." method="_on_conductor_new_denominator"]
+[connection signal="new_numerator" from="Conductor" to="." method="_on_conductor_new_numerator"]
+[connection signal="new_step" from="Conductor" to="." method="_on_conductor_new_step"]
+[connection signal="new_tempo" from="Conductor" to="." method="_on_conductor_new_tempo"]
+[connection signal="drag_started" from="UI/Song Slider" to="." method="_on_song_slider_drag_started"]
+[connection signal="value_changed" from="UI/Song Slider" to="." method="_on_song_slider_value_changed"]
+[connection signal="ready" from="UI/Event Tracks" to="." method="_on_event_tracks_ready"]
+[connection signal="pressed" from="UI/Event Tracks/Add Track" to="." method="_on_add_track_pressed"]
+[connection signal="about_to_popup" from="UI/Event Creator" to="." method="_on_event_parameters_about_to_popup"]
+[connection signal="close_requested" from="UI/Event Creator" to="." method="close_popup"]
+[connection signal="gui_focus_changed" from="UI/Event Creator" to="." method="_on_gui_focus_changed"]
+[connection signal="popup_hide" from="UI/Event Creator" to="." method="close_popup"]
+[connection signal="pressed" from="UI/Event Creator/VBoxContainer/Place Event" to="." method="_on_place_event_pressed"]
+[connection signal="about_to_popup" from="UI/Add Track Window" to="." method="_on_window_about_to_popup"]
+[connection signal="close_requested" from="UI/Add Track Window" to="." method="close_popup"]
+[connection signal="close_requested" from="UI/Add Track Window" to="." method="_on_add_track_window_close_requested"]
+[connection signal="gui_focus_changed" from="UI/Add Track Window" to="." method="_on_gui_focus_changed"]
+[connection signal="pressed" from="UI/Add Track Window/VBoxContainer/Add Event Track" to="." method="_on_add_event_track_pressed"]

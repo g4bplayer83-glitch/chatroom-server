@@ -1,0 +1,84 @@
+[gd_resource type="Resource" script_class="NoteSkin" format=3 uid="uid://cjpqp1y37w71q"]
+
+[ext_resource type="SpriteFrames" path="res://noah/assets/custom_note/strums.tres" id="1"]
+[ext_resource type="SpriteFrames" path="res://noah/assets/custom_note/notes.tres" id="2"]
+[ext_resource type="SpriteFrames" path="res://noah/assets/custom_note/hold_covers.tres" id="3"]
+[ext_resource type="SpriteFrames" path="res://noah/assets/custom_note/splashes.tres" id="4"]
+[ext_resource type="Script" path="res://noah/resources/note_skin.gd" id="5"]
+
+[resource]
+script = ExtResource("5")
+strums_texture = ExtResource("1")
+notes_texture = ExtResource("2")
+splashes_texture = ExtResource("4")
+hold_covers_texture = ExtResource("3")
+sustain_opacity = 0.72
+notes_scale = 0.8
+splash_scale = 0.8
+hold_covers_scale = 0.8
+animation_names = Dictionary[StringName, StringName]({
+&"down_strum": &"down",
+&"glow_down_strum": &"down glow",
+&"press_down_strum": &"down press",
+&"left_strum": &"left",
+&"glow_left_strum": &"left glow",
+&"press_left_strum": &"left press",
+&"right_strum": &"right",
+&"glow_right_strum": &"right glow",
+&"press_right_strum": &"right press",
+&"up_strum": &"up",
+&"glow_up_strum": &"up glow",
+&"press_up_strum": &"up press",
+&"down_tail": &"down tail",
+&"down_end": &"down end",
+&"left_tail": &"left tail",
+&"left_end": &"left end",
+&"right_tail": &"right tail",
+&"right_end": &"right end",
+&"up_tail": &"up tail",
+&"up_end": &"up end",
+&"start_down_cover": &"cover down start",
+&"down_cover": &"cover down",
+&"end_down_cover": &"cover down end",
+&"start_left_cover": &"cover left start",
+&"left_cover": &"cover left",
+&"end_left_cover": &"cover left end",
+&"start_right_cover": &"cover right start",
+&"right_cover": &"cover right",
+&"end_right_cover": &"cover right end",
+&"start_up_cover": &"cover up start",
+&"up_cover": &"cover up",
+&"end_up_cover": &"cover up end",
+&"left_splash": &"note splash purple 1",
+&"down_splash": &"note splash blue 1",
+&"up_splash": &"note splash green 1",
+&"right_splash": &"note splash red 1",
+&"cover down": &"cover down",
+&"cover down end": &"cover down end",
+&"cover down start": &"cover down start",
+&"cover left": &"cover left",
+&"cover left end": &"cover left end",
+&"cover left start": &"cover left start",
+&"cover right": &"cover right",
+&"cover right end": &"cover right end",
+&"cover right start": &"cover right start",
+&"cover up": &"cover up",
+&"cover up end": &"cover up end",
+&"cover up start": &"cover up start",
+&"down": &"down",
+&"down end": &"down end",
+&"down press": &"down press",
+&"down tail": &"down tail",
+&"left": &"left",
+&"left end": &"left end",
+&"left press": &"left press",
+&"left tail": &"left tail",
+&"right": &"right",
+&"right end": &"right end",
+&"right press": &"right press",
+&"right tail": &"right tail",
+&"up": &"up",
+&"up end": &"up end",
+&"up press": &"up press",
+&"up tail": &"up tail"
+})

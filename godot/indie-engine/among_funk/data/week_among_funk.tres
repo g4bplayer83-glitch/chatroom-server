@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Week" load_steps=5 format=3]
+
+[ext_resource type="Resource" path="res://among_funk/songs/sabotage.tres" id="1_song"]
+[ext_resource type="Resource" path="res://among_funk/songs/discover.tres" id="2_song"]
+[ext_resource type="Resource" path="res://among_funk/songs/meltdown.tres" id="3_song"]
+[ext_resource type="Script" path="res://noah/resources/week.gd" id="4_week"]
+
+[resource]
+script = ExtResource("4_week")
+week_name = "WEEK 1 // POLUS PROBLEMS"
+song_list = Array[Song]([ExtResource("1_song"), ExtResource("2_song"), ExtResource("3_song")])

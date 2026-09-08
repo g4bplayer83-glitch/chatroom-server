@@ -1,11 +1,15 @@
 {
-  "IndieGabVR": {
-    "friends": [],
+  "AAAA": {
+    "friends": [
+      "IndieGabVR"
+    ],
     "pending": [],
     "requests": []
   },
-  "IndieGabVR2": {
-    "friends": [],
+  "IndieGabVR": {
+    "friends": [
+      "AAAA"
+    ],
     "pending": [],
     "requests": []
   }

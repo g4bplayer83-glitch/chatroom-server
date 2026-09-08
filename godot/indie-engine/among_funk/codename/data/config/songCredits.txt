@@ -1,0 +1,12 @@
+# AMONG FUNK - FREEPLAY CREDITS
+# FORMAT:
+# Song display name|Song creator / composer|Charter
+#
+# Replace TBA with the real names. You can add new songs below using the same format.
+
+Sussus Moogus|TBA|TBA
+Sabotage|TBA|TBA
+Discover|TBA|TBA
+Meltdown|TBA|TBA
+Mando|TBA|TBA
+Dlow|TBA|TBA

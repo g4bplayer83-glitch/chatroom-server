@@ -1,0 +1,138 @@
+[gd_resource type="SpriteFrames" format=3 uid="uid://ccccs7aehnvk"]
+
+[ext_resource type="Texture2D" uid="uid://cjfdhjo16yspr" path="res://noah/assets/custom_note/note/HURT_note_assets.png" id="1_tex"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_down"]
+atlas = ExtResource("1_tex")
+region = Rect2(674, 0, 158, 155)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_down_end"]
+atlas = ExtResource("1_tex")
+region = Rect2(623, 0, 51, 65)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_tail"]
+atlas = ExtResource("1_tex")
+region = Rect2(701, 233, 51, 44)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_left"]
+atlas = ExtResource("1_tex")
+region = Rect2(496, 233, 154, 158)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_left_end"]
+atlas = ExtResource("1_tex")
+region = Rect2(445, 233, 51, 65)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_right"]
+atlas = ExtResource("1_tex")
+region = Rect2(752, 233, 155, 158)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_right_end"]
+atlas = ExtResource("1_tex")
+region = Rect2(650, 233, 51, 65)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_up"]
+atlas = ExtResource("1_tex")
+region = Rect2(1578, 0, 157, 155)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_up_end"]
+atlas = ExtResource("1_tex")
+region = Rect2(1527, 0, 51, 65)
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_down")
+}],
+"loop": 1,
+"name": &"down",
+"speed": 24.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_down_end")
+}],
+"loop": 1,
+"name": &"down end",
+"speed": 24.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tail")
+}],
+"loop": 1,
+"name": &"down tail",
+"speed": 0.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_left")
+}],
+"loop": 1,
+"name": &"left",
+"speed": 24.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_left_end")
+}],
+"loop": 1,
+"name": &"left end",
+"speed": 24.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tail")
+}],
+"loop": 1,
+"name": &"left tail",
+"speed": 0.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_right")
+}],
+"loop": 1,
+"name": &"right",
+"speed": 24.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_right_end")
+}],
+"loop": 1,
+"name": &"right end",
+"speed": 24.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tail")
+}],
+"loop": 1,
+"name": &"right tail",
+"speed": 0.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_up")
+}],
+"loop": 1,
+"name": &"up",
+"speed": 24.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_up_end")
+}],
+"loop": 1,
+"name": &"up end",
+"speed": 24.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_tail")
+}],
+"loop": 1,
+"name": &"up tail",
+"speed": 0.0
+}]

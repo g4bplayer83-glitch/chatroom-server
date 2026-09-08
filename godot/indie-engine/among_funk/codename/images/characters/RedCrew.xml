@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TextureAtlas imagePath="RedCrew.png">
+	<!-- Created with Adobe Animate version 24.0.10.14 -->
+	<!-- http://www.adobe.com/products/animate.html -->
+	<SubTexture name="RedCrew0000" x="0" y="0" width="319" height="236" frameX="-5" frameY="-17" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0001" x="0" y="0" width="319" height="236" frameX="-5" frameY="-17" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0002" x="319" y="0" width="309" height="245" frameX="-9" frameY="-11" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0003" x="319" y="0" width="309" height="245" frameX="-9" frameY="-11" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0004" x="628" y="0" width="304" height="244" frameX="-12" frameY="-8" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0005" x="628" y="0" width="304" height="244" frameX="-12" frameY="-8" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0006" x="0" y="245" width="305" height="240" frameX="-12" frameY="-10" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0007" x="0" y="245" width="305" height="240" frameX="-12" frameY="-10" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0008" x="0" y="245" width="305" height="240" frameX="-12" frameY="-10" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0009" x="0" y="245" width="305" height="240" frameX="-12" frameY="-10" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0010" x="305" y="245" width="280" height="219" frameX="-12" frameY="-9" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0011" x="305" y="245" width="280" height="219" frameX="-12" frameY="-9" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0012" x="585" y="245" width="283" height="221" frameX="-7" frameY="-8" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0013" x="585" y="245" width="283" height="221" frameX="-7" frameY="-8" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0014" x="0" y="485" width="279" height="182" frameX="-38" frameY="-29" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0015" x="0" y="485" width="279" height="182" frameX="-38" frameY="-29" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0016" x="279" y="485" width="277" height="185" frameX="-40" frameY="-26" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0017" x="279" y="485" width="277" height="185" frameX="-40" frameY="-26" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0018" x="556" y="485" width="269" height="206" frameX="-14" frameY="-14" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0019" x="556" y="485" width="269" height="206" frameX="-14" frameY="-14" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0020" x="0" y="691" width="264" height="209" frameX="-15" frameY="-14" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0021" x="0" y="691" width="264" height="209" frameX="-15" frameY="-14" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0022" x="264" y="691" width="286" height="216" frameX="-1" frameY="0" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0023" x="264" y="691" width="286" height="216" frameX="-1" frameY="0" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0024" x="550" y="691" width="283" height="214" frameX="0" frameY="-1" frameWidth="324" frameHeight="256"/>
+	<SubTexture name="RedCrew0025" x="550" y="691" width="283" height="214" frameX="0" frameY="-1" frameWidth="324" frameHeight="256"/>
+</TextureAtlas>

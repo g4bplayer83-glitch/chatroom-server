@@ -1,23 +1,27 @@
 {
   "IndieGabVR": {
     "username": "IndieGabVR",
-    "avatar": "",
-    "lastSeen": "2026-04-03T21:12:21.008Z",
+    "avatar": "/uploads/1788892514177-38301652-icon.png",
+    "lastSeen": "2026-09-08T18:35:02.498Z",
     "joinCount": 2,
-    "totalMessages": 0,
+    "totalMessages": 2,
     "totalReplies": 0,
-    "profileGradient": "linear-gradient(135deg, #5865f2, #9b59b6)",
-    "profileColor": null,
-    "lastUpdate": "2026-04-03T21:13:07.936Z"
+    "lastActivity": "2026-09-08T18:31:13.595Z",
+    "totalTime": 689828,
+    "lastSessionMessages": 2,
+    "lastSessionReplies": 0,
+    "lastUpdate": "2026-09-08T18:35:14.184Z",
+    "bio": ""
   },
-  "IndieGabVR2": {
-    "username": "IndieGabVR2",
+  "AAAA": {
+    "username": "AAAA",
     "avatar": "",
-    "lastSeen": "2026-04-03T21:12:15.944Z",
-    "joinCount": 3,
-    "totalMessages": 0,
+    "lastSeen": "2026-09-08T18:34:57.039Z",
+    "joinCount": 2,
+    "totalMessages": 4,
     "totalReplies": 0,
-    "totalTime": 62155,
+    "lastActivity": "2026-09-08T18:31:18.867Z",
+    "totalTime": 240293,
     "lastSessionMessages": 0,
     "lastSessionReplies": 0
   }

@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://dlcuuwru27f0m"]
+
+[ext_resource type="Script" uid="uid://bj7tgh8jkngdx" path="res://noah/game/character.gd" id="1_hywsc"]
+[node name="Character2dTemplate" type="Node2D" unique_id=1425138966 node_paths=PackedStringArray("animation_player")]
+script = ExtResource("1_hywsc")
+animation_player = NodePath("AnimatedSprite2D")
+animation_names = Dictionary[StringName, StringName]({
+&"down": &"",
+&"idle": &"",
+&"left": &"",
+&"right": &"",
+&"up": &""
+})
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=373744881]

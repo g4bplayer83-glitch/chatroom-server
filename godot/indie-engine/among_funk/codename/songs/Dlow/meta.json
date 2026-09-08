@@ -1,0 +1,15 @@
+{
+	"opponentModeAllowed": true,
+	"icon": "face",
+	"difficulties": [
+		"",
+		"hard"
+	],
+	"color": "#FFFFFF",
+	"coopAllowed": true,
+	"stepsPerBeat": 4,
+	"displayName": "dlow",
+	"needsVoices": true,
+	"beatsPerMeasure": 4,
+	"bpm": 170
+}

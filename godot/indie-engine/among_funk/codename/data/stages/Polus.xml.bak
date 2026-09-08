@@ -1,0 +1,14 @@
+<!DOCTYPE codename-engine-stage>
+<stage folder="stages/polus/" startCamPosX="-500" name="Polus" zoom="1">
+	<sprite type="none" scale="1.4" sprite="Polus-Fond" name="Polus-Fond"/>
+	<sprite type="none" scale="1.4" sprite="Polus-Rock" name="Polus-Rock"/>
+	<sprite type="none" scale="1.4" sprite="Polus-Chemin" name="Polus-Chemin"/>
+	<sprite type="none" scale="1.4" sprite="Polus-Wall" name="Polus-Wall"/>
+	<sprite type="none" scale="1.4" sprite="Polus-Room" name="Polus-Room"/>
+	<sprite type="none" scale="1.4" sprite="Polus-Things" name="Polus-Things"/>
+	<sprite type="none" scale="1.4" sprite="Polus-Grillage" name="Polus-Grillage"/>
+	<sprite type="none" scale="1.4" sprite="Polus-Things2" name="Polus-Things2"/>
+	<girlfriend x="759.603159382688" scroll="1" y="377.329579799835"/>
+	<dad x="393.221059558646" y="344.148167407661"/>
+	<boyfriend x="1243.54446847127" y="377.423326102246"/>
+</stage>

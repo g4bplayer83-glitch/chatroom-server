@@ -1,37 +1,64 @@
 {
   "indiegabvr": {
     "username": "IndieGabVR",
-    "passwordHash": "14ae4112027403d0f6e55abafec42345c357783c1cf6ed2a04a44a586510114bc68374f4b2c8e754166ba052e1608774815bc67a61725fb27a0de7411f0d55cf",
-    "salt": "8599dc29b3c3a84a5c91a7fae3d422f8",
-    "createdAt": "2026-04-01T19:13:00.118Z",
-    "lastLogin": "2026-04-09T17:33:23.240Z"
+    "passwordHash": "eeb0e59d5963945b367fcde1e623c4524632cb2774c02fade448dc43c229c736c8eccc16a46f50a9a934b1ab6c3ba6553bb06ae22523e6f3e6c2abff165cd13a",
+    "passwordIterations": 210000,
+    "salt": "8a2b171918dca551f8bbac59da4cb2bf",
+    "createdAt": "2026-09-08T18:21:46.274Z",
+    "lastLogin": "2026-09-08T19:33:09.270Z",
+    "sessions": [
+      {
+        "hash": "d14aaad377cd5578070c66319a90f6c3b8328c9ed4641638b6a1a01d9d0ef333",
+        "expiresAt": 1791483706275
+      },
+      {
+        "hash": "cc3e5c6198505e797da05a625452eb4c69e4460e0298898fc6cacf9c59610ca9",
+        "expiresAt": 1791484524760
+      },
+      {
+        "hash": "6af0e14826d4640ff1793580a4b2d78b484954e669228c942192075444d3fa28",
+        "expiresAt": 1791484751513
+      },
+      {
+        "hash": "296b6837410f0735f422c3f0061086b7bc0e0e41b18658a3ef32b6013d952632",
+        "expiresAt": 1791485331670
+      },
+      {
+        "hash": "137d728536cadba6a9717dd80214ecf3b638965b40a2cb2e3cedc9caca3aff94",
+        "expiresAt": 1791485575640
+      },
+      {
+        "hash": "ac2beb38c1c7ef6c54a619262e50bbe413a086064f5b667be13f18dd61b55281",
+        "expiresAt": 1791487078292
+      },
+      {
+        "hash": "29c1f1af054dc12d499b19de1f776f69972c13c2d5f434561ca2418e3094ce6d",
+        "expiresAt": 1791487989271
+      }
+    ],
+    "dmRead": {
+      "aaaa:indiegabvr": 1788895673168
+    }
   },
-  "indiegabvr2": {
-    "username": "IndieGabVR2",
-    "passwordHash": "f7395e928d37b7ad5efa881dc2317d3afd455266833a371659a360765a9ac8a408371795d846e476da272e447c21ff1d2136faaa48fee5254ff2877bab0b8169",
-    "salt": "12d76ad400ff82027b440b066d15156b",
-    "createdAt": "2026-04-02T19:39:43.693Z",
-    "lastLogin": "2026-04-05T10:29:26.430Z"
-  },
-  "indie": {
-    "username": "Indie",
-    "passwordHash": "8273c080bc10f034ed483952aaf638a5b0544d407dc659e69801c9eed7bc4612fd32f6f2a3ac0dfbdecbe2eb7cabe6950426f29f3494befddcffbbd6acff604c",
-    "salt": "9b7b3ef9307ae46b4dc77ac960332dec",
-    "createdAt": "2026-04-05T09:41:15.919Z",
-    "lastLogin": "2026-04-08T09:22:09.929Z"
-  },
-  "dgfh": {
-    "username": "dgfh",
-    "passwordHash": "f1a9b848e788b52111f94dea138d838eebf32395e014664358672032d5b0f7d046074f2d81bfd1f005b4c2b556ee6e22747d288ef5417096b59f351d04440d21",
-    "salt": "21485c92ea51da3499ad20801f38ad58",
-    "createdAt": "2026-04-07T12:31:45.967Z",
-    "lastLogin": "2026-04-09T17:33:24.607Z"
-  },
-  "sdfgsdfg": {
-    "username": "sdfgsdfg",
-    "passwordHash": "b098152f6e1d1112b9a4b8a503752888e353ac605ece0df354e8251b6c731ef32a8c923b825fed3b90b1788b3b543300f5d57d7d86c3b011588f9454382535a0",
-    "salt": "e6672b5ee86c47020e4bc1afcb10c6ab",
-    "createdAt": "2026-04-07T12:56:34.834Z",
-    "lastLogin": "2026-04-07T12:56:34.834Z"
+  "aaaa": {
+    "username": "AAAA",
+    "passwordHash": "76dabf5cd083b90fd0ab23fbfb41d3584d60cea0e35da05ae6ec05dee3fddec4e64d86bfa76ad23cd9b69d1a92932e6f385bf627360b466382130212f6abf3b3",
+    "passwordIterations": 210000,
+    "salt": "3afcfc5599071c9cd3fd10bd62cf48ea",
+    "createdAt": "2026-09-08T18:30:56.489Z",
+    "lastLogin": "2026-09-08T19:33:58.521Z",
+    "sessions": [
+      {
+        "hash": "ad141491d2183d590766784ea18c35fa63fc14cb3b354a21709059d55b36cb42",
+        "expiresAt": 1791487642181
+      },
+      {
+        "hash": "9e9d3e388dd65fac060580e451346084aac374b2243300e2eb00a320628e410e",
+        "expiresAt": 1791488038522
+      }
+    ],
+    "dmRead": {
+      "aaaa:indiegabvr": 1788895673168
+    }
   }
 }

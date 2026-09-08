@@ -1,0 +1,39 @@
+{
+    "params": [
+        {
+            "name": "Activer",
+            "type": "Bool",
+            "defaultValue": true
+        },
+        {
+            "name": "Camera",
+            "type": "DropDown('camGame','camHUD','both')",
+            "defaultValue": "both"
+        },
+        {
+            "name": "Tous les X beats",
+            "type": "Float(1, 16, 1, 0)",
+            "defaultValue": 1
+        },
+        {
+            "name": "Zoom camGame",
+            "type": "Float(-0.5, 0.5, 0.005, 3)",
+            "defaultValue": 0.035
+        },
+        {
+            "name": "Zoom camHUD",
+            "type": "Float(-0.5, 0.5, 0.005, 3)",
+            "defaultValue": 0.020
+        },
+        {
+            "name": "Retour duree",
+            "type": "Float(0.01, 2, 0.01, 2)",
+            "defaultValue": 0.12
+        },
+        {
+            "name": "Alterner +/-",
+            "type": "Bool",
+            "defaultValue": false
+        }
+    ]
+}

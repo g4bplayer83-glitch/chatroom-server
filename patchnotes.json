@@ -1,8 +1,33 @@
 {
-  "currentVersion": "3.4.0-beta",
-  "build": "3.4.0-beta-20260905",
-  "lastUpdate": "05/09/2026",
+  "currentVersion": "3.5.1",
+  "build": "3.5.1-20260908",
+  "lastUpdate": "08/09/2026",
   "versions": [
+    {
+      "version": "3.5.1",
+      "title": "Les amis, les médias et le jeu ensemble",
+      "date": "08/09/2026",
+      "changes": [
+        "Invitations à rejoindre Pong, Tetris et Neon Maze. Pong propose désormais un duel en ligne avec scores calculés par le serveur.",
+        "Caméra au choix et partage d’écran dans les salons vocaux, avec arrêt indépendant de chaque capture.",
+        "Notifications d’amitié, mentions avec suggestions et sons du projet réglables.",
+        "Statut d’amitié et avatars actualisés. Barre d’actions des messages et icônes mieux alignées.",
+        "GIFs animés, favoris et recherche. Suggestions YouTube disponibles avec une clé API.",
+        "Statistiques de durée et notes de mise à jour lisibles."
+      ]
+    },
+    {
+      "version": "3.5.0",
+      "title": "L’espace retrouve ses habitudes",
+      "date": "08/09/2026",
+      "changes": [
+        "Interface compacte, thèmes ouverts et membres visibles.",
+        "Menu rapide, recherche, notifications et administration.",
+        "Images collées, émojis, sondages persistants et messages vocaux.",
+        "Menus de messages, lecture des MP et réactions privées.",
+        "Arcade unifiée, contrôles corrigés et Indie Engine sur le web."
+      ]
+    },
     {
       "version": "3.4.0-beta",
       "title": "DocSpace 3.4 — DMs, comptes, Plus et interface fluide",

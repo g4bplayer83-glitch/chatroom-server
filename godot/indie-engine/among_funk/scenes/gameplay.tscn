@@ -1,0 +1,90 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://among_funk/scripts/among_funk_gameplay.gd" id="1_game"]
+[ext_resource type="Script" path="res://among_funk/scripts/cne_stage.gd" id="2_stage"]
+[ext_resource type="Script" path="res://among_funk/scripts/cne_character.gd" id="3_character"]
+[ext_resource type="PackedScene" path="res://noah/game/playstate.tscn" id="4_playstate"]
+[ext_resource type="PackedScene" path="res://among_funk/scenes/among_funk_ui.tscn" id="5_ui"]
+[ext_resource type="Script" path="res://noah/game/camera_controller.gd" id="6_camera"]
+[ext_resource type="Resource" path="res://noah/assets/custom_note/custom_note_skin.tres" id="7_notes"]
+[ext_resource type="Resource" path="res://among_funk/data/among_ui_skin.tres" id="8_ui_skin"]
+[ext_resource type="Script" path="res://among_funk/scripts/mobile_controls.gd" id="9_mobile"]
+
+[node name="Among Funk Gameplay" type="Node2D"]
+script = ExtResource("1_game")
+
+[node name="GameplayBrightness" type="CanvasModulate" parent="."]
+color = Color(1.12, 1.12, 1.16, 1)
+
+[node name="Stage" type="Node2D" parent="."]
+unique_name_in_owner = true
+script = ExtResource("2_stage")
+
+[node name="Enemy" type="Node2D" parent="." groups=["enemy"]]
+unique_name_in_owner = true
+z_index = 5
+script = ExtResource("3_character")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Enemy"]
+
+[node name="Player" type="Node2D" parent="." groups=["player"]]
+unique_name_in_owner = true
+z_index = 6
+script = ExtResource("3_character")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Player"]
+
+[node name="Metronome" type="Node2D" parent="." groups=["metronome"]]
+unique_name_in_owner = true
+z_index = 4
+script = ExtResource("3_character")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Metronome"]
+
+[node name="PlayerCamera" type="Marker2D" parent="." groups=["camera_positions"]]
+unique_name_in_owner = true
+position = Vector2(880, 360)
+
+[node name="EnemyCamera" type="Marker2D" parent="." groups=["camera_positions"]]
+unique_name_in_owner = true
+position = Vector2(400, 360)
+
+[node name="GFCamera" type="Marker2D" parent="." groups=["camera_positions"]]
+unique_name_in_owner = true
+position = Vector2(640, 320)
+
+[node name="Rating Marker" type="Marker2D" parent="."]
+unique_name_in_owner = true
+position = Vector2(550, 470)
+
+[node name="Combo Marker" type="Marker2D" parent="."]
+unique_name_in_owner = true
+position = Vector2(700, 525)
+
+[node name="GameCamera" type="Camera2D" parent="."]
+unique_name_in_owner = true
+position = Vector2(640, 360)
+position_smoothing_enabled = true
+position_smoothing_speed = 5.0
+rotation_smoothing_enabled = true
+rotation_smoothing_speed = 5.0
+
+[node name="CameraController" type="Node" parent="." node_paths=PackedStringArray("parent_2d")]
+unique_name_in_owner = true
+script = ExtResource("6_camera")
+parent_2d = NodePath("../GameCamera")
+
+[node name="AmongUI" parent="." instance=ExtResource("5_ui")]
+unique_name_in_owner = true
+
+[node name="MobileControls" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+script = ExtResource("9_mobile")
+
+[node name="PlayState" parent="." node_paths=PackedStringArray("host", "ui", "camera") instance=ExtResource("4_playstate")]
+host = NodePath("..")
+ui = NodePath("../AmongUI")
+camera = NodePath("../CameraController")
+note_skin = ExtResource("7_notes")
+ui_skin = ExtResource("8_ui_skin")
+next_scene = "res://among_funk/scenes/results_menu.tscn"

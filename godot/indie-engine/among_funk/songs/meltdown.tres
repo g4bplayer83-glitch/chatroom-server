@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Song" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://noah/resources/song.gd" id="1_song"]
+
+[resource]
+script = ExtResource("1_song")
+id = "Meltdown"
+vocals = Array[String](["res://among_funk/codename/songs/Meltdown/song/Voices.ogg"])
+instrumental = "res://among_funk/codename/songs/Meltdown/song/Inst.ogg"
+tempo = 113.0
+scene = "res://among_funk/scenes/gameplay.tscn"
+difficulties = Dictionary[String, Dictionary]({"hard": {"chart": "res://among_funk/codename/songs/Meltdown/charts/hard.json"}})
+title = "Meltdown"
+artist = "TBA"
+charter = "TBA"
+metadata = {"source_engine": "Codename Engine", "source_folder": "Meltdown", "stage": "Polus"}

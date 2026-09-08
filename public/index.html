@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#15171f" />
+    <meta
+      name="description"
+      content="Ton espace pour discuter, partager et jouer ensemble."
+    />
+    <title>DocSpace · Ensemble, même de loin</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="/arcade.css" />
+    <link rel="stylesheet" href="/features.css" />
+    <script src="/socket.io/socket.io.js" defer></script>
+    <script src="/app.js" defer></script>
+    <script src="/arcade.js" defer></script>
+  </head>
+  <body>
+    <section id="auth" class="auth-page">
+      <div class="auth-story">
+        <a class="brand" href="/">◈ <span>DocSpace</span></a
+        ><span class="eyebrow">TON PETIT COIN D’INTERNET</span>
+        <h1>Ensemble.<br />Même de loin<span>.</span></h1>
+        <p>
+          Un espace pour tes amis, tes idées et les parties qui se prolongent.
+        </p>
+        <div class="auth-preview">
+          <div class="preview-bubble">
+            <span class="avatar">M</span>
+            <div>
+              <strong>Mila <small>À l’instant</small></strong>
+              <p>On travaille un peu, puis une partie ?</p>
+            </div>
+          </div>
+          <div class="preview-bubble">
+            <span class="avatar mint">A</span>
+            <div>
+              <strong>Alex <small>À l’instant</small></strong>
+              <p>Ça me va 🙌</p>
+            </div>
+          </div>
+          <div class="preview-voice">
+            ◉ <span>Le salon est ouvert</span><span class="avatars">M A +</span>
+          </div>
+        </div>
+        <small>Discussions · Fichiers · Vocal · Arcade</small>
+      </div>
+      <div class="auth-card">
+        <span class="wordmark">◈ DocSpace</span>
+        <h2 id="auth-title">Content de te revoir.</h2>
+        <p id="auth-subtitle">Retrouve ton espace et tes conversations.</p>
+        <form id="auth-form">
+          <label
+            >Pseudo<input
+              id="login-name"
+              name="username"
+              autocomplete="username"
+              required
+              minlength="2"
+              maxlength="20"
+              pattern="[a-zA-Z0-9_.-]+"
+              placeholder="Ton pseudo" /></label
+          ><label
+            >Mot de passe
+            <div class="password-field">
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                maxlength="128"
+                placeholder="Ton mot de passe"
+              /><button
+                type="button"
+                id="show-password"
+                aria-label="Afficher le mot de passe"
+              >
+                ◉
+              </button>
+            </div></label
+          ><label id="confirm-wrap" hidden
+            >Confirmer le mot de passe<input
+              id="confirm-password"
+              type="password"
+              autocomplete="new-password"
+              maxlength="128"
+          /></label>
+          <p id="auth-error" class="error" role="alert"></p>
+          <button id="auth-submit" class="primary wide" type="submit">
+            Se connecter <span>→</span>
+          </button>
+        </form>
+        <p class="auth-switch">
+          <span id="auth-switch-text">Tu nous rejoins ?</span>
+          <button id="auth-toggle" class="link">Créer un compte</button>
+        </p>
+        <small
+          >Pas d’adresse email à fournir. Garde ton mot de passe en lieu
+          sûr.</small
+        >
+      </div>
+    </section>
+    <div id="app" hidden>
+      <nav class="rail" aria-label="Espaces">
+        <a class="rail-logo" href="/" aria-label="DocSpace">◈</a
+        ><button
+          data-view="dms"
+          aria-label="Messages privés"
+          title="Messages privés"
+          data-icon="chat"
+        ></button>
+        <div class="rail-divider"></div>
+        <button
+          data-view="channels"
+          class="server-icon active"
+          aria-label="Serveur DocSpace"
+        >
+          DS</button
+        ><button
+          data-view="files"
+          aria-label="Fichiers"
+          title="Fichiers"
+          data-icon="folder"
+        ></button
+        ><button
+          data-view="arcade"
+          aria-label="Arcade"
+          title="Arcade"
+          data-icon="game"
+        ></button>
+        <div class="rail-grow"></div>
+        <button
+          data-settings
+          aria-label="Paramètres"
+          title="Paramètres"
+          data-icon="settings"
+        ></button>
+      </nav>
+      <button
+        class="drawer-shade"
+        id="drawer-shade"
+        aria-label="Fermer le menu"
+        hidden
+      ></button>
+      <aside class="sidebar" id="sidebar">
+        <header>
+          <strong id="sidebar-title">DocSpace</strong
+          ><button class="badge" data-feature="patches">3.5.1</button>
+        </header>
+        <div class="sidebar-scroll">
+          <button id="find-person" class="search-button">
+            <span data-icon="search"></span>Retrouver quelqu’un
+          </button>
+          <div id="nav-list"></div>
+          <div id="voice-list"></div>
+        </div>
+        <div id="voice-panel" hidden>
+          <strong id="voice-status">Vocal connecté</strong>
+          <div class="voice-actions">
+            <button
+              id="mic-toggle"
+              aria-label="Couper le micro"
+              data-icon="mic"
+            ></button
+            ><button
+              id="audio-toggle"
+              aria-label="Couper le son"
+              data-icon="headphones"
+            ></button
+            ><button
+              id="voice-leave"
+              aria-label="Quitter le vocal"
+              data-icon="phone-off"
+            ></button>
+          </div>
+        </div>
+        <button class="self-card" data-settings>
+          <span id="self-avatar" class="avatar">D</span
+          ><span
+            ><strong id="self-name">Mon compte</strong
+            ><small id="self-status">Disponible</small></span
+          ><span data-icon="settings"></span>
+        </button>
+      </aside>
+      <main id="main">
+        <header class="topbar">
+          <button
+            id="menu-toggle"
+            class="mobile-only icon-button"
+            aria-label="Ouvrir le menu"
+            data-icon="menu"
+          ></button>
+          <div class="view-heading">
+            <span id="view-symbol">#</span>
+            <div>
+              <strong id="view-title">général</strong
+              ><small id="view-description"
+                >Les discussions commencent ici.</small
+              >
+            </div>
+          </div>
+          <span id="connection-state" class="connection">Connexion…</span
+          ><button
+            id="members-toggle"
+            class="icon-button"
+            aria-label="Afficher les membres"
+            data-icon="users"
+          ></button>
+        </header>
+        <div id="workspace">
+          <section id="conversation">
+            <div
+              id="message-list"
+              role="log"
+              aria-label="Messages"
+              aria-live="polite"
+            ></div>
+            <button id="new-messages" class="floating-pill" hidden>
+              Nouveaux messages ↓
+            </button>
+            <div id="typing" aria-live="polite"></div>
+            <div id="reply-preview" hidden></div>
+            <form id="composer">
+              <button type="button" class="icon-button" id="attach-button" title="Ajouter au message" aria-label="Ajouter au message" aria-expanded="false"><span data-icon="plus"></span></button><input id="file-input" type="file" hidden /><textarea
+                id="message-input"
+                rows="1"
+                maxlength="500"
+                placeholder="Envoyer un message dans #général"
+                aria-label="Ton message"
+              ></textarea
+              ><button type="button" id="gif-button" class="icon-button" aria-label="Choisir un GIF">GIF</button><button
+                type="button"
+                id="emoji-button"
+                class="icon-button"
+                aria-label="Choisir un emoji"
+                data-icon="smile"
+              ></button
+              ><button
+                type="submit"
+                class="send-button"
+                aria-label="Envoyer"
+                data-icon="send"
+              ></button>
+            </form>
+            <div id="attachment-preview" hidden></div>
+            <small class="composer-hint"
+              >Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne</small
+            >
+          </section>
+          <section id="page" hidden></section>
+          <aside id="members" class="members"></aside>
+        </div>
+      </main>
+      <nav class="mobile-nav" aria-label="Navigation mobile">
+        <button
+          data-view="channels"
+          data-icon="hash"
+          aria-label="Salons"
+        ></button
+        ><button
+          data-view="dms"
+          data-icon="chat"
+          aria-label="Messages privés"
+        ></button
+        ><button
+          data-view="files"
+          data-icon="folder"
+          aria-label="Fichiers"
+        ></button
+        ><button
+          data-view="arcade"
+          data-icon="game"
+          aria-label="Arcade"
+        ></button
+        ><button
+          data-settings
+          data-icon="settings"
+          aria-label="Paramètres"
+        ></button>
+      </nav>
+    </div>
+    <dialog id="settings-dialog" class="settings-dialog">
+      <header>
+        <div>
+          <span class="eyebrow">À TA FAÇON</span>
+          <h2>Paramètres</h2>
+        </div>
+        <button
+          class="icon-button"
+          data-close-dialog
+          aria-label="Fermer les paramètres"
+          data-icon="close"
+        ></button>
+      </header>
+      <nav id="settings-tabs" aria-label="Catégories des paramètres">
+        <button data-tab="profile">Profil</button
+        ><button data-tab="account">Compte</button
+        ><button data-tab="appearance">Apparence</button
+        ><button data-tab="voice">Voix</button
+        ><button data-tab="plus">DocSpace Plus</button>
+      </nav>
+      <div id="settings-content"></div>
+    </dialog>
+    <dialog id="person-dialog">
+      <header>
+        <h2>Retrouver quelqu’un</h2>
+        <button
+          class="icon-button"
+          data-close-dialog
+          aria-label="Fermer"
+          data-icon="close"
+        ></button>
+      </header>
+      <form id="person-form">
+        <label
+          >Pseudo exact<input
+            id="person-name"
+            required
+            maxlength="20"
+            placeholder="Le pseudo de ton ami"
+            autocomplete="off" /></label
+        ><button class="primary">Ouvrir la conversation</button>
+      </form>
+    </dialog>
+    <dialog id="emoji-dialog">
+      <header>
+        <h2>Un peu de couleur</h2>
+        <button
+          class="icon-button"
+          data-close-dialog
+          aria-label="Fermer"
+          data-icon="close"
+        ></button>
+      </header>
+      <div id="emoji-grid"></div>
+    </dialog>
+    <div id="toast" role="status" hidden></div>
+    <div id="remote-audio"></div>
+    <script src="/voice.js" defer></script>
+    <script src="/features.js" defer></script>
+    <script src="/sounds.js" defer></script>
+    <script src="/social.js" defer></script>
+  </body>
+</html>

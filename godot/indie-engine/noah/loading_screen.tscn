@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://ld5hyjhtx8wg"]
+
+[ext_resource type="Script" uid="uid://cbjq3veqm6jql" path="res://noah/loading_screen.gd" id="1_ojpmn"]
+
+[node name="Loading Screen" type="Node2D" unique_id=2045935946]
+process_mode = 3
+script = ExtResource("1_ojpmn")
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1765672859]
+offset = Vector2(640, 360)
+
+[node name="Background" type="CanvasLayer" parent="." unique_id=422845927]
+layer = 0
+
+[node name="ProgressBar" type="ProgressBar" parent="Background" unique_id=392658439]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -27.0
+grow_horizontal = 2
+grow_vertical = 0
+metadata/_edit_lock_ = true

@@ -1,0 +1,9 @@
+<!DOCTYPE codename-engine-character>
+<character sprite="red-not-imposter" scale="1" camx="-80" camy="120" icon="RedCrewmate" color="#D22929">
+	<anim name="idle" anim="Idle" fps="14" loop="true"/>
+	<anim name="singDOWN" anim="Down" fps="14"/>
+	<anim name="singRIGHT" anim="Right" fps="14"/>
+	<anim name="singLEFT" anim="Left" fps="14"/>
+	<anim name="singUP" anim="Up" fps="14"/>
+	<anim name="hey" anim="Hey" fps="14"/>
+</character>

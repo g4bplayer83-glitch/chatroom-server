@@ -1,0 +1,154 @@
+{
+  "aaaa:indiegabvr": [
+    {
+      "id": "fe3a0402-a207-4eb1-9034-59a9ea1d037f",
+      "from": "IndieGabVR",
+      "to": "AAAA",
+      "content": "yo",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T18:31:39.298Z",
+      "avatar": ""
+    },
+    {
+      "id": "07d993f8-fb97-41b0-a671-7e6a9adc26ea",
+      "from": "IndieGabVR",
+      "to": "AAAA",
+      "content": "qsf",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T18:31:41.355Z",
+      "avatar": ""
+    },
+    {
+      "id": "77b2370c-1db7-4d8e-a578-9667a95a61ca",
+      "from": "AAAA",
+      "to": "IndieGabVR",
+      "content": "y'a quoi",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T18:31:47.675Z",
+      "avatar": ""
+    },
+    {
+      "id": "4e687af2-42b9-4ca6-926d-5885f7e27a40",
+      "from": "AAAA",
+      "to": "IndieGabVR",
+      "content": "eh",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T18:31:50.978Z",
+      "avatar": ""
+    },
+    {
+      "id": "f833f5cc-dca7-40e4-bc4a-820c900aeaf3",
+      "from": "AAAA",
+      "to": "IndieGabVR",
+      "content": "ta",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T18:31:51.686Z",
+      "avatar": ""
+    },
+    {
+      "id": "6b521b9a-400a-4a39-a51d-b82e37184d27",
+      "from": "AAAA",
+      "to": "IndieGabVR",
+      "content": "geule",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T18:31:54.239Z",
+      "avatar": ""
+    },
+    {
+      "id": "cb00ec0b-a9b3-4226-95bf-5d09a1a9e010",
+      "from": "IndieGabVR",
+      "to": "AAAA",
+      "content": "http://localhost:8080",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T18:32:20.625Z",
+      "avatar": ""
+    },
+    {
+      "id": "7c1acb49-fe6b-441a-8cea-18891fd02e54",
+      "from": "IndieGabVR",
+      "to": "AAAA",
+      "content": "",
+      "attachment": {
+        "path": "/uploads/1788895208768-22707107-vocal-1788895202615.webm",
+        "filename": "1788895208768-22707107-vocal-1788895202615.webm",
+        "originalname": "vocal-1788895202615.webm",
+        "size": 25027,
+        "mimetype": "audio/webm",
+        "isVoiceClip": true,
+        "duration": 3.111
+      },
+      "replyTo": null,
+      "timestamp": "2026-09-08T19:20:11.032Z",
+      "avatar": "/uploads/1788892514177-38301652-icon.png"
+    },
+    {
+      "id": "26c46afd-31ee-4b2b-99c1-05304f5e75f0",
+      "from": "IndieGabVR",
+      "to": "AAAA",
+      "content": "",
+      "attachment": {
+        "path": "/uploads/1788895219080-732250496-image.png",
+        "filename": "1788895219080-732250496-image.png",
+        "originalname": "image.png",
+        "size": 96547,
+        "mimetype": "image/png"
+      },
+      "replyTo": null,
+      "timestamp": "2026-09-08T19:20:20.254Z",
+      "avatar": "/uploads/1788892514177-38301652-icon.png"
+    },
+    {
+      "id": "609488ee-d642-492d-81dd-ab64a0eb43c6",
+      "from": "IndieGabVR",
+      "to": "AAAA",
+      "content": "",
+      "attachment": {
+        "path": "/uploads/1788895222590-582336685-image.png",
+        "filename": "1788895222590-582336685-image.png",
+        "originalname": "image.png",
+        "size": 96547,
+        "mimetype": "image/png"
+      },
+      "replyTo": null,
+      "timestamp": "2026-09-08T19:20:23.085Z",
+      "avatar": "/uploads/1788892514177-38301652-icon.png"
+    },
+    {
+      "id": "ea41fdff-6ff1-4cb7-a68e-c8d6a12823cf",
+      "from": "AAAA",
+      "to": "IndieGabVR",
+      "content": "broo",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T19:27:37.544Z",
+      "avatar": ""
+    },
+    {
+      "id": "376a45be-4785-4a4b-b32e-ee3fce03967e",
+      "from": "IndieGabVR",
+      "to": "AAAA",
+      "content": "quoi ?",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T19:27:46.628Z",
+      "avatar": "/uploads/1788892514177-38301652-icon.png"
+    },
+    {
+      "id": "c8cbcccc-4d67-4c8a-ba2d-3f5ad81bf16d",
+      "from": "AAAA",
+      "to": "IndieGabVR",
+      "content": "NIQUE TA RACE",
+      "attachment": null,
+      "replyTo": null,
+      "timestamp": "2026-09-08T19:27:53.168Z",
+      "avatar": ""
+    }
+  ]
+}

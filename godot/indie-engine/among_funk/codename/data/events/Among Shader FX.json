@@ -1,0 +1,29 @@
+{
+    "params": [
+        {
+            "name": "Effect",
+            "type": "DropDown('snow','space-dust','scanlines','warning','aurora')",
+            "defaultValue": "snow"
+        },
+        {
+            "name": "Enable",
+            "type": "Bool",
+            "defaultValue": true
+        },
+        {
+            "name": "Intensity",
+            "type": "Float(0, 4, 0.05, 2)",
+            "defaultValue": 1.0
+        },
+        {
+            "name": "Speed",
+            "type": "Float(0, 6, 0.05, 2)",
+            "defaultValue": 1.0
+        },
+        {
+            "name": "Color",
+            "type": "ColorWheel",
+            "defaultValue": "#66CCFF"
+        }
+    ]
+}
