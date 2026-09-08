@@ -151,7 +151,7 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), display-capture=(self), geolocation=()');
     next();
@@ -209,7 +209,7 @@ app.use('/uploads', express.static(uploadDir, {
 
 // Servir les fichiers publics historiques. Les chemins sensibles sont filtrés
 // ci-dessus afin de conserver la compatibilité avec l'interface monofichier.
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
 
 // Variables pour stocker les données
 let connectedUsers = new Map(); // socketId -> userData
@@ -660,7 +660,7 @@ function emitMissionRewardsToSocket(targetSocket, username, rewards = [], option
             rewardXP: reward.rewardXP
         });
         if (reward.levelUp) {
-            io.emit('system_message', {
+            io.to('authenticated').emit('system_message', {
                 type: 'system', message: `🎉 ${username} a atteint le niveau ${reward.newLevel} !`, timestamp: new Date(), id: messageId++
             });
         }
@@ -753,7 +753,7 @@ function addPresenceEntry(username, action) {
         presenceHistory = presenceHistory.slice(-MAX_PRESENCE_HISTORY);
     }
     savePresenceHistory();
-    io.emit('presence_history_append', entry);
+    io.to('authenticated').emit('presence_history_append', entry);
 }
 
 // === SERVER ENVIRONMENT DETECTION ===
@@ -970,7 +970,7 @@ function evictSocketConnection(socketId, options = {}) {
     for (const [roomName, roomData] of Object.entries(voiceRooms || {})) {
         if (!roomData || !roomData.participants || !roomData.participants.has(socketId)) continue;
         roomData.participants.delete(socketId);
-        io.emit('voice_participants_update', { room: roomName, participants: getVoiceParticipants(roomName) });
+        io.to('authenticated').emit('voice_participants_update', { room: roomName, participants: getVoiceParticipants(roomName) });
         io.to('voice_' + roomName).emit('voice_peer_left', { socketId });
     }
 
@@ -1234,7 +1234,7 @@ function getLiveOpsPayload() {
 }
 
 function broadcastLiveOpsState() {
-    io.emit('season_event_state', getLiveOpsPayload());
+    io.to('authenticated').emit('season_event_state', getLiveOpsPayload());
 }
 
 function emitLiveOpsSystemMessage(message) {
@@ -1245,7 +1245,7 @@ function emitLiveOpsSystemMessage(message) {
         id: messageId++
     };
     addToHistory(systemMessage);
-    io.emit('system_message', systemMessage);
+    io.to('authenticated').emit('system_message', systemMessage);
 }
 
 function activateLiveEvent(eventId, options = {}) {
@@ -1773,29 +1773,11 @@ function hashPassword(password, salt, iterations = CURRENT_PASSWORD_ITERATIONS) 
     return crypto.pbkdf2Sync(password, salt, iterations, 64, 'sha512').toString('hex');
 }
 
-function normalizeEmail(value) {
-    return String(value || '').trim().toLowerCase().substring(0, 160);
-}
-
-function isValidEmail(value) {
-    const email = normalizeEmail(value);
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
-}
-
 function findAccountEntry(identifier) {
     const needle = String(identifier || '').trim().toLowerCase();
     if (!needle) return null;
-    if (accounts[needle]) return { key: needle, account: accounts[needle] };
-    for (const [key, account] of Object.entries(accounts)) {
-        if (normalizeEmail(account?.email) === needle) return { key, account };
-    }
+    if (Object.hasOwn(accounts, needle)) return { key: needle, account: accounts[needle] };
     return null;
-}
-
-function isEmailUsed(email, exceptKey = '') {
-    const normalized = normalizeEmail(email);
-    if (!normalized) return false;
-    return Object.entries(accounts).some(([key, account]) => key !== exceptKey && normalizeEmail(account?.email) === normalized);
 }
 
 function getAuthenticatedAccount(socket) {
@@ -1808,7 +1790,6 @@ function getAuthenticatedAccount(socket) {
 function publicAccountData(account) {
     return {
         username: String(account?.username || ''),
-        email: normalizeEmail(account?.email),
         plusActive: !!account?.plus?.active,
         plusActivatedAt: account?.plus?.activatedAt || null,
         createdAt: account?.createdAt || null
@@ -1817,6 +1798,26 @@ function publicAccountData(account) {
 
 function authBucketKey(socket) {
     return String(socket.handshake?.address || socket.conn?.remoteAddress || 'unknown').slice(0, 100);
+}
+
+// Seuls les condensats sont persistés; aucun mot de passe n'est conservé côté client.
+function issueAccountSession(account) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const now = Date.now();
+    account.sessions = (account.sessions || []).filter(s => s.expiresAt > now).slice(-7);
+    account.sessions.push({ hash: crypto.createHash('sha256').update(token).digest('hex'), expiresAt: now + 30 * 86400000 });
+    saveAccounts();
+    return token;
+}
+function accountForToken(token) {
+    if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return null;
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+    return Object.entries(accounts).find(([, account]) => (account.sessions || []).some(s => s.hash === hash && s.expiresAt > Date.now()));
+}
+function requireUploadAccount(req, res, next) {
+    const token = String(req.headers.authorization || '').replace(/^Bearer /, '');
+    if (!accountForToken(token)) return res.status(401).json({ error: 'Connecte-toi pour envoyer un fichier.' });
+    next();
 }
 
 function allowAccountAuth(socket) {
@@ -2165,17 +2166,20 @@ function logActivity(type, message, data = {}) {
 
 // Fonction utilitaire pour nettoyer les anciens fichiers
 function cleanupOldFiles() {
+    // Aucun document partagé n'expire implicitement. La rétention est volontaire.
+    const retentionDays = Number(process.env.DOCSPACE_UPLOAD_RETENTION_DAYS || 0);
+    if (!Number.isFinite(retentionDays) || retentionDays <= 0) return;
     try {
         const files = fs.readdirSync(uploadDir);
         const now = Date.now();
-        const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 jours
+        const maxAge = retentionDays * 24 * 60 * 60 * 1000;
         let cleanedCount = 0;
         
         files.forEach(file => {
             const filePath = path.join(uploadDir, file);
             const stats = fs.statSync(filePath);
             
-            if (now - stats.mtime.getTime() > maxAge) {
+            if (stats.isFile() && now - stats.mtime.getTime() > maxAge) {
                 fs.unlinkSync(filePath);
                 cleanedCount++;
             }
@@ -2192,11 +2196,11 @@ function cleanupOldFiles() {
 // Routes
 app.get('/', (req, res) => {
     logActivity('SYSTEM', `Page d'accueil visitée depuis ${req.ip}`);
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Route pour l'upload de fichiers
-app.post('/upload', (req, res) => {
+app.post('/upload', requireUploadAccount, (req, res) => {
     upload.single('file')(req, res, (err) => {
         if (err instanceof multer.MulterError) {
             logActivity('ERROR', 'Erreur Multer lors de l\'upload', { 
@@ -2241,7 +2245,7 @@ app.post('/upload', (req, res) => {
 });
 
 // Route pour l'upload d'avatars
-app.post('/upload-avatar', (req, res) => {
+app.post('/upload-avatar', requireUploadAccount, (req, res) => {
     avatarUpload.single('avatar')(req, res, (err) => {
         if (err instanceof multer.MulterError) {
             logActivity('ERROR', 'Erreur upload avatar', { 
@@ -2300,24 +2304,25 @@ app.get('/download/:filename', (req, res) => {
 });
 
 // === ROUTE ADMIN POUR RESET L'HISTORIQUE ===
-// Utiliser avec: /admin/reset?key=VOTRE_CLE_SECRETE
+// POST avec Authorization: Bearer <ADMIN_KEY>. Aucun secret par défaut.
 // Définir ADMIN_KEY dans les variables d'environnement de Fly.io
-app.get('/admin/reset', (req, res) => {
-    const adminKey = process.env.ADMIN_KEY || 'docspace2024';
+app.post('/admin/reset', (req, res) => {
+    const adminKey = process.env.ADMIN_KEY || '';
     
-    if (req.query.key !== adminKey) {
+    if (!adminKey || req.headers.authorization !== `Bearer ${adminKey}`) {
         return res.status(403).json({ error: 'Accès refusé' });
     }
     
     const oldCount = chatHistory.length;
     chatHistory = [];
     messageReactions = {};
-    messageId = 1;
+    for (const channel of Object.keys(channelHistories)) channelHistories[channel] = [];
+    saveChannelHistories();
     saveHistory();
     saveReactions();
     
     // Notifier tous les clients
-    io.emit('system_message', {
+    io.to('authenticated').emit('system_message', {
         type: 'system',
         message: '🗑️ L\'historique a été effacé par un administrateur',
         timestamp: new Date(),
@@ -2764,6 +2769,32 @@ app.get('/api/server/dashboard', (req, res) => {
 // Gestion des connexions Socket.IO
 io.on('connection', (socket) => {
     const clientIp = socket.handshake.address;
+    const publicEvents = new Set(['register_account', 'login_account', 'resume_account', 'check_account', 'ping']);
+    socket.use(([event, data], next) => {
+        if (event === 'change_username') return socket.emit('username_change_error', { message: 'Le pseudo du compte reste fixe pour protéger son historique.' });
+        if (!publicEvents.has(event) && !getAuthenticatedAccount(socket)) {
+            socket.emit('account_required', { message: 'Connecte-toi avec ton pseudo.' });
+            return;
+        }
+        if (data === null) return;
+        next();
+    });
+    socket.on('resume_account', (data = {}) => {
+        const entry = accountForToken(data.token);
+        if (!entry) return socket.emit('session_expired');
+        authenticatedSockets.add(socket.id);
+        authenticatedAccountKeys.set(socket.id, entry[0]);
+        socket.emit('account_logged_in', publicAccountData(entry[1]));
+    });
+    socket.on('logout_account', (data = {}) => {
+        const entry = getAuthenticatedAccount(socket);
+        if (entry) {
+            const hash = crypto.createHash('sha256').update(String(data.token || '')).digest('hex');
+            entry.account.sessions = (entry.account.sessions || []).filter(s => s.hash !== hash);
+            saveAccounts();
+        }
+        socket.disconnect(true);
+    });
     serverStats.totalConnections++;
     observability.sockets.totalConnections++;
     observability.sockets.currentTransportConnections = io.engine.clientsCount;
@@ -2784,6 +2815,8 @@ io.on('connection', (socket) => {
     socket.on('reaction', ({ messageId, emoji, action }) => {
         const user = connectedUsers.get(socket.id);
         if (!user || !messageId || !emoji) return;
+        if (['__proto__', 'prototype', 'constructor'].includes(emoji)) return;
+        if (!chatHistory.some(m => String(m.id) === String(messageId)) || typeof emoji !== 'string' || emoji.length > 64 || !['add', 'remove'].includes(action)) return;
         
         const username = user.username;
         
@@ -2814,7 +2847,7 @@ io.on('connection', (socket) => {
         }
         
         // Diffuser la mise à jour à tous les clients
-        io.emit('reaction_update', { 
+        io.to('authenticated').emit('reaction_update', {
             messageId, 
             reactions: messageReactions[messageId] || {} 
         });
@@ -2832,7 +2865,7 @@ io.on('connection', (socket) => {
                 xpEntry.lastReactionXpAt = now;
 
                 if (xpResult && xpResult.levelUp) {
-                    io.emit('system_message', {
+                    io.to('authenticated').emit('system_message', {
                         type: 'system',
                         message: `🎉 ${username} a atteint le niveau ${xpResult.newLevel} !`,
                         timestamp: new Date(),
@@ -2849,7 +2882,7 @@ io.on('connection', (socket) => {
                     rewardXP: reward.rewardXP
                 });
                 if (reward.levelUp) {
-                    io.emit('system_message', {
+                    io.to('authenticated').emit('system_message', {
                         type: 'system',
                         message: `🎉 ${username} a atteint le niveau ${reward.newLevel} !`,
                         timestamp: new Date(),
@@ -2896,7 +2929,7 @@ io.on('connection', (socket) => {
         });
         
         // Diffuser la mise à jour à tous les clients
-        io.emit('status_update', { 
+        io.to('authenticated').emit('status_update', {
             username, 
             status: userStatuses[username] 
         });
@@ -2993,7 +3026,7 @@ io.on('connection', (socket) => {
             };
             
             addToHistory(changeMessage);
-            io.emit('system_message', changeMessage);
+            io.to('authenticated').emit('system_message', changeMessage);
             
             // Mettre à jour la liste
             updateUsersList();
@@ -3009,7 +3042,7 @@ io.on('connection', (socket) => {
         const { password, action, target, value } = data;
         const adminPassword = process.env.ADMIN_PASSWORD || '';
         
-        if (password !== adminPassword) {
+        if (!adminPassword || password !== adminPassword) {
             socket.emit('admin_response', { success: false, message: 'Mot de passe incorrect' });
             return;
         }
@@ -3072,7 +3105,7 @@ io.on('connection', (socket) => {
                         id: messageId++
                     };
                     addToHistory(kickMsg);
-                    io.emit('system_message', kickMsg);
+                    io.to('authenticated').emit('system_message', kickMsg);
                 } else {
                     socket.emit('admin_response', { success: false, message: 'Utilisateur non trouvé' });
                 }
@@ -3121,7 +3154,7 @@ io.on('connection', (socket) => {
                         id: messageId++
                     };
                     addToHistory(banMsg);
-                    io.emit('system_message', banMsg);
+                    io.to('authenticated').emit('system_message', banMsg);
                     
                     logActivity('ADMIN', `Ban: ${target}`, { admin: adminName, duration: banDuration });
                 } else {
@@ -3151,7 +3184,7 @@ io.on('connection', (socket) => {
                         id: messageId++
                     };
                     addToHistory(renameMsg);
-                    io.emit('system_message', renameMsg);
+                    io.to('authenticated').emit('system_message', renameMsg);
                     
                     if (targetSocket) {
                         targetSocket.emit('force_rename', { newUsername: value });
@@ -3176,8 +3209,8 @@ io.on('connection', (socket) => {
                     timestamp: new Date(),
                     id: messageId++
                 };
-                io.emit('system_message', clearMsg);
-                io.emit('history_cleared');
+                io.to('authenticated').emit('system_message', clearMsg);
+                io.to('authenticated').emit('history_cleared');
                 
                 socket.emit('admin_response', { success: true, message: 'Historique effacé' });
                 break;
@@ -3191,7 +3224,7 @@ io.on('connection', (socket) => {
                         id: messageId++
                     };
                     addToHistory(broadcastMsg);
-                    io.emit('system_message', broadcastMsg);
+                    io.to('authenticated').emit('system_message', broadcastMsg);
                     socket.emit('admin_response', { success: true, message: 'Message diffusé' });
                 }
                 break;
@@ -3208,7 +3241,7 @@ io.on('connection', (socket) => {
                         });
                         savePinnedMessages();
                     }
-                    io.emit('pinned_update', { pinnedMessages });
+                    io.to('authenticated').emit('pinned_update', { pinnedMessages });
                     socket.emit('admin_response', { success: true, message: 'Message épinglé' });
                 }
                 break;
@@ -3217,7 +3250,7 @@ io.on('connection', (socket) => {
                 if (data.messageId) {
                     pinnedMessages = pinnedMessages.filter(m => String(m.id) !== String(data.messageId));
                     savePinnedMessages();
-                    io.emit('pinned_update', { pinnedMessages });
+                    io.to('authenticated').emit('pinned_update', { pinnedMessages });
                     socket.emit('admin_response', { success: true, message: 'Message désépinglé' });
                 }
                 break;
@@ -3242,7 +3275,7 @@ io.on('connection', (socket) => {
                 }
 
                 io.to('voice_' + roomName).emit('voice_peer_left', { socketId: targetSid });
-                io.emit('voice_participants_update', { room: roomName, participants: getVoiceParticipants(roomName) });
+                io.to('authenticated').emit('voice_participants_update', { room: roomName, participants: getVoiceParticipants(roomName) });
 
                 socket.emit('admin_response', { success: true, message: `${target} a été expulsé du vocal ${roomName}` });
                 logActivity('ADMIN', `Expulsion vocale: ${target}`, { admin: adminName, room: roomName });
@@ -3279,7 +3312,7 @@ io.on('connection', (socket) => {
                     });
                 }
 
-                io.emit('voice_participants_update', { room: roomName, participants: getVoiceParticipants(roomName) });
+                io.to('authenticated').emit('voice_participants_update', { room: roomName, participants: getVoiceParticipants(roomName) });
                 socket.emit('admin_response', {
                     success: true,
                     message: `${target}: ${mode === 'mute' ? 'micro' : 'sourdine'} ${enabled ? 'activé(e)' : 'désactivé(e)'}`
@@ -3534,7 +3567,7 @@ io.on('connection', (socket) => {
                     timestamp: new Date(),
                     id: messageId++
                 };
-                io.emit('system_message', slowModeMsg);
+                io.to('authenticated').emit('system_message', slowModeMsg);
                 socket.emit('admin_response', { success: true, message: `Mode lent: ${serverConfig.slowMode}s` });
                 break;
             
@@ -3548,7 +3581,7 @@ io.on('connection', (socket) => {
                     timestamp: new Date(),
                     id: messageId++
                 };
-                io.emit('system_message', muteMsg);
+                io.to('authenticated').emit('system_message', muteMsg);
                 socket.emit('admin_response', { 
                     success: true, 
                     message: serverConfig.globalMute ? 'Mute global activé' : 'Mute global désactivé' 
@@ -3563,7 +3596,7 @@ io.on('connection', (socket) => {
                     timestamp: new Date(),
                     id: messageId++
                 };
-                io.emit('system_message', unmuteMsg);
+                io.to('authenticated').emit('system_message', unmuteMsg);
                 socket.emit('admin_response', { success: true, message: 'Mute global désactivé' });
                 break;
             
@@ -3574,7 +3607,7 @@ io.on('connection', (socket) => {
                     timestamp: new Date(),
                     id: messageId++
                 };
-                io.emit('system_message', kickAllMsg);
+                io.to('authenticated').emit('system_message', kickAllMsg);
                 
                 // Expulser tout le monde sauf l'admin actuel
                 connectedUsers.forEach((user, sid) => {
@@ -3596,8 +3629,8 @@ io.on('connection', (socket) => {
                     timestamp: new Date(),
                     id: messageId++
                 };
-                io.emit('system_message', restartMsg);
-                io.emit('server_restart');
+                io.to('authenticated').emit('system_message', restartMsg);
+                io.to('authenticated').emit('server_restart');
                 socket.emit('admin_response', { success: true, message: 'Redémarrage en cours...' });
                 
                 // Sauvegarder avant de redémarrer
@@ -3655,7 +3688,7 @@ io.on('connection', (socket) => {
                 const sbText = (data.text || '').substring(0, 200);
                 const sbStyle = ['info','warning','success','alert','fun'].includes(data.style) ? data.style : 'info';
                 const sbDuration = Math.min(Math.max(parseInt(data.duration) || 5, 1), 30);
-                io.emit('screen_broadcast', { text: sbText, style: sbStyle, duration: sbDuration });
+                io.to('authenticated').emit('screen_broadcast', { text: sbText, style: sbStyle, duration: sbDuration });
                 socket.emit('admin_response', { success: true, message: 'Message diffusé sur tous les écrans' });
                 logActivity('ADMIN', `Screen broadcast: "${sbText}"`, { admin: adminName, style: sbStyle });
                 break;
@@ -3664,7 +3697,7 @@ io.on('connection', (socket) => {
                 // Trigger a visual effect on all clients
                 const effect = ['confetti','shake','flash','matrix'].includes(data.effect) ? data.effect : null;
                 if (effect) {
-                    io.emit('admin_effect', { effect: effect });
+                    io.to('authenticated').emit('admin_effect', { effect: effect });
                     socket.emit('admin_response', { success: true, message: `Effet "${effect}" déclenché` });
                     logActivity('ADMIN', `Effet visuel: ${effect}`, { admin: adminName });
                 } else {
@@ -3675,7 +3708,7 @@ io.on('connection', (socket) => {
             case 'set_announcement':
                 const annText = (data.value || '').substring(0, 500);
                 if (annText) {
-                    io.emit('server_announcement', { message: annText });
+                    io.to('authenticated').emit('server_announcement', { message: annText });
                     socket.emit('admin_response', { success: true, message: 'Annonce épinglée pour tous' });
                     logActivity('ADMIN', `Annonce: "${annText}"`, { admin: adminName });
                 } else {
@@ -3684,7 +3717,7 @@ io.on('connection', (socket) => {
                 break;
 
             case 'clear_announcement':
-                io.emit('server_announcement', { message: null });
+                io.to('authenticated').emit('server_announcement', { message: null });
                 socket.emit('admin_response', { success: true, message: 'Annonce supprimée' });
                 logActivity('ADMIN', 'Annonce supprimée', { admin: adminName });
                 break;
@@ -3692,7 +3725,7 @@ io.on('connection', (socket) => {
             case 'set_server_name':
                 const srvName = (data.value || '').substring(0, 50);
                 if (srvName) {
-                    io.emit('server_name_update', { name: srvName });
+                    io.to('authenticated').emit('server_name_update', { name: srvName });
                     socket.emit('admin_response', { success: true, message: `Nom du serveur: ${srvName}` });
                     logActivity('ADMIN', `Nom du serveur changé: ${srvName}`, { admin: adminName });
                 } else {
@@ -3702,7 +3735,7 @@ io.on('connection', (socket) => {
 
             case 'set_welcome_message':
                 const welcomeMsg = (data.value || '').substring(0, 500);
-                io.emit('welcome_message_update', { message: welcomeMsg });
+                io.to('authenticated').emit('welcome_message_update', { message: welcomeMsg });
                 socket.emit('admin_response', { success: true, message: 'Message de bienvenue mis à jour' });
                 logActivity('ADMIN', `Message de bienvenue: "${welcomeMsg}"`, { admin: adminName });
                 break;
@@ -3725,7 +3758,7 @@ io.on('connection', (socket) => {
             }
             
             // Broadcaster la liste des admins à tout le monde
-            io.emit('admin_list_update', { admins: adminUsersList });
+            io.to('authenticated').emit('admin_list_update', { admins: adminUsersList });
             socket.emit('admin_login_result', { success: true });
         } else {
             socket.emit('admin_login_result', {
@@ -3742,7 +3775,7 @@ io.on('connection', (socket) => {
         const idx = adminUsersList.indexOf(username);
         if (idx > -1) {
             adminUsersList.splice(idx, 1);
-            io.emit('admin_list_update', { admins: adminUsersList });
+            io.to('authenticated').emit('admin_list_update', { admins: adminUsersList });
             logActivity('ADMIN', `${username} s'est déconnecté du mode admin`);
         }
     });
@@ -3750,13 +3783,13 @@ io.on('connection', (socket) => {
     // === ADMIN CHANNEL MANAGEMENT ===
     socket.on('admin_get_channel_config', (data) => {
         const adminPassword = process.env.ADMIN_PASSWORD || '';
-        if (data?.password !== adminPassword) return;
+        if (!adminPassword || data?.password !== adminPassword) return;
         socket.emit('channel_config', channelConfig);
     });
 
     socket.on('admin_channel_action', (data) => {
         const adminPassword = process.env.ADMIN_PASSWORD || '';
-        if (data?.password !== adminPassword) {
+        if (!adminPassword || data?.password !== adminPassword) {
             socket.emit('admin_response', { success: false, message: 'Non autorisé' });
             return;
         }
@@ -3773,7 +3806,7 @@ io.on('connection', (socket) => {
                 AVAILABLE_CHANNELS = channelConfig.channels.map(c => c.name);
                 if (!channelHistories[name]) { channelHistories[name] = []; channelReactions[name] = {}; }
                 saveChannelConfig(); saveChannelHistories();
-                io.emit('channel_config_update', channelConfig);
+                io.to('authenticated').emit('channel_config_update', channelConfig);
                 socket.emit('admin_response', { success: true, message: `Salon #${name} créé` });
                 logActivity('ADMIN', `Salon #${name} créé`, { icon, category });
                 break;
@@ -3787,7 +3820,7 @@ io.on('connection', (socket) => {
                 VOICE_CHANNELS = channelConfig.voiceChannels.map(c => c.name);
                 voiceRooms[name] = { participants: new Map() };
                 saveChannelConfig();
-                io.emit('channel_config_update', channelConfig);
+                io.to('authenticated').emit('channel_config_update', channelConfig);
                 socket.emit('admin_response', { success: true, message: `Vocal "${name}" créé` });
                 logActivity('ADMIN', `Vocal "${name}" créé`);
                 break;
@@ -3800,7 +3833,7 @@ io.on('connection', (socket) => {
                 channelConfig.channels.splice(idx, 1);
                 AVAILABLE_CHANNELS = channelConfig.channels.map(c => c.name);
                 saveChannelConfig();
-                io.emit('channel_config_update', channelConfig);
+                io.to('authenticated').emit('channel_config_update', channelConfig);
                 socket.emit('admin_response', { success: true, message: `Salon #${name} supprimé` });
                 logActivity('ADMIN', `Salon #${name} supprimé`);
                 break;
@@ -3820,7 +3853,7 @@ io.on('connection', (socket) => {
                 channelConfig.voiceChannels.splice(idx, 1);
                 VOICE_CHANNELS = channelConfig.voiceChannels.map(c => c.name);
                 saveChannelConfig();
-                io.emit('channel_config_update', channelConfig);
+                io.to('authenticated').emit('channel_config_update', channelConfig);
                 socket.emit('admin_response', { success: true, message: `Vocal "${name}" supprimé` });
                 logActivity('ADMIN', `Vocal "${name}" supprimé`);
                 break;
@@ -3853,10 +3886,10 @@ io.on('connection', (socket) => {
 
                     saveChannelHistories();
                     // Migrate users currently in the old channel
-                    io.emit('channel_renamed', { oldName, newName });
+                    io.to('authenticated').emit('channel_renamed', { oldName, newName });
                 }
                 saveChannelConfig();
-                io.emit('channel_config_update', channelConfig);
+                io.to('authenticated').emit('channel_config_update', channelConfig);
                 socket.emit('admin_response', { success: true, message: `Salon modifié` });
                 logActivity('ADMIN', `Salon modifié: ${oldName}`, data);
                 break;
@@ -3874,7 +3907,7 @@ io.on('connection', (socket) => {
                     VOICE_CHANNELS = channelConfig.voiceChannels.map(c => c.name);
                 }
                 saveChannelConfig();
-                io.emit('channel_config_update', channelConfig);
+                io.to('authenticated').emit('channel_config_update', channelConfig);
                 socket.emit('admin_response', { success: true, message: `Vocal modifié` });
                 logActivity('ADMIN', `Vocal modifié: ${oldName}`, data);
                 break;
@@ -3888,7 +3921,7 @@ io.on('connection', (socket) => {
                         channelConfig.channels = reordered;
                         AVAILABLE_CHANNELS = reordered.map(c => c.name);
                         saveChannelConfig();
-                        io.emit('channel_config_update', channelConfig);
+                        io.to('authenticated').emit('channel_config_update', channelConfig);
                         socket.emit('admin_response', { success: true, message: 'Ordre mis à jour' });
                     }
                 }
@@ -3899,7 +3932,7 @@ io.on('connection', (socket) => {
                         channelConfig.voiceChannels = reordered;
                         VOICE_CHANNELS = reordered.map(c => c.name);
                         saveChannelConfig();
-                        io.emit('channel_config_update', channelConfig);
+                        io.to('authenticated').emit('channel_config_update', channelConfig);
                         socket.emit('admin_response', { success: true, message: 'Ordre vocal mis à jour' });
                     }
                 }
@@ -3911,7 +3944,7 @@ io.on('connection', (socket) => {
                 if (!channelConfig.categories.includes(cat)) {
                     channelConfig.categories.push(cat);
                     saveChannelConfig();
-                    io.emit('channel_config_update', channelConfig);
+                    io.to('authenticated').emit('channel_config_update', channelConfig);
                     socket.emit('admin_response', { success: true, message: `Catégorie "${cat}" ajoutée` });
                 }
                 break;
@@ -3922,7 +3955,7 @@ io.on('connection', (socket) => {
                 // Move orphaned channels to first category
                 channelConfig.channels.forEach(ch => { if (ch.category === cat) ch.category = channelConfig.categories[0] || '💬 Discussion'; });
                 saveChannelConfig();
-                io.emit('channel_config_update', channelConfig);
+                io.to('authenticated').emit('channel_config_update', channelConfig);
                 socket.emit('admin_response', { success: true, message: `Catégorie supprimée` });
                 break;
             }
@@ -3938,7 +3971,7 @@ io.on('connection', (socket) => {
         if (!user) return;
         
         const adminPassword = process.env.ADMIN_PASSWORD || '';
-        const isAdmin = password === adminPassword;
+        const isAdmin = !!adminPassword && password === adminPassword;
         
         // Trouver le message dans l'historique
         const msgIndex = chatHistory.findIndex(m => m.id == messageId);
@@ -3957,6 +3990,8 @@ io.on('connection', (socket) => {
         
         // Supprimer le message
         chatHistory.splice(msgIndex, 1);
+        for (const name of Object.keys(channelHistories)) channelHistories[name] = channelHistories[name].filter(m => String(m.id) !== String(messageId));
+        saveChannelHistories();
         
         // Supprimer les réactions associées
         if (messageReactions[messageId]) {
@@ -3973,7 +4008,7 @@ io.on('connection', (socket) => {
         });
         
         // Notifier tous les clients
-        io.emit('message_deleted', { messageId });
+        io.to('authenticated').emit('message_deleted', { messageId });
     });
 
     // === ÉDITION DE MESSAGE ===
@@ -4017,6 +4052,11 @@ io.on('connection', (socket) => {
         msg.content = escapedContent;
         msg.edited = true;
         msg.editedAt = new Date();
+        for (const messages of Object.values(channelHistories)) {
+            const stored = messages.find(m => String(m.id) === String(messageId));
+            if (stored) Object.assign(stored, { content: escapedContent, edited: true, editedAt: msg.editedAt });
+        }
+        saveChannelHistories();
         
         saveHistory();
         
@@ -4028,7 +4068,7 @@ io.on('connection', (socket) => {
         });
         
         // Notifier tous les clients
-        io.emit('message_edited', { 
+        io.to('authenticated').emit('message_edited', {
             messageId, 
             newContent: escapedContent,
             edited: true,
@@ -4071,7 +4111,7 @@ io.on('connection', (socket) => {
             
             // === VÉRIFICATION COMPTE PROTÉGÉ ===
             const accountKey = cleanUsername.toLowerCase();
-            if (accounts[accountKey] && authenticatedAccountKeys.get(socket.id) !== accountKey) {
+            if (!Object.hasOwn(accounts, accountKey) || authenticatedAccountKeys.get(socket.id) !== accountKey) {
                 socket.emit('account_required', { message: 'Ce pseudo est protégé par un mot de passe. Entrez votre mot de passe.' });
                 return;
             }
@@ -4143,7 +4183,7 @@ io.on('connection', (socket) => {
             const userInfo = {
                 id: socket.id,
                 username: cleanUsername,
-                avatar: avatar || '',
+                avatar: avatar || userProfiles.get(cleanUsername)?.avatar || '',
                 deviceId: safeDeviceId,
                 joinTime: new Date(),
                 ip: clientIp,
@@ -4153,6 +4193,7 @@ io.on('connection', (socket) => {
             };
             
             connectedUsers.set(socket.id, userInfo);
+            socket.join('authenticated');
             registerUserSocket(cleanUsername, socket.id);
             emitMultiDevicePresence(cleanUsername);
             observability.sockets.currentAuthenticatedUsers = connectedUsers.size;
@@ -4187,8 +4228,9 @@ io.on('connection', (socket) => {
             // Sauvegarder le profil
             const existingProfile = userProfiles.get(cleanUsername) || {};
             userProfiles.set(cleanUsername, {
+                ...existingProfile,
                 username: cleanUsername,
-                avatar: userInfo.avatar,
+                avatar: userInfo.avatar || existingProfile.avatar || '',
                 lastSeen: new Date(),
                 joinCount: (existingProfile.joinCount || 0) + (hadPresenceBeforeCleanup ? 0 : 1),
                 totalMessages: existingProfile.totalMessages || 0,
@@ -4319,7 +4361,7 @@ io.on('connection', (socket) => {
             }
             
             // Envoyer à tous les utilisateurs du salon
-            io.emit('new_message', botMessage);
+            io.to('authenticated').emit('new_message', botMessage);
             
             logActivity('GEMINI', 'Réponse GeminiBot envoyée', {
                 channel: channel,
@@ -4384,7 +4426,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
 
             addToChannelHistory(botMessage, channel);
             addToHistory(botMessage);
-            io.emit('new_message', botMessage);
+            io.to('authenticated').emit('new_message', botMessage);
             serverStats.totalMessages++;
             saveHistory();
             saveChannelHistories();
@@ -4394,7 +4436,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     }
 
     // Réception d'un message
-    socket.on('send_message', (messageData) => {
+    socket.on('send_message', (messageData, ack) => {
         try {
             const user = connectedUsers.get(socket.id);
             if (!user) {
@@ -4534,7 +4576,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             // Ajouter à l'historique du salon et diffuser
             addToChannelHistory(message, channel);
             addToHistory(message); // Garder aussi dans l'historique global pour rétrocompatibilité
-            io.emit('new_message', message);
+            io.to('authenticated').emit('new_message', message);
             serverStats.totalMessages++;
             
             // === XP SYSTEM ===
@@ -4545,7 +4587,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                 multiplier: getLiveMessageXpMultiplier()
             });
             if (xpResult && xpResult.levelUp) {
-                io.emit('system_message', {
+                io.to('authenticated').emit('system_message', {
                     type: 'system',
                     message: `🎉 ${user.username} a atteint le niveau ${xpResult.newLevel} !`,
                     timestamp: new Date(),
@@ -4561,7 +4603,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                     rewardXP: reward.rewardXP
                 });
                 if (reward.levelUp) {
-                    io.emit('system_message', {
+                    io.to('authenticated').emit('system_message', {
                         type: 'system',
                         message: `🎉 ${user.username} a atteint le niveau ${reward.newLevel} !`,
                         timestamp: new Date(),
@@ -4575,6 +4617,8 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             // Sauvegarder l'historique après chaque message
             saveHistory();
             saveChannelHistories();
+
+            if (typeof ack === 'function') ack({ success: true, message });
 
             if (channel === 'ia' && message.content && !message.content.startsWith('🤖')) {
                 setTimeout(() => {
@@ -4644,7 +4688,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             updateTypingIndicator();
             
             // Envoyer la mise à jour du typing par salon à tous
-            io.emit('channel_typing_update', getChannelTypingUsers());
+            io.to('authenticated').emit('channel_typing_update', getChannelTypingUsers());
         }
     });
 
@@ -4655,7 +4699,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             updateTypingIndicator();
             
             // Envoyer la mise à jour du typing par salon
-            io.emit('channel_typing_update', getChannelTypingUsers());
+            io.to('authenticated').emit('channel_typing_update', getChannelTypingUsers());
         }
     });
 
@@ -4676,6 +4720,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                 profile.avatar = profileData.avatar;
                 profile.lastUpdate = new Date();
                 userProfiles.set(user.username, profile);
+                saveProfiles();
                 
                 // Notifier tous les clients
                 updateUsersList();
@@ -4974,7 +5019,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                 rData.participants.delete(socket.id);
                 socket.leave('voice_' + rName);
                 socket.to('voice_' + rName).emit('voice_peer_left', { socketId: socket.id });
-                io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
+                io.to('authenticated').emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
             }
         }
         
@@ -5002,7 +5047,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         socket.emit('voice_joined', { room, participants: otherParticipants });
         
         // Notifier tous les clients de la mise à jour des participants
-        io.emit('voice_participants_update', { room, participants: getVoiceParticipants(room) });
+        io.to('authenticated').emit('voice_participants_update', { room, participants: getVoiceParticipants(room) });
         
         logActivity('VOICE', `${user.username} a rejoint ${room}`, { room });
     });
@@ -5030,7 +5075,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             if (rData.participants.has(socket.id)) {
                 rData.participants.delete(socket.id);
                 socket.leave('voice_' + rName);
-                io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
+                io.to('authenticated').emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
                 socket.to('voice_' + rName).emit('voice_peer_left', { socketId: socket.id });
                 if (user) logActivity('VOICE', `${user.username} a quitté ${rName}`, { room: rName });
             }
@@ -5040,6 +5085,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     // Signaling WebRTC - Offer
     socket.on('voice_offer', (data) => {
         const { targetId, offer } = data;
+        if (!Object.values(voiceRooms).some(r => r.participants.has(socket.id) && r.participants.has(targetId))) return;
         const user = connectedUsers.get(socket.id);
         if (!user) return;
         observability.voice.offers += 1;
@@ -5049,6 +5095,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     // Signaling WebRTC - Answer
     socket.on('voice_answer', (data) => {
         const { targetId, answer } = data;
+        if (!Object.values(voiceRooms).some(r => r.participants.has(socket.id) && r.participants.has(targetId))) return;
         observability.voice.answers += 1;
         io.to(targetId).emit('voice_answer', { fromId: socket.id, answer });
     });
@@ -5056,6 +5103,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     // Signaling WebRTC - ICE Candidate
     socket.on('voice_ice_candidate', (data) => {
         const { targetId, candidate } = data;
+        if (!Object.values(voiceRooms).some(r => r.participants.has(socket.id) && r.participants.has(targetId))) return;
         observability.voice.iceCandidates += 1;
         io.to(targetId).emit('voice_ice_candidate', { fromId: socket.id, candidate });
     });
@@ -5082,7 +5130,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                 if (previous !== speaking || now - lastEmit >= VOICE_SPEAKING_EVENT_THROTTLE_MS) {
                     participant.speaking = speaking;
                     participant.speakingUpdatedAt = now;
-                    io.emit('voice_speaking_update', {
+                    io.to('authenticated').emit('voice_speaking_update', {
                         room: rName,
                         socketId: socket.id,
                         speaking
@@ -5102,7 +5150,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                 if (data.deafened !== undefined) participant.deafened = data.deafened;
                 if (data.video !== undefined) participant.video = data.video;
                 if (data.screen !== undefined) participant.screen = data.screen;
-                io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
+                io.to('authenticated').emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
                 break;
             }
         }
@@ -5118,7 +5166,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             for (const [rName, rData] of Object.entries(voiceRooms)) {
                 if (rData.participants.has(socket.id)) {
                     rData.participants.delete(socket.id);
-                    io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
+                    io.to('authenticated').emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
                     io.to('voice_' + rName).emit('voice_peer_left', { socketId: socket.id });
                 }
             }
@@ -5154,7 +5202,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                 const adminIndex = adminUsersList.indexOf(user.username);
                 if (adminIndex > -1) {
                     adminUsersList.splice(adminIndex, 1);
-                    io.emit('admin_list_update', { admins: adminUsersList });
+                    io.to('authenticated').emit('admin_list_update', { admins: adminUsersList });
                 }
             }
 
@@ -5220,7 +5268,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         pollVotes[pollId] = {};
         
         // Émettre à tous les utilisateurs du même salon
-        io.emit('poll_created', poll);
+        io.to('authenticated').emit('poll_created', poll);
         
         logActivity('POLL', `Sondage créé`, {
             pollId,
@@ -5253,7 +5301,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         poll.options[optionIndex].votes++;
         
         socket.emit('vote_response', { success: true, pollId, optionIndex });
-        io.emit('poll_update', poll);
+        io.to('authenticated').emit('poll_update', poll);
         
         logActivity('POLL', `Vote enregistré`, {
             pollId,
@@ -5329,10 +5377,21 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             if (typeof ack === 'function') ack(payload);
             return;
         }
-        if (!content && !attachment) return;
+        if (!content && !attachment) {
+            if (typeof ack === 'function') ack({ success: false, message: 'Message vide' });
+            return;
+        }
+        const blocked = global.blockedUsers || {};
+        if ((blocked[target] || []).some(n => normalizeUsernameKey(n) === normalizeUsernameKey(sender.username)) ||
+            (blocked[sender.username] || []).some(n => normalizeUsernameKey(n) === normalizeUsernameKey(target))) {
+            if (typeof ack === 'function') ack({ success: false, message: 'Cette conversation est bloquée.' });
+            return;
+        }
 
         const key = [normalizeUsernameKey(sender.username), normalizeUsernameKey(target)].sort().join(':');
         if (!dmHistory[key]) dmHistory[key] = [];
+
+        const reply = dmHistory[key].find(m => String(m.id) === String(data?.replyTo?.id));
 
         const message = {
             id: crypto.randomUUID ? crypto.randomUUID() : `dm_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -5340,6 +5399,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             to: target,
             content,
             attachment,
+            replyTo: reply ? { id: reply.id, username: reply.from, content: reply.content.slice(0, 160) } : null,
             timestamp: new Date().toISOString(),
             avatar: sender.avatar || getUserAvatarByName(sender.username)
         };
@@ -5348,7 +5408,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         saveDMs();
 
         // Serveur = source de vérité : confirmation à l'expéditeur + push à tous les appareils du destinataire.
-        socket.emit('dm_sent', { ...message, peer: target, peerAvatar: getUserAvatarByName(target) });
+        getSocketsForUsername(sender.username).forEach(sid => io.to(sid).emit('dm_sent', { ...message, peer: target, peerAvatar: getUserAvatarByName(target) }));
         getSocketsForUsername(target).forEach((sid) => {
             io.to(sid).emit('dm_received', { ...message, avatar: message.avatar });
         });
@@ -5402,7 +5462,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
                 lastMessage: lastMessage ? (lastMessage.content || (lastMessage.attachment ? '📎 Fichier' : '')).substring(0, 80) : '',
                 lastTimestamp: lastMessage?.timestamp || null,
                 lastSender: lastMessage?.from || null,
-                unread: 0
+                unread: messages.filter(m => normalizeUsernameKey(m.from) !== me && new Date(m.timestamp).getTime() > Number(accounts[me]?.dmRead?.[key] || 0)).length
             });
         });
         conversations.sort((a,b) => new Date(b.lastTimestamp || 0) - new Date(a.lastTimestamp || 0));
@@ -5412,8 +5472,8 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
     socket.on('get_dm_history', (data) => {
         const user = connectedUsers.get(socket.id);
         if (!user) return;
-        const target = resolveCanonicalUsername(data?.username) || String(data?.username || '').trim();
-        if (!target) return;
+        const target = resolveCanonicalUsername(data?.username);
+        if (!target) return socket.emit('dm_error', { message: 'Utilisateur introuvable. Vérifie son pseudo.' });
         const key = [normalizeUsernameKey(user.username), normalizeUsernameKey(target)].sort().join(':');
         socket.emit('dm_history', {
             username: target,
@@ -5423,6 +5483,20 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         });
     });
 
+    socket.on('mark_dm_read', (data) => {
+        const entry = getAuthenticatedAccount(socket);
+        const target = resolveCanonicalUsername(data?.username);
+        if (!entry || !target) return;
+        const key = [entry.key, normalizeUsernameKey(target)].sort().join(':');
+        const messages = dmHistory[key] || [];
+        const last = messages.find(m => m.id === data?.messageId);
+        if (!last) return;
+        entry.account.dmRead ||= {};
+        entry.account.dmRead[key] = Math.max(Number(entry.account.dmRead[key] || 0), new Date(last.timestamp).getTime());
+        saveAccounts();
+        getSocketsForUsername(entry.account.username).forEach(sid => io.to(sid).emit('dm_conversations_changed', { peer: target }));
+    });
+
     // =========================================
     // === ACCOUNT SYSTEM ===
     // =========================================
@@ -5430,8 +5504,8 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         if (!allowAccountAuth(socket)) {
             return socket.emit('account_error', { message: 'Trop de tentatives. Réessayez dans quelques minutes.' });
         }
-        const { username, password } = data;
-        const email = normalizeEmail(data?.email);
+        const { username, password } = data || {};
+        recordFailedAccountAuth(socket);
         if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
             socket.emit('account_error', { message: 'Données invalides' });
             return;
@@ -5450,18 +5524,9 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             socket.emit('account_error', { message: 'Ce pseudo est déjà enregistré. Connectez-vous.' });
             return;
         }
-        if (email && !isValidEmail(email)) {
-            socket.emit('account_error', { message: 'Adresse email invalide' });
-            return;
-        }
-        if (email && isEmailUsed(email)) {
-            socket.emit('account_error', { message: 'Cette adresse email est déjà utilisée' });
-            return;
-        }
         const salt = crypto.randomBytes(16).toString('hex');
         accounts[key] = {
             username: cleanName,
-            email,
             passwordHash: hashPassword(password, salt, CURRENT_PASSWORD_ITERATIONS),
             passwordIterations: CURRENT_PASSWORD_ITERATIONS,
             salt,
@@ -5472,7 +5537,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         clearAccountAuthFailures(socket);
         authenticatedSockets.add(socket.id);
         authenticatedAccountKeys.set(socket.id, key);
-        socket.emit('account_registered', publicAccountData(accounts[key]));
+        socket.emit('account_registered', { ...publicAccountData(accounts[key]), token: issueAccountSession(accounts[key]) });
     });
 
     socket.on('login_account', (data) => {
@@ -5481,7 +5546,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         }
         const identifier = String(data?.identifier || data?.username || '').trim();
         const password = data?.password;
-        if (!identifier || !password || typeof password !== 'string') {
+        if (!identifier || !password || typeof password !== 'string' || password.length > 128) {
             socket.emit('account_error', { message: 'Données invalides' });
             return;
         }
@@ -5513,7 +5578,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         clearAccountAuthFailures(socket);
         authenticatedSockets.add(socket.id);
         authenticatedAccountKeys.set(socket.id, key);
-        socket.emit('account_logged_in', publicAccountData(account));
+        socket.emit('account_logged_in', { ...publicAccountData(account), token: issueAccountSession(account) });
     });
 
     socket.on('check_account', (data) => {
@@ -5522,8 +5587,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         const entry = findAccountEntry(identifier);
         socket.emit('account_check_result', {
             exists: !!entry,
-            username: entry?.account?.username || null,
-            byEmail: identifier.includes('@')
+            username: entry?.account?.username || null
         });
     });
 
@@ -5533,27 +5597,12 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         socket.emit('account_self', { authenticated: true, ...publicAccountData(entry.account) });
     });
 
-    socket.on('update_account_email', (data) => {
-        const entry = getAuthenticatedAccount(socket);
-        if (!entry) return socket.emit('account_settings_error', { message: 'Compte connecté requis' });
-        const email = normalizeEmail(data?.email);
-        const currentPassword = String(data?.currentPassword || '');
-        const currentHash = hashPassword(currentPassword, entry.account.salt, Number(entry.account.passwordIterations || 10000));
-        const expected = Buffer.from(String(entry.account.passwordHash || ''), 'hex');
-        const received = Buffer.from(currentHash, 'hex');
-        if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
-            return socket.emit('account_settings_error', { message: 'Mot de passe actuel incorrect' });
-        }
-        if (!isValidEmail(email)) return socket.emit('account_settings_error', { message: 'Adresse email invalide' });
-        if (isEmailUsed(email, entry.key)) return socket.emit('account_settings_error', { message: 'Cette adresse email est déjà utilisée' });
-        entry.account.email = email;
-        saveAccounts();
-        socket.emit('account_settings_saved', { type: 'email', ...publicAccountData(entry.account) });
-    });
 
     socket.on('change_account_password', (data) => {
         const entry = getAuthenticatedAccount(socket);
         if (!entry) return socket.emit('account_settings_error', { message: 'Compte connecté requis' });
+        if (!allowAccountAuth(socket)) return socket.emit('account_settings_error', { message: 'Trop de tentatives. Réessaie plus tard.' });
+        recordFailedAccountAuth(socket);
         const currentPassword = String(data?.currentPassword || '');
         const newPassword = String(data?.newPassword || '');
         if (newPassword.length < 8 || newPassword.length > 128) {
@@ -5570,8 +5619,17 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         entry.account.passwordHash = hashPassword(newPassword, salt, CURRENT_PASSWORD_ITERATIONS);
         entry.account.passwordIterations = CURRENT_PASSWORD_ITERATIONS;
         entry.account.passwordChangedAt = new Date().toISOString();
+        clearAccountAuthFailures(socket);
         saveAccounts();
-        socket.emit('account_settings_saved', { type: 'password', ...publicAccountData(entry.account) });
+        entry.account.sessions = [];
+        const token = issueAccountSession(entry.account);
+        socket.emit('account_settings_saved', { type: 'password', ...publicAccountData(entry.account), token });
+        for (const [id, key] of authenticatedAccountKeys) {
+            if (id !== socket.id && key === entry.key) {
+                io.to(id).emit('session_expired');
+                io.sockets.sockets.get(id)?.disconnect(true);
+            }
+        }
     });
 
     socket.on('redeem_plus_code', (data) => {
@@ -5622,7 +5680,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         customEmojis.push(emoji);
         customEmojis = customEmojis.slice(-250);
         saveCustomEmojis();
-        io.emit('custom_emojis_list', customEmojis.map(({ id, name, url, owner, createdAt }) => ({ id, name, url, owner, createdAt })));
+        io.to('authenticated').emit('custom_emojis_list', customEmojis.map(({ id, name, url, owner, createdAt }) => ({ id, name, url, owner, createdAt })));
     });
 
     socket.on('delete_custom_emoji', (data) => {
@@ -5633,7 +5691,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         const [emoji] = customEmojis.splice(index, 1);
         try { fs.unlinkSync(path.join(uploadDir, 'custom-emojis', path.basename(emoji.url))); } catch (_) {}
         saveCustomEmojis();
-        io.emit('custom_emojis_list', customEmojis);
+        io.to('authenticated').emit('custom_emojis_list', customEmojis);
     });
 
     // =========================================
@@ -5743,6 +5801,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         if (!user) return;
         const from = resolveCanonicalUsername(data?.username);
         if (!from || !friendships[user.username] || !friendships[from]) return;
+        if (!(friendships[user.username].requests || []).some(n => normalizeUsernameKey(n) === normalizeUsernameKey(from))) return;
         const key = normalizeUsernameKey;
         friendships[user.username].requests = (friendships[user.username].requests || []).filter(u => key(u) !== key(from));
         friendships[from].pending = (friendships[from].pending || []).filter(u => key(u) !== key(user.username));
@@ -5861,7 +5920,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         socket.emit('xp_data', buildXPDataPayload(user.username));
         updateUsersList();
         for (const [rName, rData] of Object.entries(voiceRooms)) {
-            if (rData.participants.has(socket.id)) io.emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
+            if (rData.participants.has(socket.id)) io.to('authenticated').emit('voice_participants_update', { room: rName, participants: getVoiceParticipants(rName) });
         }
     });
 
@@ -5967,7 +6026,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
             updatedAt: new Date().toISOString()
         };
         updateUsersList();
-        io.emit('user_status_changed', { username: user.username, ...userStatuses[user.username] });
+        io.to('authenticated').emit('user_status_changed', { username: user.username, ...userStatuses[user.username] });
     });
 
     // =========================================
@@ -6026,7 +6085,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         const allowedSounds = ['applause','airhorn','rimshot','sadtrombone','tada','drumroll','crickets','laugh','wow','bruh'];
         if (!allowedSounds.includes(data.sound)) return;
         // Broadcast to all users in same channel
-        io.emit('sound_played', { sound: data.sound, username: user.username, channel: data.channel || 'général' });
+        io.to('authenticated').emit('sound_played', { sound: data.sound, username: user.username, channel: data.channel || 'général' });
     });
 
     // =========================================
@@ -6036,7 +6095,7 @@ Tu restes respectueux, utile, et plutôt court (max 200 mots). Tu peux utiliser 
         const user = connectedUsers.get(socket.id);
         if (!user) return;
         const { channel, lastMessageId } = data;
-        io.emit('read_receipt', { username: user.username, channel, lastMessageId, timestamp: Date.now() });
+        io.to('authenticated').emit('read_receipt', { username: user.username, channel, lastMessageId, timestamp: Date.now() });
     });
 });
 
@@ -6182,7 +6241,7 @@ function updateUsersList() {
         };
     });
     
-    io.emit('users_update', {
+    io.to('authenticated').emit('users_update', {
         count: usersList.length,
         users: usersList
     });
@@ -6208,7 +6267,7 @@ function broadcastLeaderboard() {
         })
         .sort((a, b) => b.xp - a.xp)
         .slice(0, 20);
-    io.emit('leaderboard_data', { leaderboard });
+    io.to('authenticated').emit('leaderboard_data', { leaderboard });
 }
 
 function updateTypingIndicator() {
@@ -6229,7 +6288,7 @@ function updateTypingIndicator() {
         });
         io.to(viewerSocketId).emit('typing_update', { users: [...new Set(active)] });
     });
-    io.emit('channel_typing_update', getChannelTypingUsers());
+    io.to('authenticated').emit('channel_typing_update', getChannelTypingUsers());
 }
 
 
@@ -6283,7 +6342,7 @@ setInterval(() => {
             }
 
             if (passiveResult.levelUp) {
-                io.emit('system_message', {
+                io.to('authenticated').emit('system_message', {
                     type: 'system',
                     message: `🎉 ${username} a atteint le niveau ${passiveResult.newLevel} !`,
                     timestamp: new Date(),
@@ -6298,7 +6357,7 @@ setInterval(() => {
                     rewardXP: reward.rewardXP
                 });
                 if (reward.levelUp) {
-                    io.emit('system_message', {
+                    io.to('authenticated').emit('system_message', {
                         type: 'system',
                         message: `🎉 ${username} a atteint le niveau ${reward.newLevel} !`,
                         timestamp: new Date(),
@@ -6348,8 +6407,8 @@ setInterval(() => {
 const arcadeTetrisRooms = new Map();
 const arcadeMazeRooms = new Map();
 const ARCADE_MAZE_ORBS = [
-    { id:'o0', x:2.5, y:2.5 }, { id:'o1', x:7.5, y:2.5 }, { id:'o2', x:11.5, y:3.5 },
-    { id:'o3', x:4.5, y:6.5 }, { id:'o4', x:9.5, y:7.5 }, { id:'o5', x:13.5, y:8.5 }
+    { id:'o0', x:2.5, y:1.5 }, { id:'o1', x:7.5, y:2.5 }, { id:'o2', x:11.5, y:3.5 },
+    { id:'o3', x:5.5, y:6.5 }, { id:'o4', x:9.5, y:7.5 }, { id:'o5', x:13.5, y:8.5 }
 ];
 function arcadeRoomCode(value, fallback='PUBLIC') {
     const code = String(value || fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,16);
@@ -6573,7 +6632,7 @@ function gracefulShutdown(signal) {
     });
     
     // Notifier tous les clients
-    io.emit('system_message', {
+    io.to('authenticated').emit('system_message', {
         type: 'system',
         message: 'Le serveur va redémarrer dans quelques instants...',
         timestamp: new Date(),
@@ -6646,7 +6705,7 @@ setInterval(() => {
     
     // Si des typings ont expiré, envoyer la mise à jour
     if (hasExpired) {
-        io.emit('channel_typing_update', getChannelTypingUsers());
+        io.to('authenticated').emit('channel_typing_update', getChannelTypingUsers());
         updateTypingIndicator();
     }
 }, 2000);
