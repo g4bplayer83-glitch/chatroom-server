@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://bfisqejgogdat"]
-
-[ext_resource type="Script" uid="uid://dmxa1xw0iq13t" path="res://among_funk/scripts/title_menu.gd" id="1"]
-
-[node name="AmongFunkTitle" type="Node2D" unique_id=708257040]
-script = ExtResource("1")

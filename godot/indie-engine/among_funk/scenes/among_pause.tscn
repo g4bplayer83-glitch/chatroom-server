@@ -1,7 +1,0 @@
-[gd_scene format=3]
-
-[ext_resource type="Script" path="res://among_funk/scripts/among_pause.gd" id="1_pause"]
-
-[node name="Among Pause" type="Node2D"]
-process_mode = 3
-script = ExtResource("1_pause")

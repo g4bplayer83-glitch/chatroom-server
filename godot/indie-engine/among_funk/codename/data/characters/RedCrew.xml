@@ -1,8 +1,0 @@
-<!DOCTYPE codename-engine-character>
-<character scale="1.8" camx="-250" camy="400" icon="RedCrewmate" color="#C83D52" holdTime="6.1">
-	<anim name="idle" anim="RedCrew" x="80" y="-284" fps="18" indices="0..9"/>
-	<anim name="singLEFT" anim="RedCrew" x="80" y="-284" fps="14" indices="10..13"/>
-	<anim name="singRIGHT" anim="RedCrew" x="80" y="-284" fps="14" indices="14..17"/>
-	<anim name="singDOWN" anim="RedCrew" x="80" y="-284" fps="14" indices="18..21"/>
-	<anim name="singUP" anim="RedCrew" x="80" y="-284" fps="14" indices="22..25"/>
-</character>

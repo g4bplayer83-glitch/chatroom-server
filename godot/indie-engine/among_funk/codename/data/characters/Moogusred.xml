@@ -1,8 +1,0 @@
-<!DOCTYPE codename-engine-character>
-<character x="-100" y="200" scale="1.05" camx="-210" camy="260" color="#D13042" holdTime="6.1">
-	<anim name="idle" anim="idle" fps="12"/>
-	<anim name="singLEFT" anim="left" fps="14"/>
-	<anim name="singRIGHT" anim="right" fps="14"/>
-	<anim name="singDOWN" anim="down" fps="14"/>
-	<anim name="singUP" anim="up" fps="14"/>
-</character>

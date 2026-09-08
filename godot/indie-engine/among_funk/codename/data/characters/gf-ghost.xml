@@ -1,4 +1,0 @@
-<!DOCTYPE codename-engine-character>
-<character sprite="gf-ghost" scale="0.75" camx="0" camy="-40" icon="RedCrewmate" color="#A9D7F5">
-	<anim name="idle" anim="Gf_Ghost_idle" fps="14" loop="true"/>
-</character>

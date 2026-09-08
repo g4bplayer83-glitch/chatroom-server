@@ -1,4 +1,0 @@
-<menu name="Among Funk' TEAM" desc="Mod credits">
-
- <credit name="Simontincs_god" desc="Director, Composer, Artist & Charter" icon="simontincs" size="120" color="#FFFFFFFF" portrait="true"/>
- <credit name="IndieGabVR" desc="Co-Director, Coder, Composer, Artist and Charter" icon="indiegab" size="110" color="#FFFFFFFF" portrait="true"/>

@@ -7,9 +7,7 @@ COPY godot/ /projects/
 RUN mkdir -p /out/orbit-garden /out/indie-engine && \
     godot --headless --path /projects/orbit-garden --editor --import && \
     godot --headless --path /projects/orbit-garden --export-release Web /out/orbit-garden/index.html && \
-    godot --headless --path /projects/indie-engine --editor --import && \
-    godot --headless --path /projects/indie-engine --export-release Web /out/indie-engine/index.html && \
-    test -s /out/orbit-garden/index.wasm && test -s /out/indie-engine/index.pck
+    test -s /out/orbit-garden/index.wasm
 
 FROM node:22-alpine
 WORKDIR /app
