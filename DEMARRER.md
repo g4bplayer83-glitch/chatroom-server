@@ -28,7 +28,7 @@ flyctl logs -a docspace
 
 Si le volume existe déjà, ne le recrée pas. Seulement si Fly.io indique qu’il manque : `flyctl volumes create docspace_data -a docspace -r cdg --size 1`.
 
-Le Dockerfile installe Node.js 22 et les dépendances de production. Le fichier `.dockerignore` exclut les données locales du build. Une seule machine avec son volume est recommandée pour ce stockage JSON ; les données et les salons en mémoire ne sont pas répliqués entre plusieurs machines.
+Le Dockerfile installe Node.js 22 et les dépendances de production. Il exporte aussi Orbit Garden avec Godot 4.4.1 dans une étape séparée et copie uniquement le jeu compilé dans l’image finale. Le premier build télécharge le moteur et ses modèles ; les builds suivants peuvent réutiliser ces couches du cache. Le fichier `.dockerignore` exclut les données locales du build. Une seule machine avec son volume est recommandée pour ce stockage JSON ; les données et les salons en mémoire ne sont pas répliqués entre plusieurs machines.
 
 Les fichiers partagés ne sont plus supprimés automatiquement après 30 jours. Une suppression par ancienneté demande maintenant une configuration explicite de `DOCSPACE_UPLOAD_RETENTION_DAYS` ; laisse cette variable absente pour conserver les documents.
 
@@ -52,7 +52,7 @@ Crée des codes longs et aléatoires puis configure `DOCSPACE_PLUS_CODES` dans l
 
 Le projet éditable est `godot/orbit-garden/project.godot` : un jeu 3D de collecte, huit cristaux, obstacles, chronomètre, bouton Rejouer, clavier et boutons tactiles. Il utilise GDScript, le moteur Compatibility et un export web sans threads. Il se lance dans une iframe dédiée ; quitter la vue retire l’iframe.
 
-Pour le publier :
+Avec Docker/Fly.io, l’export et son installation sont automatiques pendant la construction de l’image. Sur un serveur démarré directement avec `npm start`, prépare l’export ainsi :
 
 1. Ouvre le projet dans Godot 4.4.1 et installe ses modèles d’export.
 2. Crée `public/games/orbit-garden/` si nécessaire.
@@ -62,7 +62,7 @@ Pour le publier :
 
 Le workflow GitHub `Vérifier DocSpace` contient aussi un export Godot et publie le résultat comme artefact `orbit-garden-web`. Cet artefact doit être décompressé dans `public/games/orbit-garden/` avant un déploiement local. Les exports sont ignorés par Git pour ne pas ajouter de gros binaires au dépôt ; ils sont inclus dans le contexte Docker local s’ils sont présents.
 
-Le moteur et l’export n’ont pas pu être exécutés dans l’environnement de préparation. Tant que l’export n’est pas installé, la carte indique clairement que le jeu est en préparation. Tetris, Neon Maze et Pong fonctionnent indépendamment de Godot.
+Le moteur n’a pas pu être installé dans l’environnement local de préparation, mais le workflow GitHub a ensuite compilé le jeu et produit l’export web avec succès. Tant que l’export n’est pas installé sur un serveur démarré avec `npm start`, la carte indique clairement que le jeu est en préparation. Tetris, Neon Maze et Pong fonctionnent indépendamment de Godot.
 
 Sources : [export web Godot](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_web.html), [Godot 4.4.1 et modèles officiels](https://godotengine.org/download/archive/4.4.1-stable/).
 

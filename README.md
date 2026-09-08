@@ -23,11 +23,11 @@ Ouvre http://localhost:8080. **[Lis le guide complet](DEMARRER.md)** pour conser
 - Paramètres du microphone et salons vocaux P2P.
 - DocSpace Plus activé par code et emojis personnalisés.
 - Tetris (solo/duel), Neon Maze (solo/multi) et Pong avec contrôles tactiles.
-- Projet Godot 3D `godot/orbit-garden`, export web à installer séparément.
+- Projet Godot 3D `godot/orbit-garden`, automatiquement exporté dans l’image Docker pour Fly.io.
 
 ## État de validation
 
-Les tests utilisent un vrai serveur, plusieurs clients Socket.IO et jsdom pour les interactions d’interface. Les canvas et médias sont simulés. Le rendu sur un téléphone réel, les appels audio réels et le build Godot restent à vérifier. Le workflow GitHub vérifie Node/Docker et prépare un artefact Godot quand il est exécuté.
+Les 12 tests passent avec un vrai serveur, plusieurs clients Socket.IO et jsdom pour les interactions d’interface. Les canvas et médias y sont simulés. GitHub Actions a également réussi l’export du jeu avec Godot 4.4.1. Le rendu sur un téléphone réel et les appels audio réels restent à vérifier. Le workflow GitHub vérifie Node/Docker et publie l’export Godot en artefact.
 
 Aucun APK signé n’est fourni. L’installation via le navigateur utilise le manifeste web. Les fonctions serveur historiques restent présentes, mais leurs anciens écrans ne sont pas tous reconstruits dans cette bêta.
 
