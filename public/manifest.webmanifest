@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "DocSpace",
+  "short_name": "DocSpace",
+  "description": "Discuter, partager et jouer ensemble.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#15171f",
+  "theme_color": "#15171f",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

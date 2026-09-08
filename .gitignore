@@ -1,0 +1,13 @@
+node_modules/
+data/
+uploads/
+logs/
+.env
+.env.*
+!.env.example
+*.log
+*.zip
+.godot/
+.DS_Store
+public/games/orbit-garden/*
+!public/games/orbit-garden/.gitkeep
